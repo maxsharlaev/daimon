@@ -1,0 +1,131 @@
+.panel-connection .form {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+input {
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(11, 18, 32, 0.55);
+  color: white;
+  padding: 0 10px;
+  outline: none;
+}
+
+input:focus {
+  border-color: rgba(110, 231, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.12);
+}
+
+.inline {
+  display: flex;
+  gap: 8px;
+}
+
+.inline input {
+  flex: 1;
+  min-width: 0;
+}
+
+.segmented {
+  display: flex;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.seg {
+  flex: 1;
+  height: 34px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+}
+
+.seg.active {
+  background: rgba(110, 231, 255, 0.12);
+  color: rgba(110, 231, 255, 0.95);
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox input {
+  height: 14px;
+  width: 14px;
+}
+
+.help {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-danger {
+  border-color: rgba(255, 120, 120, 0.35);
+  background: rgba(255, 120, 120, 0.12);
+}
+
+.btn-danger:hover {
+  border-color: rgba(255, 120, 120, 0.6);
+  background: rgba(255, 120, 120, 0.18);
+}
+
+.notice {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.notice.ok {
+  border-color: rgba(110, 231, 255, 0.35);
+  background: rgba(110, 231, 255, 0.08);
+}
+
+.notice.err {
+  border-color: rgba(255, 120, 120, 0.35);
+  background: rgba(255, 120, 120, 0.08);
+}
+
+.muted {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

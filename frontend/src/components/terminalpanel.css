@@ -1,0 +1,7 @@
+.terminal-body {
+  flex: 1;
+  min-height: 0;
+  background: #0b1220;
+  padding: 8px;
+}
+

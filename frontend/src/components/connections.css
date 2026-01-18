@@ -1,0 +1,223 @@
+.connections {
+  height: 100%;
+}
+
+.connections-list {
+  padding: 10px 12px 12px;
+  overflow: auto;
+}
+
+.connections-empty {
+  padding: 10px 0;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.connections-error {
+  padding: 10px 12px;
+  color: rgba(255, 120, 120, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.group {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.group-toggle {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.group-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.group-body {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.profile.active {
+  border-color: rgba(110, 231, 255, 0.25);
+}
+
+.profile-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.profile-main {
+  min-width: 0;
+}
+
+.profile-name {
+  font-weight: 800;
+}
+
+.profile-sub {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.marker {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.marker-green {
+  background: rgba(110, 231, 255, 0.95);
+}
+
+.marker-red {
+  background: rgba(255, 120, 120, 0.95);
+}
+
+.marker-yellow {
+  background: rgba(255, 210, 110, 0.95);
+}
+
+.marker-none {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.sessions {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.session {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.session-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.86);
+  height: 30px;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.session-btn.active {
+  border-color: rgba(110, 231, 255, 0.45);
+  background: rgba(110, 231, 255, 0.10);
+}
+
+.session-close {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 120, 120, 0.35);
+  background: rgba(255, 120, 120, 0.12);
+  color: white;
+  cursor: pointer;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.dot-green {
+  background: rgba(110, 231, 255, 0.95);
+}
+
+.dot-red {
+  background: rgba(255, 120, 120, 0.95);
+}
+
+.dot-yellow {
+  background: rgba(255, 210, 110, 0.95);
+}
+
+.dot-none {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+}
+
+.modal {
+  width: 520px;
+  max-width: calc(100vw - 30px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(12, 18, 32, 0.96);
+  overflow: hidden;
+}
+
+.modal-title {
+  padding: 12px;
+  font-weight: 900;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.modal-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-actions {
+  padding: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+

@@ -1,0 +1,93 @@
+.panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.panel-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.panel-title {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.panel-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.75);
+  overflow: hidden;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.btn:hover {
+  border-color: rgba(110, 231, 255, 0.45);
+  background: rgba(110, 231, 255, 0.10);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+}
+
+.badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.badge-idle {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.badge-connected {
+  color: rgba(110, 231, 255, 0.95);
+  border-color: rgba(110, 231, 255, 0.45);
+  background: rgba(110, 231, 255, 0.08);
+}
+
+.badge-disconnected {
+  color: rgba(255, 180, 120, 0.95);
+  border-color: rgba(255, 180, 120, 0.45);
+  background: rgba(255, 180, 120, 0.08);
+}
+
+.error-text {
+  color: rgba(255, 120, 120, 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

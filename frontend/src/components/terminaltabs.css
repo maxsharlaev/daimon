@@ -1,0 +1,99 @@
+.terminaltabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.terminaltabs .panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.terminaltabs-panels {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.terminaltabs-panel {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.terminaltabs-panel.active {
+  display: block;
+}
+
+.terminaltabs-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.tab {
+  height: 34px;
+  max-width: 260px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.86);
+  cursor: pointer;
+}
+
+.tab.active {
+  border-color: rgba(110, 231, 255, 0.45);
+  background: rgba(110, 231, 255, 0.10);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.dot-green {
+  background: rgba(110, 231, 255, 0.95);
+}
+
+.dot-red {
+  background: rgba(255, 120, 120, 0.95);
+}
+
+.dot-yellow {
+  background: rgba(255, 210, 110, 0.95);
+}
+
+.dot-none {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-close {
+  margin-left: auto;
+  font-size: 18px;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.tab-close:hover {
+  opacity: 1;
+}
+
+.empty {
+  padding: 14px;
+  color: rgba(255, 255, 255, 0.65);
+}
+

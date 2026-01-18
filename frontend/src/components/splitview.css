@@ -1,0 +1,25 @@
+.splitview {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  overflow: hidden;
+}
+
+.splitview-pane {
+  height: 100%;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.splitview-divider {
+  width: 8px;
+  cursor: col-resize;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+.splitview-divider:hover {
+  background: rgba(110, 231, 255, 0.12);
+}
+

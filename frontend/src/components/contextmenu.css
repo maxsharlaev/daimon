@@ -1,0 +1,43 @@
+.ctxmenu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+}
+
+.ctxmenu {
+  position: fixed;
+  width: 240px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 18, 32, 0.98);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  padding: 6px;
+}
+
+.ctxmenu-item {
+  width: 100%;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  text-align: left;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.ctxmenu-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.ctxmenu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ctxmenu-item.danger {
+  color: rgba(255, 120, 120, 0.95);
+}
+
