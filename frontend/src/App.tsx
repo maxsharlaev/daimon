@@ -4,13 +4,14 @@ import "./App.css";
 import { SplitView } from "./components/SplitView";
 import { ConnectionsPanel } from "./components/ConnectionsPanel";
 import { TerminalTabs, type TerminalSession } from "./components/TerminalTabs";
-import type { ProfileDTO, ProfileGroupDTO } from "./types/models";
+import type { PlaceDTO, ProfileDTO, ProfileGroupDTO } from "./types/models";
 import { fetchProfilesAndGroups } from "./components/ConnectionsPanel";
 import { onSSHOutput, onSSHState, onTaskState, startSSHEventBridge } from "./ssh/events";
 import type { SSHStateEvent } from "./types/ssh";
-import { SaveUILayout, LoadUILayout, SSHConnectProfile, SSHSend, SFTPConnectProfile } from "../wailsjs/go/main/App";
+import { SaveUILayout, LoadUILayout, SSHConnectProfile, SSHSend, SFTPConnectProfile, UpsertPlace } from "../wailsjs/go/main/App";
 import { pickSessionIcon } from "./utils/sessionTag";
 import { FilesTabs, type FilesSession } from "./components/FilesTabs";
+import { PlacesPanel } from "./components/PlacesPanel";
 
 type FilesLastPathsByProfile = Record<string, { localPath: string; remotePath: string }>;
 
@@ -34,9 +35,27 @@ function App() {
   const [filesLastPathsByProfile, setFilesLastPathsByProfile] = useState<FilesLastPathsByProfile>({});
   const fileSessionsRef = useRef<FilesSession[]>([]);
 
+  const [leftMode, setLeftMode] = useState<"connections" | "places">("connections");
+  const [placesProfileId, setPlacesProfileId] = useState<string | null>(null);
+  const [placesRefreshToken, setPlacesRefreshToken] = useState(0);
+  const [placeModal, setPlaceModal] = useState<{ open: boolean; id?: string; profileId: string; name: string; remotePath: string }>({
+    open: false,
+    profileId: "",
+    name: "",
+    remotePath: "",
+  });
+
+  const [navToRemoteBySessionId, setNavToRemoteBySessionId] = useState<Record<string, { path: string; token: number }>>({});
+
   useEffect(() => {
     fileSessionsRef.current = fileSessions;
   }, [fileSessions]);
+
+  const openPlacesForProfile = useCallback((profileId: string) => {
+    if (!profileId) return;
+    setPlacesProfileId(profileId);
+    setLeftMode("places");
+  }, []);
 
   const refresh = useCallback(async () => {
     const r = await fetchProfilesAndGroups();
@@ -154,47 +173,95 @@ function App() {
     });
   }, []);
 
-  const sidebar = (
-    <ConnectionsPanel
-      groups={groups}
-      profiles={profiles}
-      expandedGroupIds={expandedGroupIds}
-      onToggleGroup={onToggleGroup}
-      sessions={sessions}
-      activeSessionId={activeSessionId}
-      onOpenSession={openSession}
-      onActivateSession={(sid) => {
-        setActiveSessionId(sid);
-        setRightMode("terminal");
-      }}
-      onCloseSession={closeSession}
-      onFilesMode={() => setRightMode("files")}
-      onTerminalMode={() => setRightMode("terminal")}
-      fileSessions={fileSessions}
-      activeFileSessionId={activeFileSessionId}
-      rightMode={rightMode}
-      onOpenFileSession={(sessionId, profileId) => {
-        setFileSessions((prev) => {
-          const existingForProfile = prev.filter((s) => s.profileId === profileId);
-          const icon = pickSessionIcon(sessionId, existingForProfile.map((s) => s.icon));
-          const ordinal = existingForProfile.length + 1;
-          const remotePath = filesLastPathsByProfile[profileId]?.remotePath ?? ".";
-          return [...prev, { sessionId, profileId, icon, ordinal, remotePath }];
-        });
-        setActiveFileSessionId(sessionId);
-        setRightMode("files");
-      }}
-      onActivateFileSession={(sessionId) => {
-        setActiveFileSessionId(sessionId);
-        setRightMode("files");
-      }}
-      onCloseFileSession={(sessionId) => {
-        setFileSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
-        setActiveFileSessionId((cur) => (cur === sessionId ? null : cur));
-      }}
-      onDataChanged={refresh}
-    />
-  );
+  const sidebar =
+    leftMode === "connections" ? (
+      <ConnectionsPanel
+        groups={groups}
+        profiles={profiles}
+        expandedGroupIds={expandedGroupIds}
+        onToggleGroup={onToggleGroup}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onOpenSession={openSession}
+        onActivateSession={(sid) => {
+          setActiveSessionId(sid);
+          setRightMode("terminal");
+        }}
+        onCloseSession={closeSession}
+        onFilesMode={() => setRightMode("files")}
+        onTerminalMode={() => setRightMode("terminal")}
+        fileSessions={fileSessions}
+        activeFileSessionId={activeFileSessionId}
+        rightMode={rightMode}
+        onOpenFileSession={(sessionId, profileId) => {
+          setFileSessions((prev) => {
+            const existingForProfile = prev.filter((s) => s.profileId === profileId);
+            const icon = pickSessionIcon(sessionId, existingForProfile.map((s) => s.icon));
+            const ordinal = existingForProfile.length + 1;
+            const remotePath = filesLastPathsByProfile[profileId]?.remotePath ?? ".";
+            return [...prev, { sessionId, profileId, icon, ordinal, remotePath }];
+          });
+          setActiveFileSessionId(sessionId);
+          setRightMode("files");
+        }}
+        onActivateFileSession={(sessionId) => {
+          setActiveFileSessionId(sessionId);
+          setRightMode("files");
+        }}
+        onCloseFileSession={(sessionId) => {
+          setFileSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
+          setActiveFileSessionId((cur) => (cur === sessionId ? null : cur));
+        }}
+        onDataChanged={refresh}
+      />
+    ) : placesProfileId ? (
+      <PlacesPanel
+        profileId={placesProfileId}
+        profiles={profiles}
+        refreshToken={placesRefreshToken}
+        onBack={() => setLeftMode("connections")}
+        onAddNew={() => setPlaceModal({ open: true, profileId: placesProfileId, name: "", remotePath: "" })}
+        onEdit={(p: PlaceDTO) => setPlaceModal({ open: true, id: p.id, profileId: p.profileId, name: p.name ?? "", remotePath: p.remotePath })}
+        onGoTerminal={async (remotePath) => {
+          const profId = placesProfileId;
+          if (!profId) return;
+          let sid = sessions.find((s) => s.profileId === profId)?.sessionId ?? null;
+          if (!sid) {
+            sid = await SSHConnectProfile(profId);
+            openSession(sid, profId);
+          } else {
+            setActiveSessionId(sid);
+            setRightMode("terminal");
+          }
+          setTimeout(() => void SSHSend(sid!, `cd ${shellQuote(remotePath)}\n`), 200);
+        }}
+        onGoFiles={async (remotePath) => {
+          const profId = placesProfileId;
+          if (!profId) return;
+          const existing = fileSessionsRef.current.find((s) => s.profileId === profId) ?? null;
+          let sid = existing?.sessionId ?? null;
+          if (!sid) {
+            sid = await SFTPConnectProfile(profId);
+            setFileSessions((prev) => {
+              const existingForProfile = prev.filter((s) => s.profileId === profId);
+              const icon = pickSessionIcon(sid!, existingForProfile.map((s) => s.icon));
+              const ordinal = existingForProfile.length + 1;
+              return [...prev, { sessionId: sid!, profileId: profId, icon, ordinal, remotePath }];
+            });
+          }
+          setActiveFileSessionId(sid);
+          setRightMode("files");
+          setNavToRemoteBySessionId((prev) => ({ ...prev, [sid!]: { path: remotePath, token: Date.now() } }));
+        }}
+      />
+    ) : (
+      <div className="panel">
+        <div className="panel-titlebar">
+          <div className="panel-title">Places</div>
+          <div className="panel-meta">no active profile</div>
+        </div>
+      </div>
+    );
 
   // Keep both mounted so switching modes doesn't reset terminal output.
   const rightPane = (
@@ -222,6 +289,13 @@ function App() {
             setFilesLastPathsByProfile((prev) => ({ ...prev, [cur.profileId]: { localPath: prev[cur.profileId]?.localPath ?? "", remotePath } }));
             setActiveFileSessionId(sid);
             setRightMode("files");
+          }}
+          onOpenPlaces={(profileId) => openPlacesForProfile(profileId)}
+          onAddLocation={async (sshSessionId, profileId) => {
+            const pwd = await queryPwdFromTerminal(sshSessionId);
+            const remotePath = (pwd || ".").trim() || ".";
+            setPlaceModal({ open: true, profileId, name: "", remotePath });
+            openPlacesForProfile(profileId);
           }}
         />
       </div>
@@ -254,6 +328,12 @@ function App() {
           onSessionPathsChanged={(sessionId, next) => {
             setFileSessions((prev) => prev.map((s) => (s.sessionId === sessionId ? { ...s, remotePath: next.remotePath } : s)));
           }}
+          onOpenPlaces={(profileId) => openPlacesForProfile(profileId)}
+          onAddLocation={(profileId, remotePath) => {
+            setPlaceModal({ open: true, profileId, name: "", remotePath: (remotePath || ".").trim() || "." });
+            openPlacesForProfile(profileId);
+          }}
+          navToRemoteBySessionId={navToRemoteBySessionId}
         />
       </div>
     </div>
@@ -275,6 +355,38 @@ function App() {
         </div>
       </div>
 
+      {placeModal.open ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal">
+            <div className="modal-title">{placeModal.id ? "Edit Place" : "Save Location"}</div>
+            <div className="modal-body">
+              <label>Name (optional)</label>
+              <input value={placeModal.name} onChange={(e) => setPlaceModal((p) => ({ ...p, name: e.target.value }))} />
+              <label>Remote path</label>
+              <input className="mono" value={placeModal.remotePath} onChange={(e) => setPlaceModal((p) => ({ ...p, remotePath: e.target.value }))} />
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" type="button" onClick={() => setPlaceModal({ open: false, profileId: "", name: "", remotePath: "" })}>
+                Cancel
+              </button>
+              <button
+                className="btn"
+                type="button"
+                onClick={async () => {
+                  const profileId = placeModal.profileId;
+                  const remotePath = (placeModal.remotePath || "").trim();
+                  if (!profileId || !remotePath) return;
+                  await UpsertPlace({ id: placeModal.id, profileId, name: placeModal.name ?? "", remotePath, order: 0 } as any);
+                  setPlaceModal({ open: false, profileId: "", name: "", remotePath: "" });
+                  setPlacesRefreshToken((n) => n + 1);
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

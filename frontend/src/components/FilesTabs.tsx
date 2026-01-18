@@ -22,6 +22,9 @@ type Props = {
   onPathsChanged: (profileId: string, next: { localPath: string; remotePath: string }) => void;
   onOpenTerminalAtPath: (profileId: string, remotePath: string) => void;
   onSessionPathsChanged?: (sessionId: string, next: { localPath: string; remotePath: string }) => void;
+  onOpenPlaces?: (profileId: string) => void;
+  onAddLocation?: (profileId: string, remotePath: string) => void;
+  navToRemoteBySessionId?: Record<string, { path: string; token: number }>;
 };
 
 export function FilesTabs({
@@ -34,6 +37,9 @@ export function FilesTabs({
   onPathsChanged,
   onOpenTerminalAtPath,
   onSessionPathsChanged,
+  onOpenPlaces,
+  onAddLocation,
+  navToRemoteBySessionId,
 }: Props) {
   const byProfile = useMemo(() => {
     const m = new Map<string, ProfileDTO>();
@@ -106,6 +112,9 @@ export function FilesTabs({
               onPathsChanged={(next) => onPathsChanged(s.profileId, next)}
               onOpenTerminalAtPath={(rp) => onOpenTerminalAtPath(s.profileId, rp)}
               onSessionPathsChanged={(next) => onSessionPathsChanged?.(s.sessionId, next)}
+              onOpenPlaces={onOpenPlaces}
+              onAddLocation={onAddLocation}
+              navToRemote={navToRemoteBySessionId?.[s.sessionId]}
             />
           </div>
         ))}

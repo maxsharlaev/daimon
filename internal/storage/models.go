@@ -110,3 +110,24 @@ type AppSetting struct {
 	UpdatedAt time.Time
 }
 
+// Place stores a saved remote path ("place") for a profile.
+// Used by the Places UI to quickly cd/open in terminal/files.
+type Place struct {
+	ID        string `gorm:"primaryKey;size:36"`
+	ProfileID string `gorm:"index;size:36;not null"`
+
+	Name       string `gorm:"not null;default:''"` // optional label
+	RemotePath string `gorm:"not null"`
+	Order      int    `gorm:"not null;default:0"`
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (m *Place) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	return nil
+}
+

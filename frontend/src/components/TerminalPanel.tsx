@@ -13,9 +13,11 @@ type Props = {
   connectionId: string | null;
   onDisconnected?: (id: string) => void;
   onShowPwd?: () => void;
+  onAddLocation?: () => void;
+  onOpenPlaces?: () => void;
 };
 
-export function TerminalPanel({ connectionId, onDisconnected, onShowPwd }: Props) {
+export function TerminalPanel({ connectionId, onDisconnected, onShowPwd, onAddLocation, onOpenPlaces }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -171,6 +173,16 @@ export function TerminalPanel({ connectionId, onDisconnected, onShowPwd }: Props
           {onShowPwd ? (
             <button className="btn btn-ghost" type="button" onClick={onShowPwd} title="Open Files at current terminal path">
               Files
+            </button>
+          ) : null}
+          {onAddLocation ? (
+            <button className="btn btn-ghost" type="button" onClick={onAddLocation} title="Save current location">
+              + Location
+            </button>
+          ) : null}
+          {onOpenPlaces ? (
+            <button className="btn btn-ghost" type="button" onClick={onOpenPlaces} title="Open Places">
+              Places
             </button>
           ) : null}
           <button

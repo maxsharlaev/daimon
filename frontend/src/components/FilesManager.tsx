@@ -32,6 +32,9 @@ type Props = {
   onPathsChanged?: (next: { localPath: string; remotePath: string }) => void;
   onOpenTerminalAtPath?: (remotePath: string) => void;
   onSessionPathsChanged?: (next: { localPath: string; remotePath: string }) => void;
+  onOpenPlaces?: (profileId: string) => void;
+  onAddLocation?: (profileId: string, remotePath: string) => void;
+  navToRemote?: { path: string; token: number };
 };
 
 type FileEntry = {
@@ -62,7 +65,18 @@ type ConflictInfo = {
   error?: string | null;
 };
 
-export function FilesManager({ sessionId, initialLocalPath, initialRemotePath, onPathsChanged, onOpenTerminalAtPath, onSessionPathsChanged }: Props) {
+export function FilesManager({
+  sessionId,
+  profileId,
+  initialLocalPath,
+  initialRemotePath,
+  onPathsChanged,
+  onOpenTerminalAtPath,
+  onSessionPathsChanged,
+  onOpenPlaces,
+  onAddLocation,
+  navToRemote,
+}: Props) {
   const [localPath, setLocalPath] = useState<string>("");
   const [remotePath, setRemotePath] = useState<string>(".");
   const [localEntries, setLocalEntries] = useState<FileEntry[]>([]);
@@ -149,6 +163,23 @@ export function FilesManager({ sessionId, initialLocalPath, initialRemotePath, o
     setRemotePathInput(remotePath);
   }, [remotePath]);
 
+  useEffect(() => {
+    if (!navToRemote) return;
+    const p = String(navToRemote.path ?? "").trim();
+    if (!p) return;
+    const go = async () => {
+      setError(null);
+      try {
+        await validateRemoteDir(p);
+        await goRemote(p);
+      } catch (e: any) {
+        setError(e?.message ?? String(e));
+      }
+    };
+    void go();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navToRemote?.token]);
+
   // persist dirs (per profile) in parent
   useEffect(() => {
     if (!onPathsChanged) return;
@@ -170,6 +201,17 @@ export function FilesManager({ sessionId, initialLocalPath, initialRemotePath, o
   // Keybindings (MVP): Tab switch pane, Enter open dir, Backspace up
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // Disable FilesManager keybindings while any modal is open.
+      // Important: do NOT preventDefault here, so inputs in modals keep working (Backspace, arrows, etc).
+      const modalOpen = !!document.querySelector(".modal-overlay");
+      if (modalOpen) return;
+
+      const t = e.target as any;
+      const tag = String(t?.tagName ?? "").toLowerCase();
+      const isEditable =
+        tag === "input" || tag === "textarea" || tag === "select" || t?.isContentEditable;
+      if (isEditable) return;
+
       if (e.key === "Tab") {
         e.preventDefault();
         setActivePane((p) => (p === "local" ? "remote" : "local"));
@@ -555,6 +597,11 @@ export function FilesManager({ sessionId, initialLocalPath, initialRemotePath, o
           {error ? <span className="error-text">{error}</span> : null}
         </div>
         <div className="panel-actions">
+          {onOpenPlaces ? (
+            <button className="btn btn-ghost" type="button" onClick={() => onOpenPlaces(profileId)} disabled={busy}>
+              Places
+            </button>
+          ) : null}
           <button className="btn btn-ghost" type="button" onClick={refresh} disabled={busy}>
             Refresh
           </button>
@@ -667,6 +714,11 @@ export function FilesManager({ sessionId, initialLocalPath, initialRemotePath, o
             <button className="iconbtn" type="button" onClick={() => void openTerminalHere()} title="Open terminal here">
               ⌘
             </button>
+            {onAddLocation ? (
+              <button className="iconbtn" type="button" onClick={() => onAddLocation(profileId, remotePath)} title="Save location">
+                +
+              </button>
+            ) : null}
           </div>
           <div className="list">
             {remoteDisplayEntries.map((e) => (

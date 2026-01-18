@@ -16,6 +16,30 @@ export namespace main {
 	        this.keyStorage = source["keyStorage"];
 	    }
 	}
+	export class PlaceDTO {
+	    id: string;
+	    profileId: string;
+	    name: string;
+	    remotePath: string;
+	    order: number;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlaceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.profileId = source["profileId"];
+	        this.name = source["name"];
+	        this.remotePath = source["remotePath"];
+	        this.order = source["order"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 	export class ProfileDTO {
 	    id: string;
 	    groupId: string;
@@ -154,6 +178,26 @@ export namespace main {
 	        this.password = source["password"];
 	        this.privateKeyPem = source["privateKeyPem"];
 	        this.passphrase = source["passphrase"];
+	    }
+	}
+	export class UpsertPlaceRequest {
+	    id: string;
+	    profileId: string;
+	    name: string;
+	    remotePath: string;
+	    order: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpsertPlaceRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.profileId = source["profileId"];
+	        this.name = source["name"];
+	        this.remotePath = source["remotePath"];
+	        this.order = source["order"];
 	    }
 	}
 	export class UpsertProfileGroupRequest {

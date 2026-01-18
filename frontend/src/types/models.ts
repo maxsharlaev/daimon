@@ -34,3 +34,21 @@ export type UpsertProfileRequest = {
   sshOptionsJson: string;
 };
 
+export type PlaceDTO = {
+  id: string;
+  profileId: string;
+  name: string;
+  remotePath: string;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UpsertPlaceRequest = {
+  id?: string;
+  profileId: string;
+  name: string;
+  remotePath: string;
+  order: number;
+};
+

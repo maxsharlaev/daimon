@@ -33,6 +33,15 @@ func (s *Store) Migrate() error {
 				return nil
 			},
 		},
+		{
+			ID: "2026-01-18-0002-places",
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&Place{})
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return nil
+			},
+		},
 	})
 
 	return m.Migrate()

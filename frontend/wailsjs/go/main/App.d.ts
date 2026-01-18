@@ -3,6 +3,8 @@
 import {main} from '../models';
 import {sftp} from '../models';
 
+export function DeletePlace(arg1:string):Promise<void>;
+
 export function DeleteProfile(arg1:string):Promise<void>;
 
 export function DeleteProfileGroup(arg1:string):Promise<void>;
@@ -22,6 +24,8 @@ export function GetSecretRef(arg1:string,arg2:string):Promise<main.SecretRefDTO>
 export function Greet(arg1:string):Promise<string>;
 
 export function ImportProfileEncrypted(arg1:string,arg2:string,arg3:main.ImportOptions):Promise<main.ProfileDTO>;
+
+export function ListPlaces(arg1:string):Promise<Array<main.PlaceDTO>>;
 
 export function ListProfileGroups():Promise<Array<main.ProfileGroupDTO>>;
 
@@ -98,6 +102,8 @@ export function SSHTestConnection(arg1:main.SSHConfig):Promise<string>;
 export function SaveUILayout(arg1:string,arg2:string):Promise<void>;
 
 export function SetSecret(arg1:main.SetSecretRequest):Promise<void>;
+
+export function UpsertPlace(arg1:main.UpsertPlaceRequest):Promise<main.PlaceDTO>;
 
 export function UpsertProfile(arg1:main.UpsertProfileRequest):Promise<main.ProfileDTO>;
 
