@@ -15,6 +15,8 @@ import {
   VaultSetup,
   VaultStatus,
   VaultUnlock,
+  SFTPConnectProfile,
+  SFTPDisconnect,
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import type { ProfileDTO, ProfileGroupDTO } from "../types/models";
@@ -24,7 +26,7 @@ import "./connections.css";
 import { ProfileEditorModal } from "./ProfileEditorModal";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 
-export type Marker = "green" | "red" | "yellow" | "none";
+export type Marker = "green" | "red" | "yellow" | "blue" | "none";
 
 export type SessionSummary = {
   sessionId: string;
@@ -47,6 +49,15 @@ type Props = {
   activeSessionId: string | null;
   onCloseSession: (sessionId: string) => void;
 
+  fileSessions: { sessionId: string; profileId: string; icon: string; ordinal: number }[];
+  activeFileSessionId: string | null;
+  rightMode: "terminal" | "files";
+  onOpenFileSession: (sessionId: string, profileId: string) => void;
+  onActivateFileSession: (sessionId: string) => void;
+  onCloseFileSession: (sessionId: string) => void;
+  onFilesMode: () => void;
+  onTerminalMode: () => void;
+
   onDataChanged: () => void;
 };
 
@@ -68,6 +79,14 @@ export function ConnectionsPanel({
   onActivateSession,
   activeSessionId,
   onCloseSession,
+  fileSessions,
+  activeFileSessionId,
+  rightMode,
+  onOpenFileSession,
+  onActivateFileSession,
+  onCloseFileSession,
+  onFilesMode,
+  onTerminalMode,
   onDataChanged,
 }: Props) {
   const [busy, setBusy] = useState(false);
@@ -322,6 +341,34 @@ export function ConnectionsPanel({
     }
   };
 
+  const openFiles = async (p: ProfileDTO) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const sid = await SFTPConnectProfile(p.id);
+      onOpenFileSession(sid, p.id);
+      onFilesMode();
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disconnectFileSession = async (sessionId: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await SFTPDisconnect(sessionId);
+      onCloseFileSession(sessionId);
+      onTerminalMode();
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="connections panel">
       <ContextMenu
@@ -393,16 +440,19 @@ export function ConnectionsPanel({
                       ) : (
                         groupProfiles.map((p) => {
                           const profSessions = sessionsByProfile.get(p.id) ?? [];
-                          const hasActive = profSessions.some((s) => s.sessionId === activeSessionId);
+                          const profFileSessions = fileSessions.filter((s) => s.profileId === p.id);
+                          const hasActiveTerminal =
+                            rightMode === "terminal" && profSessions.some((s) => s.sessionId === activeSessionId);
+                          const hasActiveFiles = rightMode === "files" && profFileSessions.some((s) => s.sessionId === activeFileSessionId);
                           const canDelete = profSessions.length === 0;
                           const topMarker: Marker =
                             profSessions.find((s) => s.marker === "yellow")?.marker ??
                             profSessions.find((s) => s.marker === "green")?.marker ??
                             profSessions.find((s) => s.marker === "red")?.marker ??
-                            "none";
+                            (hasActiveFiles ? "blue" : "none");
 
                           return (
-                            <div key={p.id} className={`profile ${hasActive ? "active" : ""}`}>
+                            <div key={p.id} className={`profile ${hasActiveTerminal ? "active-terminal" : ""} ${hasActiveFiles ? "active-files" : ""}`}>
                               <div className="profile-row">
                                 <div className="profile-main">
                                   <div className="profile-name">{p.name}</div>
@@ -413,6 +463,9 @@ export function ConnectionsPanel({
                                 <div className="profile-actions">
                                   <button className="btn" type="button" onClick={() => connectProfile(p)} disabled={busy}>
                                     Connect
+                                  </button>
+                                  <button className="btn" type="button" onClick={() => void openFiles(p)} disabled={busy}>
+                                    Files
                                   </button>
                                   <button
                                     className="btn btn-ghost"
@@ -446,8 +499,11 @@ export function ConnectionsPanel({
                                     <div key={s.sessionId} className="session">
                                       <button
                                         type="button"
-                                        className={`session-btn ${s.sessionId === activeSessionId ? "active" : ""}`}
-                                        onClick={() => onActivateSession(s.sessionId)}
+                                        className={`session-btn ${rightMode === "terminal" && s.sessionId === activeSessionId ? "active" : ""}`}
+                                        onClick={() => {
+                                          onActivateSession(s.sessionId);
+                                          onTerminalMode();
+                                        }}
                                       >
                                         <span className={`dot dot-${s.marker}`} />
                                         <span>
@@ -462,6 +518,40 @@ export function ConnectionsPanel({
                                         className="session-close"
                                         onClick={() => disconnectSession(s.sessionId)}
                                         title="Disconnect"
+                                      >
+                                        Disconnect
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
+
+                              {profFileSessions.length > 0 ? (
+                                <div className="sessions">
+                                  {profFileSessions.map((s) => (
+                                    <div key={s.sessionId} className="session">
+                                      <button
+                                        type="button"
+                                        className={`session-btn files ${rightMode === "files" && s.sessionId === activeFileSessionId ? "active" : ""}`}
+                                        onClick={() => {
+                                          onActivateFileSession(s.sessionId);
+                                          onFilesMode();
+                                        }}
+                                      >
+                                        <span className="dot dot-files" />
+                                        <span>
+                                          {(s.icon ?? "•") +
+                                            " " +
+                                            p.name +
+                                            (profFileSessions.length > 1 ? ` ${s.ordinal ?? 1}` : "") +
+                                            " (files)"}
+                                        </span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="session-close"
+                                        onClick={() => void disconnectFileSession(s.sessionId)}
+                                        title="Disconnect files"
                                       >
                                         Disconnect
                                       </button>

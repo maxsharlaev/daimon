@@ -8,6 +8,7 @@ import (
 
 	"daimon/internal/storage"
 	"daimon/internal/secrets"
+	"daimon/internal/sftp"
 )
 
 // App struct
@@ -16,6 +17,8 @@ type App struct {
 	ssh *SSHManager
 	db  *storage.Store
 	secrets *secrets.Router
+	sftp *sftp.Manager
+	sftpTransfers *sftp.TransferManager
 }
 
 // NewApp creates a new App application struct
@@ -37,6 +40,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.db = store
 	a.secrets = secrets.NewRouter(store.DB)
+	a.sftp = sftp.NewManager()
 
 	_, _ = a.EnsureDefaultGroup()
 }

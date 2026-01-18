@@ -75,6 +75,10 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
+.dot-files {
+  background: rgba(95, 120, 240, 0.95);
+}
+
 .tab-label {
   overflow: hidden;
   text-overflow: ellipsis;

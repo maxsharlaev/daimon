@@ -54,8 +54,96 @@ export function LoadUILayout(arg1) {
   return window['go']['main']['App']['LoadUILayout'](arg1);
 }
 
+export function LocalDelete(arg1) {
+  return window['go']['main']['App']['LocalDelete'](arg1);
+}
+
+export function LocalHomeDir() {
+  return window['go']['main']['App']['LocalHomeDir']();
+}
+
+export function LocalListDir(arg1) {
+  return window['go']['main']['App']['LocalListDir'](arg1);
+}
+
+export function LocalListDrives() {
+  return window['go']['main']['App']['LocalListDrives']();
+}
+
+export function LocalMkdir(arg1) {
+  return window['go']['main']['App']['LocalMkdir'](arg1);
+}
+
+export function LocalRename(arg1, arg2) {
+  return window['go']['main']['App']['LocalRename'](arg1, arg2);
+}
+
+export function PickLocalFile() {
+  return window['go']['main']['App']['PickLocalFile']();
+}
+
+export function PickLocalFolder() {
+  return window['go']['main']['App']['PickLocalFolder']();
+}
+
 export function PickPrivateKeyFile() {
   return window['go']['main']['App']['PickPrivateKeyFile']();
+}
+
+export function PickSaveFile(arg1) {
+  return window['go']['main']['App']['PickSaveFile'](arg1);
+}
+
+export function SFTPConnectProfile(arg1) {
+  return window['go']['main']['App']['SFTPConnectProfile'](arg1);
+}
+
+export function SFTPDelete(arg1, arg2) {
+  return window['go']['main']['App']['SFTPDelete'](arg1, arg2);
+}
+
+export function SFTPDisconnect(arg1) {
+  return window['go']['main']['App']['SFTPDisconnect'](arg1);
+}
+
+export function SFTPDownloadStart(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SFTPDownloadStart'](arg1, arg2, arg3);
+}
+
+export function SFTPDownloadToLocal(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SFTPDownloadToLocal'](arg1, arg2, arg3);
+}
+
+export function SFTPGetwd(arg1) {
+  return window['go']['main']['App']['SFTPGetwd'](arg1);
+}
+
+export function SFTPListDir(arg1, arg2) {
+  return window['go']['main']['App']['SFTPListDir'](arg1, arg2);
+}
+
+export function SFTPMkdir(arg1, arg2) {
+  return window['go']['main']['App']['SFTPMkdir'](arg1, arg2);
+}
+
+export function SFTPRename(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SFTPRename'](arg1, arg2, arg3);
+}
+
+export function SFTPTransferCancel(arg1) {
+  return window['go']['main']['App']['SFTPTransferCancel'](arg1);
+}
+
+export function SFTPTransferChunk(arg1, arg2) {
+  return window['go']['main']['App']['SFTPTransferChunk'](arg1, arg2);
+}
+
+export function SFTPUploadFromLocal(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SFTPUploadFromLocal'](arg1, arg2, arg3);
+}
+
+export function SFTPUploadStart(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SFTPUploadStart'](arg1, arg2, arg3);
 }
 
 export function SSHConnect(arg1) {

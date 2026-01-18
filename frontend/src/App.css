@@ -47,3 +47,20 @@
   height: 100%;
   width: 100%;
 }
+
+.rightstack {
+  height: 100%;
+  position: relative;
+  min-height: 0;
+}
+
+.rightstack-pane {
+  position: absolute;
+  inset: 0;
+  display: none;
+  min-height: 0;
+}
+
+.rightstack-pane.active {
+  display: block;
+}

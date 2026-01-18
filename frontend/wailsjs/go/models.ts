@@ -62,6 +62,20 @@ export namespace main {
 	        this.order = source["order"];
 	    }
 	}
+	export class SFTPTransferStartResult {
+	    transferId: string;
+	    totalBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SFTPTransferStartResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.transferId = source["transferId"];
+	        this.totalBytes = source["totalBytes"];
+	    }
+	}
 	export class SSHConfig {
 	    host: string;
 	    port: number;
@@ -196,6 +210,53 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.setup = source["setup"];
 	        this.unlocked = source["unlocked"];
+	    }
+	}
+
+}
+
+export namespace sftp {
+	
+	export class FileEntryDTO {
+	    name: string;
+	    path: string;
+	    isDir: boolean;
+	    size: number;
+	    mtimeMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileEntryDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.path = source["path"];
+	        this.isDir = source["isDir"];
+	        this.size = source["size"];
+	        this.mtimeMs = source["mtimeMs"];
+	    }
+	}
+	export class TransferEvent {
+	    transferId: string;
+	    direction: string;
+	    doneBytes: number;
+	    totalBytes: number;
+	    state: string;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TransferEvent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.transferId = source["transferId"];
+	        this.direction = source["direction"];
+	        this.doneBytes = source["doneBytes"];
+	        this.totalBytes = source["totalBytes"];
+	        this.state = source["state"];
+	        this.error = source["error"];
 	    }
 	}
 

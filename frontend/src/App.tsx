@@ -10,6 +10,7 @@ import { onSSHState, onTaskState, startSSHEventBridge } from "./ssh/events";
 import type { SSHStateEvent } from "./types/ssh";
 import { SaveUILayout, LoadUILayout } from "../wailsjs/go/main/App";
 import { pickSessionIcon } from "./utils/sessionTag";
+import { FilesTabs, type FilesSession } from "./components/FilesTabs";
 
 function App() {
   const [groups, setGroups] = useState<ProfileGroupDTO[]>([]);
@@ -18,6 +19,10 @@ function App() {
 
   const [sessions, setSessions] = useState<TerminalSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
+  const [fileSessions, setFileSessions] = useState<FilesSession[]>([]);
+  const [activeFileSessionId, setActiveFileSessionId] = useState<string | null>(null);
+  const [rightMode, setRightMode] = useState<"terminal" | "files">("terminal");
 
   const refresh = useCallback(async () => {
     const r = await fetchProfilesAndGroups();
@@ -106,6 +111,7 @@ function App() {
       ];
     });
     setActiveSessionId(sessionId);
+    setRightMode("terminal");
   }, []);
 
   const closeSession = useCallback((sessionId: string) => {
@@ -137,20 +143,63 @@ function App() {
       sessions={sessions}
       activeSessionId={activeSessionId}
       onOpenSession={openSession}
-      onActivateSession={setActiveSessionId}
+      onActivateSession={(sid) => {
+        setActiveSessionId(sid);
+        setRightMode("terminal");
+      }}
       onCloseSession={closeSession}
+      onFilesMode={() => setRightMode("files")}
+      onTerminalMode={() => setRightMode("terminal")}
+      fileSessions={fileSessions}
+      activeFileSessionId={activeFileSessionId}
+      rightMode={rightMode}
+      onOpenFileSession={(sessionId, profileId) => {
+        setFileSessions((prev) => {
+          const existingForProfile = prev.filter((s) => s.profileId === profileId);
+          const icon = pickSessionIcon(sessionId, existingForProfile.map((s) => s.icon));
+          const ordinal = existingForProfile.length + 1;
+          return [...prev, { sessionId, profileId, icon, ordinal }];
+        });
+        setActiveFileSessionId(sessionId);
+        setRightMode("files");
+      }}
+      onActivateFileSession={(sessionId) => {
+        setActiveFileSessionId(sessionId);
+        setRightMode("files");
+      }}
+      onCloseFileSession={(sessionId) => {
+        setFileSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
+        setActiveFileSessionId((cur) => (cur === sessionId ? null : cur));
+      }}
       onDataChanged={refresh}
     />
   );
 
-  const terminals = (
-    <TerminalTabs
-      profiles={profiles}
-      sessions={sessions}
-      activeSessionId={activeSessionId}
-      onActivate={setActiveSessionId}
-      onClose={closeSession}
-    />
+  // Keep both mounted so switching modes doesn't reset terminal output.
+  const rightPane = (
+    <div className="rightstack">
+      <div className={`rightstack-pane ${rightMode === "terminal" ? "active" : ""}`}>
+        <TerminalTabs
+          profiles={profiles}
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onActivate={setActiveSessionId}
+          onClose={closeSession}
+        />
+      </div>
+      <div className={`rightstack-pane ${rightMode === "files" ? "active" : ""}`}>
+        <FilesTabs
+          profiles={profiles}
+          sessions={fileSessions}
+          activeSessionId={activeFileSessionId}
+          onActivate={setActiveFileSessionId}
+          onClose={(sid) => {
+            setFileSessions((prev) => prev.filter((s) => s.sessionId !== sid));
+            setActiveFileSessionId((cur) => (cur === sid ? null : cur));
+          }}
+        />
+      </div>
+    </div>
   );
 
   return (
@@ -165,7 +214,7 @@ function App() {
 
       <div className="content">
         <div className="app-grid">
-          <SplitView left={sidebar} right={terminals} initialLeftPct={34} minLeftPx={340} minRightPx={420} />
+          <SplitView left={sidebar} right={rightPane} initialLeftPct={34} minLeftPx={340} minRightPx={420} />
         </div>
       </div>
     </div>

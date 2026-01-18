@@ -1,0 +1,36 @@
+.filestabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.filestabs-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.filestabs-panels {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.filestabs-panel {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.filestabs-panel.active {
+  display: block;
+}
+
+/* Override tab active highlight for Files mode so it looks intentionally active (blue-ish, not terminal cyan). */
+.filestabs .tab.active {
+  border-color: rgba(95, 120, 240, 0.75);
+  background: rgba(95, 120, 240, 0.18);
+}
+
