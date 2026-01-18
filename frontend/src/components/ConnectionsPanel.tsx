@@ -10,6 +10,8 @@ import {
   ListProfiles,
   SSHConnectProfile,
   SSHConnectProfileWithPassword,
+  SSHDashboardConnectProfile,
+  SSHDashboardConnectProfileWithPassword,
   UpsertProfile,
   UpsertProfileGroup,
   VaultSetup,
@@ -26,7 +28,7 @@ import "./connections.css";
 import { ProfileEditorModal } from "./ProfileEditorModal";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 
-export type Marker = "green" | "red" | "yellow" | "blue" | "none";
+export type Marker = "green" | "red" | "yellow" | "blue" | "purple" | "none";
 
 export type SessionSummary = {
   sessionId: string;
@@ -35,6 +37,15 @@ export type SessionSummary = {
   lastError?: string | null;
   icon?: string;
   ordinal?: number;
+};
+
+export type DashboardSessionSummary = {
+  sessionId: string;
+  profileId: string;
+  icon: string;
+  ordinal: number;
+  marker: "green" | "red";
+  lastError?: string | null;
 };
 
 type Props = {
@@ -51,12 +62,19 @@ type Props = {
 
   fileSessions: { sessionId: string; profileId: string; icon: string; ordinal: number; remotePath?: string }[];
   activeFileSessionId: string | null;
-  rightMode: "terminal" | "files";
+  rightMode: "terminal" | "files" | "dashboard";
   onOpenFileSession: (sessionId: string, profileId: string) => void;
   onActivateFileSession: (sessionId: string) => void;
   onCloseFileSession: (sessionId: string) => void;
   onFilesMode: () => void;
   onTerminalMode: () => void;
+  onDashboardMode: () => void;
+
+  dashboardSessions: DashboardSessionSummary[];
+  activeDashboardSessionId: string | null;
+  onOpenDashboardSession: (sessionId: string, profileId: string) => void;
+  onActivateDashboardSession: (sessionId: string) => void;
+  onCloseDashboardSession: (sessionId: string) => void;
 
   onDataChanged: () => void;
 };
@@ -87,6 +105,12 @@ export function ConnectionsPanel({
   onCloseFileSession,
   onFilesMode,
   onTerminalMode,
+  onDashboardMode,
+  dashboardSessions,
+  activeDashboardSessionId,
+  onOpenDashboardSession,
+  onActivateDashboardSession,
+  onCloseDashboardSession,
   onDataChanged,
 }: Props) {
   const [busy, setBusy] = useState(false);
@@ -136,6 +160,12 @@ export function ConnectionsPanel({
     });
     return m;
   }, [sessions]);
+
+  const dashboardsByProfile = useMemo(() => {
+    const m = new Map<string, DashboardSessionSummary>();
+    dashboardSessions.forEach((s) => m.set(s.profileId, s));
+    return m;
+  }, [dashboardSessions]);
 
   useEffect(() => {
     // ensure at least one group exists
@@ -275,6 +305,53 @@ export function ConnectionsPanel({
     }
   };
 
+  const openDashboard = async (p: ProfileDTO) => {
+    // singleton per profile
+    const existing = dashboardSessions.find((s) => s.profileId === p.id) ?? null;
+    if (existing) {
+      onActivateDashboardSession(existing.sessionId);
+      onDashboardMode();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const id = await SSHDashboardConnectProfile(p.id);
+      onOpenDashboardSession(id, p.id);
+      onDashboardMode();
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      if (String(msg).includes("password required")) {
+        const password = prompt(`Password for ${p.username}@${p.host}:`, "");
+        if (password === null) return;
+
+        const remember = prompt('Remember password? Enter: "none" | "keyring" | "internal"', "none");
+        if (remember === null) return;
+
+        if (remember === "internal") {
+          const st = await VaultStatus();
+          if (!st.setup) {
+            const mpw = prompt("Set master password for vault:", "");
+            if (mpw === null) return;
+            await VaultSetup(mpw);
+          } else if (!st.unlocked) {
+            const mpw = prompt("Unlock vault (master password):", "");
+            if (mpw === null) return;
+            await VaultUnlock(mpw);
+          }
+        }
+
+        const id = await SSHDashboardConnectProfileWithPassword(p.id, password, remember);
+        onOpenDashboardSession(id, p.id);
+        onDashboardMode();
+        return;
+      }
+      setError(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const exportProfile = async (p: ProfileDTO) => {
     const pw = prompt("Export password:", "");
     if (pw === null) return;
@@ -334,6 +411,20 @@ export function ConnectionsPanel({
     try {
       await SSHDisconnect(sessionId);
       onCloseSession(sessionId);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disconnectDashboardSession = async (sessionId: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await SSHDisconnect(sessionId);
+      onCloseDashboardSession(sessionId);
+      onTerminalMode();
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
@@ -441,18 +532,25 @@ export function ConnectionsPanel({
                         groupProfiles.map((p) => {
                           const profSessions = sessionsByProfile.get(p.id) ?? [];
                           const profFileSessions = fileSessions.filter((s) => s.profileId === p.id);
+                          const profDashboard = dashboardsByProfile.get(p.id) ?? null;
                           const hasActiveTerminal =
                             rightMode === "terminal" && profSessions.some((s) => s.sessionId === activeSessionId);
                           const hasActiveFiles = rightMode === "files" && profFileSessions.some((s) => s.sessionId === activeFileSessionId);
+                          const hasActiveDashboard = rightMode === "dashboard" && profDashboard?.sessionId === activeDashboardSessionId;
                           const canDelete = profSessions.length === 0;
                           const topMarker: Marker =
                             profSessions.find((s) => s.marker === "yellow")?.marker ??
                             profSessions.find((s) => s.marker === "green")?.marker ??
                             profSessions.find((s) => s.marker === "red")?.marker ??
-                            (hasActiveFiles ? "blue" : "none");
+                            (hasActiveFiles ? "blue" : hasActiveDashboard ? "purple" : "none");
 
                           return (
-                            <div key={p.id} className={`profile ${hasActiveTerminal ? "active-terminal" : ""} ${hasActiveFiles ? "active-files" : ""}`}>
+                            <div
+                              key={p.id}
+                              className={`profile ${hasActiveTerminal ? "active-terminal" : ""} ${hasActiveFiles ? "active-files" : ""} ${
+                                hasActiveDashboard ? "active-dashboard" : ""
+                              }`}
+                            >
                               <div className="profile-row">
                                 <div className="profile-main">
                                   <div className="profile-name">{p.name}</div>
@@ -466,6 +564,9 @@ export function ConnectionsPanel({
                                   </button>
                                   <button className="btn" type="button" onClick={() => void openFiles(p)} disabled={busy}>
                                     Files
+                                  </button>
+                                  <button className="btn" type="button" onClick={() => void openDashboard(p)} disabled={busy}>
+                                    Dashboard
                                   </button>
                                   <button
                                     className="btn btn-ghost"
@@ -492,6 +593,39 @@ export function ConnectionsPanel({
                                   <span className={`marker marker-${topMarker}`} title={topMarker} />
                                 </div>
                               </div>
+
+                              {profDashboard ? (
+                                <div className="sessions">
+                                  <div className="session">
+                                    <button
+                                      type="button"
+                                      className={`session-btn dashboard ${
+                                        rightMode === "dashboard" && profDashboard.sessionId === activeDashboardSessionId ? "active" : ""
+                                      }`}
+                                      onClick={() => {
+                                        onActivateDashboardSession(profDashboard.sessionId);
+                                        onDashboardMode();
+                                      }}
+                                    >
+                                      <span className={`dot dot-${profDashboard.marker}`} />
+                                      <span>
+                                        {(profDashboard.icon ?? "📊") +
+                                          " " +
+                                          "Dashboard" +
+                                          (profDashboard.ordinal > 1 ? ` ${profDashboard.ordinal}` : "")}
+                                      </span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="session-close"
+                                      onClick={() => void disconnectDashboardSession(profDashboard.sessionId)}
+                                      title="Disconnect dashboard"
+                                    >
+                                      Disconnect
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : null}
 
                               {profSessions.length > 0 ? (
                                 <div className="sessions">

@@ -174,6 +174,18 @@ export function SSHConnectProfileWithPassword(arg1, arg2, arg3) {
   return window['go']['main']['App']['SSHConnectProfileWithPassword'](arg1, arg2, arg3);
 }
 
+export function SSHDashboardConnectProfile(arg1) {
+  return window['go']['main']['App']['SSHDashboardConnectProfile'](arg1);
+}
+
+export function SSHDashboardConnectProfileWithPassword(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SSHDashboardConnectProfileWithPassword'](arg1, arg2, arg3);
+}
+
+export function SSHDashboardSnapshot(arg1) {
+  return window['go']['main']['App']['SSHDashboardSnapshot'](arg1);
+}
+
 export function SSHDisconnect(arg1) {
   return window['go']['main']['App']['SSHDisconnect'](arg1);
 }

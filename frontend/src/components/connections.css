@@ -69,6 +69,10 @@
   border-color: rgba(80, 160, 255, 0.35);
 }
 
+.profile.active-dashboard {
+  border-color: rgba(185, 110, 255, 0.35);
+}
+
 .profile-row {
   display: flex;
   align-items: center;
@@ -121,6 +125,10 @@
   background: rgba(95, 120, 240, 0.95);
 }
 
+.marker-purple {
+  background: rgba(185, 110, 255, 0.95);
+}
+
 .marker-none {
   background: rgba(255, 255, 255, 0.25);
 }
@@ -160,6 +168,11 @@
 .session-btn.files.active {
   border-color: rgba(95, 120, 240, 0.70);
   background: rgba(95, 120, 240, 0.18);
+}
+
+.session-btn.dashboard.active {
+  border-color: rgba(185, 110, 255, 0.70);
+  background: rgba(185, 110, 255, 0.18);
 }
 
 .session-close {

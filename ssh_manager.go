@@ -185,6 +185,29 @@ func (m *SSHManager) Connect(ctx context.Context, cfg SSHConfig) (string, error)
 	return id, nil
 }
 
+// ConnectExecOnly connects to SSH and keeps only the ssh.Client for non-interactive Exec() calls.
+// It does NOT create a PTY / shell session and does not emit ssh:output events.
+func (m *SSHManager) ConnectExecOnly(ctx context.Context, cfg SSHConfig) (string, error) {
+	client, err := dialSSH(cfg)
+	if err != nil {
+		return "", err
+	}
+
+	id := randomID()
+	c := &sshConn{
+		id:     id,
+		client: client,
+		closed: make(chan struct{}),
+	}
+
+	m.mu.Lock()
+	m.conns[id] = c
+	m.mu.Unlock()
+
+	runtime.EventsEmit(ctx, "ssh:state", SSHStateEvent{ID: id, State: "connected"})
+	return id, nil
+}
+
 func (m *SSHManager) Disconnect(ctx context.Context, id string) error {
 	return m.disconnect(ctx, id, nil)
 }

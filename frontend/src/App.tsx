@@ -8,12 +8,22 @@ import type { PlaceDTO, ProfileDTO, ProfileGroupDTO } from "./types/models";
 import { fetchProfilesAndGroups } from "./components/ConnectionsPanel";
 import { onSSHOutput, onSSHState, onTaskState, startSSHEventBridge } from "./ssh/events";
 import type { SSHStateEvent } from "./types/ssh";
-import { SaveUILayout, LoadUILayout, SSHConnectProfile, SSHSend, SFTPConnectProfile, UpsertPlace } from "../wailsjs/go/main/App";
+import { LoadUILayout, SaveUILayout, SSHConnectProfile, SSHSend, SFTPConnectProfile, UpsertPlace } from "../wailsjs/go/main/App";
 import { pickSessionIcon } from "./utils/sessionTag";
 import { FilesTabs, type FilesSession } from "./components/FilesTabs";
 import { PlacesPanel } from "./components/PlacesPanel";
+import { DashboardTabs } from "./components/DashboardTabs";
 
 type FilesLastPathsByProfile = Record<string, { localPath: string; remotePath: string }>;
+
+export type DashboardSession = {
+  sessionId: string;
+  profileId: string;
+  icon: string;
+  ordinal: number;
+  marker: "green" | "red";
+  lastError?: string | null;
+};
 
 function shellQuote(p: string) {
   // single-quote for POSIX shells: ' -> '\'' (close/open trick)
@@ -31,7 +41,10 @@ function App() {
 
   const [fileSessions, setFileSessions] = useState<FilesSession[]>([]);
   const [activeFileSessionId, setActiveFileSessionId] = useState<string | null>(null);
-  const [rightMode, setRightMode] = useState<"terminal" | "files">("terminal");
+  const [dashboardSessions, setDashboardSessions] = useState<DashboardSession[]>([]);
+  const [activeDashboardSessionId, setActiveDashboardSessionId] = useState<string | null>(null);
+
+  const [rightMode, setRightMode] = useState<"terminal" | "files" | "dashboard">("terminal");
   const [filesLastPathsByProfile, setFilesLastPathsByProfile] = useState<FilesLastPathsByProfile>({});
   const fileSessionsRef = useRef<FilesSession[]>([]);
 
@@ -107,6 +120,13 @@ function App() {
           return { ...s, marker: "red", lastError: ev.error ?? null, taskRunning: false };
         })
       );
+      setDashboardSessions((prev) =>
+        prev.map((s) => {
+          if (s.sessionId !== ev.id) return s;
+          if (ev.state === "connected") return { ...s, marker: "green", lastError: null };
+          return { ...s, marker: "red", lastError: ev.error ?? null };
+        })
+      );
     });
     return () => unsub();
   }, []);
@@ -153,6 +173,27 @@ function App() {
     setRightMode("terminal");
   }, []);
 
+  const openDashboardSession = useCallback((sessionId: string, profileId: string) => {
+    setDashboardSessions((prev) => {
+      // singleton per profile
+      const existing = prev.find((s) => s.profileId === profileId);
+      if (existing) return prev;
+      const icon = pickSessionIcon(sessionId, prev.map((s) => s.icon));
+      return [
+        ...prev,
+        {
+          sessionId,
+          profileId,
+          icon,
+          ordinal: 1,
+          marker: "green",
+        },
+      ];
+    });
+    setActiveDashboardSessionId(sessionId);
+    setRightMode("dashboard");
+  }, []);
+
   const closeSession = useCallback((sessionId: string) => {
     setActiveSessionId((cur) => {
       if (cur !== sessionId) return cur;
@@ -165,6 +206,21 @@ function App() {
       setActiveSessionId((cur) => {
         if (cur !== sessionId) return cur;
         // choose neighbor tab if possible
+        if (next.length === 0) return null;
+        const pick = Math.min(idx, next.length - 1);
+        return next[pick].sessionId;
+      });
+      return next;
+    });
+  }, []);
+
+  const closeDashboardSession = useCallback((sessionId: string) => {
+    setActiveDashboardSessionId((cur) => (cur === sessionId ? null : cur));
+    setDashboardSessions((prev) => {
+      const idx = prev.findIndex((s) => s.sessionId === sessionId);
+      const next = prev.filter((s) => s.sessionId !== sessionId);
+      setActiveDashboardSessionId((cur) => {
+        if (cur !== sessionId) return cur;
         if (next.length === 0) return null;
         const pick = Math.min(idx, next.length - 1);
         return next[pick].sessionId;
@@ -190,9 +246,18 @@ function App() {
         onCloseSession={closeSession}
         onFilesMode={() => setRightMode("files")}
         onTerminalMode={() => setRightMode("terminal")}
+        onDashboardMode={() => setRightMode("dashboard")}
         fileSessions={fileSessions}
         activeFileSessionId={activeFileSessionId}
         rightMode={rightMode}
+        dashboardSessions={dashboardSessions}
+        activeDashboardSessionId={activeDashboardSessionId}
+        onOpenDashboardSession={openDashboardSession}
+        onActivateDashboardSession={(sid) => {
+          setActiveDashboardSessionId(sid);
+          setRightMode("dashboard");
+        }}
+        onCloseDashboardSession={closeDashboardSession}
         onOpenFileSession={(sessionId, profileId) => {
           setFileSessions((prev) => {
             const existingForProfile = prev.filter((s) => s.profileId === profileId);
@@ -334,6 +399,15 @@ function App() {
             openPlacesForProfile(profileId);
           }}
           navToRemoteBySessionId={navToRemoteBySessionId}
+        />
+      </div>
+      <div className={`rightstack-pane ${rightMode === "dashboard" ? "active" : ""}`}>
+        <DashboardTabs
+          profiles={profiles}
+          sessions={dashboardSessions}
+          activeSessionId={activeDashboardSessionId}
+          onActivate={setActiveDashboardSessionId}
+          onClose={closeDashboardSession}
         />
       </div>
     </div>

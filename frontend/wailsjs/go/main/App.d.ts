@@ -89,6 +89,12 @@ export function SSHConnectProfile(arg1:string):Promise<string>;
 
 export function SSHConnectProfileWithPassword(arg1:string,arg2:string,arg3:string):Promise<string>;
 
+export function SSHDashboardConnectProfile(arg1:string):Promise<string>;
+
+export function SSHDashboardConnectProfileWithPassword(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function SSHDashboardSnapshot(arg1:string):Promise<main.DashboardSnapshotDTO>;
+
 export function SSHDisconnect(arg1:string):Promise<void>;
 
 export function SSHExec(arg1:string,arg2:string):Promise<string>;
