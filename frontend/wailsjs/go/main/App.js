@@ -78,6 +78,10 @@ export function LocalRename(arg1, arg2) {
   return window['go']['main']['App']['LocalRename'](arg1, arg2);
 }
 
+export function LocalStat(arg1) {
+  return window['go']['main']['App']['LocalStat'](arg1);
+}
+
 export function PickLocalFile() {
   return window['go']['main']['App']['PickLocalFile']();
 }
@@ -130,6 +134,10 @@ export function SFTPRename(arg1, arg2, arg3) {
   return window['go']['main']['App']['SFTPRename'](arg1, arg2, arg3);
 }
 
+export function SFTPStat(arg1, arg2) {
+  return window['go']['main']['App']['SFTPStat'](arg1, arg2);
+}
+
 export function SFTPTransferCancel(arg1) {
   return window['go']['main']['App']['SFTPTransferCancel'](arg1);
 }
@@ -160,6 +168,10 @@ export function SSHConnectProfileWithPassword(arg1, arg2, arg3) {
 
 export function SSHDisconnect(arg1) {
   return window['go']['main']['App']['SSHDisconnect'](arg1);
+}
+
+export function SSHExec(arg1, arg2) {
+  return window['go']['main']['App']['SSHExec'](arg1, arg2);
 }
 
 export function SSHResize(arg1, arg2, arg3) {

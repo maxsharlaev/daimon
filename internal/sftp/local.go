@@ -74,3 +74,21 @@ func RemoveLocal(p string) error {
 	return os.RemoveAll(filepath.Clean(p))
 }
 
+func StatLocal(p string) (FileEntryDTO, error) {
+	if p == "" {
+		return FileEntryDTO{}, errors.New("path required")
+	}
+	p = filepath.Clean(p)
+	fi, err := os.Stat(p)
+	if err != nil {
+		return FileEntryDTO{}, err
+	}
+	return FileEntryDTO{
+		Name:    filepath.Base(p),
+		Path:    p,
+		IsDir:   fi.IsDir(),
+		Size:    fi.Size(),
+		MTimeMs: fi.ModTime().UnixMilli(),
+	}, nil
+}
+

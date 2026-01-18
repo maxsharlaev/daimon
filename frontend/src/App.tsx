@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 
 import { SplitView } from "./components/SplitView";
@@ -6,11 +6,19 @@ import { ConnectionsPanel } from "./components/ConnectionsPanel";
 import { TerminalTabs, type TerminalSession } from "./components/TerminalTabs";
 import type { ProfileDTO, ProfileGroupDTO } from "./types/models";
 import { fetchProfilesAndGroups } from "./components/ConnectionsPanel";
-import { onSSHState, onTaskState, startSSHEventBridge } from "./ssh/events";
+import { onSSHOutput, onSSHState, onTaskState, startSSHEventBridge } from "./ssh/events";
 import type { SSHStateEvent } from "./types/ssh";
-import { SaveUILayout, LoadUILayout } from "../wailsjs/go/main/App";
+import { SaveUILayout, LoadUILayout, SSHConnectProfile, SSHSend, SFTPConnectProfile } from "../wailsjs/go/main/App";
 import { pickSessionIcon } from "./utils/sessionTag";
 import { FilesTabs, type FilesSession } from "./components/FilesTabs";
+
+type FilesLastPathsByProfile = Record<string, { localPath: string; remotePath: string }>;
+
+function shellQuote(p: string) {
+  // single-quote for POSIX shells: ' -> '\'' (close/open trick)
+  const s = String(p ?? "");
+  return `'${s.replace(/'/g, `'\"'\"'`)}'`;
+}
 
 function App() {
   const [groups, setGroups] = useState<ProfileGroupDTO[]>([]);
@@ -23,6 +31,12 @@ function App() {
   const [fileSessions, setFileSessions] = useState<FilesSession[]>([]);
   const [activeFileSessionId, setActiveFileSessionId] = useState<string | null>(null);
   const [rightMode, setRightMode] = useState<"terminal" | "files">("terminal");
+  const [filesLastPathsByProfile, setFilesLastPathsByProfile] = useState<FilesLastPathsByProfile>({});
+  const fileSessionsRef = useRef<FilesSession[]>([]);
+
+  useEffect(() => {
+    fileSessionsRef.current = fileSessions;
+  }, [fileSessions]);
 
   const refresh = useCallback(async () => {
     const r = await fetchProfilesAndGroups();
@@ -46,6 +60,9 @@ function App() {
       try {
         const v = JSON.parse(raw);
         if (Array.isArray(v?.expandedGroupIds)) setExpandedGroupIds(v.expandedGroupIds);
+        if (v?.filesLastPathsByProfile && typeof v.filesLastPathsByProfile === "object") {
+          setFilesLastPathsByProfile(v.filesLastPathsByProfile as FilesLastPathsByProfile);
+        }
       } catch {
         // ignore
       }
@@ -54,9 +71,12 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const payload = JSON.stringify({ version: 1, expandedGroupIds });
-    void SaveUILayout("app", payload);
-  }, [expandedGroupIds]);
+    const t = setTimeout(() => {
+      const payload = JSON.stringify({ version: 2, expandedGroupIds, filesLastPathsByProfile });
+      void SaveUILayout("app", payload);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [expandedGroupIds, filesLastPathsByProfile]);
 
   // Update session markers from ssh:state events
   useEffect(() => {
@@ -158,7 +178,8 @@ function App() {
           const existingForProfile = prev.filter((s) => s.profileId === profileId);
           const icon = pickSessionIcon(sessionId, existingForProfile.map((s) => s.icon));
           const ordinal = existingForProfile.length + 1;
-          return [...prev, { sessionId, profileId, icon, ordinal }];
+          const remotePath = filesLastPathsByProfile[profileId]?.remotePath ?? ".";
+          return [...prev, { sessionId, profileId, icon, ordinal, remotePath }];
         });
         setActiveFileSessionId(sessionId);
         setRightMode("files");
@@ -185,6 +206,23 @@ function App() {
           activeSessionId={activeSessionId}
           onActivate={setActiveSessionId}
           onClose={closeSession}
+          onShowPwd={async (sshSessionId) => {
+            const cur = sessions.find((s) => s.sessionId === sshSessionId);
+            if (!cur) return;
+            const pwd = await queryPwdFromTerminal(sshSessionId);
+            const remotePath = (pwd || ".").trim() || ".";
+
+            const sid = await SFTPConnectProfile(cur.profileId);
+            setFileSessions((prev) => {
+              const existingForProfile = prev.filter((s) => s.profileId === cur.profileId);
+              const icon = pickSessionIcon(sid, existingForProfile.map((s) => s.icon));
+              const ordinal = existingForProfile.length + 1;
+              return [...prev, { sessionId: sid, profileId: cur.profileId, icon, ordinal, remotePath }];
+            });
+            setFilesLastPathsByProfile((prev) => ({ ...prev, [cur.profileId]: { localPath: prev[cur.profileId]?.localPath ?? "", remotePath } }));
+            setActiveFileSessionId(sid);
+            setRightMode("files");
+          }}
         />
       </div>
       <div className={`rightstack-pane ${rightMode === "files" ? "active" : ""}`}>
@@ -196,6 +234,25 @@ function App() {
           onClose={(sid) => {
             setFileSessions((prev) => prev.filter((s) => s.sessionId !== sid));
             setActiveFileSessionId((cur) => (cur === sid ? null : cur));
+          }}
+          initialPathsByProfile={filesLastPathsByProfile}
+          onPathsChanged={(profileId, next) => {
+            setFilesLastPathsByProfile((prev) => ({ ...prev, [profileId]: next }));
+          }}
+          onOpenTerminalAtPath={async (profileId, remotePath) => {
+            try {
+              const sid = await SSHConnectProfile(profileId);
+              openSession(sid, profileId);
+              setTimeout(() => {
+                void SSHSend(sid, `cd ${shellQuote(remotePath)}\n`);
+              }, 200);
+            } catch (e) {
+              // best-effort; FilesManager will show errors for its own operations
+              console.error(e);
+            }
+          }}
+          onSessionPathsChanged={(sessionId, next) => {
+            setFileSessions((prev) => prev.map((s) => (s.sessionId === sessionId ? { ...s, remotePath: next.remotePath } : s)));
           }}
         />
       </div>
@@ -217,8 +274,52 @@ function App() {
           <SplitView left={sidebar} right={rightPane} initialLeftPct={34} minLeftPx={340} minRightPx={420} />
         </div>
       </div>
+
     </div>
   );
 }
 
 export default App;
+
+async function queryPwdFromTerminal(sessionId: string): Promise<string> {
+  // We intentionally avoid any marker echos; send a plain `pwd`.
+  // This will echo `pwd` itself in the terminal, but won't spam extra marker lines.
+  let buf = "";
+  return await new Promise<string>((resolve) => {
+    const timeout = setTimeout(() => {
+      unsub();
+      resolve("");
+    }, 2500);
+
+    const stripAnsi = (s: string) =>
+      s
+        .replace(/\x1b\[[0-9;]*[A-Za-z]/g, "") // CSI
+        .replace(/\x1b\][^\x07]*\x07/g, "") // OSC
+        .replace(/\x1b[()][A-Za-z0-9]/g, ""); // charset
+
+    const unsub = onSSHOutput((ev) => {
+      if (!ev || ev.id !== sessionId) return;
+      buf += ev.data ?? "";
+      if (buf.length > 64 * 1024) buf = buf.slice(-64 * 1024);
+      const clean = stripAnsi(buf).replace(/\r/g, "");
+      // Prefer last absolute path-looking token anywhere (works even if prompt contains :/path)
+      const re = /(\/[^\s]+)/g;
+      let m: RegExpExecArray | null = null;
+      let last = "";
+      while ((m = re.exec(clean))) last = m[1];
+      const pathish = last
+        // common prompt suffixes like "/var/www#"
+        .replace(/[#$>]+$/, "")
+        // just in case we captured "/path:#" variants
+        .replace(/[:]+$/, "")
+        .trim();
+      if (pathish) {
+        clearTimeout(timeout);
+        unsub();
+        resolve(pathish);
+      }
+    });
+
+    void SSHSend(sessionId, "pwd\r");
+  });
+}

@@ -171,6 +171,27 @@ func (m *Manager) ListDir(sessionId string, dir string) ([]FileEntryDTO, error) 
 	return out, nil
 }
 
+func (m *Manager) Stat(sessionId string, p string) (FileEntryDTO, error) {
+	s, err := m.session(sessionId)
+	if err != nil {
+		return FileEntryDTO{}, err
+	}
+	p = Clean(p)
+	fi, err := s.SFTP.Stat(p)
+	if err != nil {
+		return FileEntryDTO{}, err
+	}
+	name := path.Base(p)
+	isDir := fi.IsDir()
+	return FileEntryDTO{
+		Name:    name,
+		Path:    p,
+		IsDir:   isDir,
+		Size:    fi.Size(),
+		MTimeMs: fi.ModTime().UnixMilli(),
+	}, nil
+}
+
 func (m *Manager) Mkdir(sessionId string, dir string) error {
 	s, err := m.session(sessionId)
 	if err != nil {

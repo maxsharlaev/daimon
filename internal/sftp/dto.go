@@ -13,7 +13,7 @@ type TransferEvent struct {
 	Direction  string `json:"direction"` // "upload" | "download"
 	DoneBytes  int64  `json:"doneBytes"`
 	TotalBytes int64  `json:"totalBytes"`
-	State      string `json:"state"` // "running" | "success" | "failed"
+	State      string `json:"state"` // "running" | "success" | "failed" | "cancelled"
 	Error      string `json:"error,omitempty"`
 }
 

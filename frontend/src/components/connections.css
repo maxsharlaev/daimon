@@ -204,6 +204,12 @@
   background: rgba(95, 120, 240, 0.95);
 }
 
+.session-files-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;

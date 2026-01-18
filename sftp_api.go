@@ -109,6 +109,14 @@ func (a *App) SFTPGetwd(sessionId string) (string, error) {
 	return m.Getwd(sessionId)
 }
 
+func (a *App) SFTPStat(sessionId string, p string) (SFTPFileEntryDTO, error) {
+	m, err := a.ensureSFTP()
+	if err != nil {
+		return SFTPFileEntryDTO{}, err
+	}
+	return m.Stat(sessionId, p)
+}
+
 func (a *App) SFTPMkdir(sessionId string, dir string) error {
 	m, err := a.ensureSFTP()
 	if err != nil {
@@ -143,6 +151,10 @@ func (a *App) LocalListDrives() ([]string, error) {
 
 func (a *App) LocalListDir(dir string) ([]SFTPFileEntryDTO, error) {
 	return sftp.ListLocalDir(dir)
+}
+
+func (a *App) LocalStat(p string) (SFTPFileEntryDTO, error) {
+	return sftp.StatLocal(p)
 }
 
 func (a *App) LocalMkdir(dir string) error {
@@ -248,7 +260,11 @@ func (a *App) SFTPTransferCancel(transferId string) error {
 	if a.sftpTransfers == nil {
 		return nil
 	}
-	return a.sftpTransfers.Close(transferId)
+	ev, _ := a.sftpTransfers.Cancel(transferId, true)
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "sftp:transfer", ev)
+	}
+	return nil
 }
 
 // Simple streaming transfers with progress events (legacy convenience).

@@ -156,6 +156,43 @@ func (tm *TransferManager) Close(id string) error {
 	return nil
 }
 
+// Cancel stops a transfer and (optionally) removes any partially written target file.
+// Best-effort: cleanup errors are ignored.
+func (tm *TransferManager) Cancel(id string, cleanup bool) (TransferEvent, error) {
+	t, err := tm.Get(id)
+	if err != nil {
+		// idempotent cancel
+		return TransferEvent{TransferID: id, State: "cancelled"}, nil
+	}
+	ev := TransferEvent{
+		TransferID: t.ID,
+		Direction:  string(t.Direction),
+		DoneBytes:  t.Done,
+		TotalBytes: t.Total,
+		State:      "cancelled",
+	}
+	localPath := t.LocalPath
+	remotePath := t.RemotePath
+	dir := t.Direction
+	sess := t.Session
+
+	_ = tm.Close(id)
+
+	if cleanup {
+		switch dir {
+		case TransferDownload:
+			if localPath != "" {
+				_ = os.Remove(localPath)
+			}
+		case TransferUpload:
+			if sess != nil && sess.SFTP != nil && remotePath != "" {
+				_ = sess.SFTP.Remove(Clean(remotePath))
+			}
+		}
+	}
+	return ev, nil
+}
+
 // Step advances the transfer by up to limit bytes and returns an event snapshot.
 // If the transfer completes, it is closed and removed.
 func (tm *TransferManager) Step(id string, limit int) (TransferEvent, error) {

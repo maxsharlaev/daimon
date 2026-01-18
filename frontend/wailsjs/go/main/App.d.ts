@@ -41,6 +41,8 @@ export function LocalMkdir(arg1:string):Promise<void>;
 
 export function LocalRename(arg1:string,arg2:string):Promise<void>;
 
+export function LocalStat(arg1:string):Promise<sftp.FileEntryDTO>;
+
 export function PickLocalFile():Promise<string>;
 
 export function PickLocalFolder():Promise<string>;
@@ -67,6 +69,8 @@ export function SFTPMkdir(arg1:string,arg2:string):Promise<void>;
 
 export function SFTPRename(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function SFTPStat(arg1:string,arg2:string):Promise<sftp.FileEntryDTO>;
+
 export function SFTPTransferCancel(arg1:string):Promise<void>;
 
 export function SFTPTransferChunk(arg1:string,arg2:number):Promise<sftp.TransferEvent>;
@@ -82,6 +86,8 @@ export function SSHConnectProfile(arg1:string):Promise<string>;
 export function SSHConnectProfileWithPassword(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function SSHDisconnect(arg1:string):Promise<void>;
+
+export function SSHExec(arg1:string,arg2:string):Promise<string>;
 
 export function SSHResize(arg1:string,arg2:number,arg3:number):Promise<void>;
 

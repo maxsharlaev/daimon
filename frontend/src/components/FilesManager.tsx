@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   LocalHomeDir,
   LocalListDrives,
@@ -6,22 +7,31 @@ import {
   LocalDelete,
   LocalMkdir,
   LocalRename,
+  LocalStat,
   SFTPListDir,
   SFTPGetwd,
   SFTPDelete,
   SFTPMkdir,
   SFTPRename,
-  SFTPDownloadToLocal,
-  SFTPUploadFromLocal,
+  SFTPStat,
+  SFTPDownloadStart,
+  SFTPUploadStart,
+  SFTPTransferChunk,
+  SFTPTransferCancel,
   PickLocalFile,
-  PickSaveFile,
   PickLocalFolder,
 } from "../../wailsjs/go/main/App";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import { onSFTPTransfer, startSFTPEventBridge } from "../sftp/events";
 import "./filesmanager.css";
 
 type Props = {
   sessionId: string;
+  profileId: string;
+  initialLocalPath?: string;
+  initialRemotePath?: string;
+  onPathsChanged?: (next: { localPath: string; remotePath: string }) => void;
+  onOpenTerminalAtPath?: (remotePath: string) => void;
+  onSessionPathsChanged?: (next: { localPath: string; remotePath: string }) => void;
 };
 
 type FileEntry = {
@@ -32,7 +42,27 @@ type FileEntry = {
   mtimeMs: number;
 };
 
-export function FilesManager({ sessionId }: Props) {
+type TransferStatus = {
+  transferId: string;
+  direction: "download" | "upload";
+  state: "running" | "success" | "failed" | "cancelled" | string;
+  doneBytes: number;
+  totalBytes: number;
+  bps: number; // bytes/sec (smoothed)
+  etaSec: number | null;
+};
+
+type ConflictInfo = {
+  open: boolean;
+  remotePath: string;
+  localPath: string;
+  localExisting?: FileEntry | null;
+  remoteFile?: FileEntry | null;
+  renameName?: string;
+  error?: string | null;
+};
+
+export function FilesManager({ sessionId, initialLocalPath, initialRemotePath, onPathsChanged, onOpenTerminalAtPath, onSessionPathsChanged }: Props) {
   const [localPath, setLocalPath] = useState<string>("");
   const [remotePath, setRemotePath] = useState<string>(".");
   const [localEntries, setLocalEntries] = useState<FileEntry[]>([]);
@@ -44,8 +74,14 @@ export function FilesManager({ sessionId }: Props) {
   const [selLocal, setSelLocal] = useState<string | null>(null);
   const [selRemote, setSelRemote] = useState<string | null>(null);
 
-  const [transferText, setTransferText] = useState<string | null>(null);
+  const [transfers, setTransfers] = useState<TransferStatus[]>([]);
+  const speedByTransferRef = useRef<Map<string, { lastTs: number; lastDone: number; emaBps: number }>>(new Map());
+  const cancelByTransferRef = useRef<Set<string>>(new Set());
   const [localDrives, setLocalDrives] = useState<string[]>([]);
+  const [remoteGoOpen, setRemoteGoOpen] = useState(false);
+  const [remotePathInput, setRemotePathInput] = useState<string>("");
+  const [conflict, setConflict] = useState<ConflictInfo>({ open: false, remotePath: "", localPath: "" });
+  const remotePathLockedRef = useRef(false);
 
   const localDisplayEntries = useMemo(() => {
     const out: FileEntry[] = [];
@@ -74,13 +110,30 @@ export function FilesManager({ sessionId }: Props) {
 
   useEffect(() => {
     const init = async () => {
-      const home = await LocalHomeDir();
-      setLocalPath(home);
+      if (initialLocalPath && initialLocalPath.trim()) {
+        setLocalPath(initialLocalPath);
+      } else {
+        const home = await LocalHomeDir();
+        setLocalPath(home);
+      }
       try {
-        const wd = await SFTPGetwd(sessionId);
-        setRemotePath(wd || ".");
+        if (initialRemotePath && initialRemotePath.trim()) {
+          if (!remotePathLockedRef.current) {
+            setRemotePath(initialRemotePath);
+            setRemotePathInput(initialRemotePath);
+          }
+        } else {
+          const wd = await SFTPGetwd(sessionId);
+          if (!remotePathLockedRef.current) {
+            setRemotePath(wd || ".");
+            setRemotePathInput(wd || ".");
+          }
+        }
       } catch {
-        setRemotePath(".");
+        if (!remotePathLockedRef.current) {
+          setRemotePath(".");
+          setRemotePathInput(".");
+        }
       }
       try {
         const drives = await LocalListDrives();
@@ -90,7 +143,29 @@ export function FilesManager({ sessionId }: Props) {
       }
     };
     void init();
-  }, [sessionId]);
+  }, [sessionId, initialLocalPath, initialRemotePath]);
+
+  useEffect(() => {
+    setRemotePathInput(remotePath);
+  }, [remotePath]);
+
+  // persist dirs (per profile) in parent
+  useEffect(() => {
+    if (!onPathsChanged) return;
+    if (!localPath) return;
+    if (!remotePath) return;
+    const t = setTimeout(() => onPathsChanged({ localPath, remotePath }), 250);
+    return () => clearTimeout(t);
+  }, [localPath, remotePath, onPathsChanged]);
+
+  useEffect(() => {
+    if (!onSessionPathsChanged) return;
+    if (!localPath) return;
+    if (!remotePath) return;
+    const t = setTimeout(() => onSessionPathsChanged({ localPath, remotePath }), 250);
+    return () => clearTimeout(t);
+  }, [localPath, remotePath, onSessionPathsChanged]);
+
 
   // Keybindings (MVP): Tab switch pane, Enter open dir, Backspace up
   useEffect(() => {
@@ -139,16 +214,27 @@ export function FilesManager({ sessionId }: Props) {
   }, [activePane, selLocal, selRemote, localPath, remotePath, localDisplayEntries, remoteDisplayEntries]);
 
   const refresh = async () => {
-    if (!localPath) return;
     setBusy(true);
-    setError(null);
     try {
-      const [l, r] = await Promise.all([
-        LocalListDir(localPath),
-        SFTPListDir(sessionId, remotePath),
-      ]);
-      setLocalEntries((l as any) as FileEntry[]);
-      setRemoteEntries((r as any) as FileEntry[]);
+      const jobs: Promise<void>[] = [];
+
+      if (localPath) {
+        jobs.push(
+          LocalListDir(localPath).then((l) => {
+            setLocalEntries((l as any) as FileEntry[]);
+          })
+        );
+      }
+
+      if (remotePath) {
+        jobs.push(
+          SFTPListDir(sessionId, remotePath).then((r) => {
+            setRemoteEntries((r as any) as FileEntry[]);
+          })
+        );
+      }
+
+      await Promise.all(jobs);
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
@@ -157,22 +243,47 @@ export function FilesManager({ sessionId }: Props) {
   };
 
   useEffect(() => {
-    if (!localPath) return;
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localPath, remotePath, sessionId]);
 
   useEffect(() => {
-    // progress events
-    EventsOn("sftp:transfer", (...args: any[]) => {
-      const ev = normalizeEvent<any>(args);
-      if (!ev) return;
-      const pct = ev.totalBytes ? Math.floor((ev.doneBytes / ev.totalBytes) * 100) : 0;
-      setTransferText(`${ev.direction} ${pct}% (${ev.doneBytes}/${ev.totalBytes}) ${ev.state}`);
-      if (ev.state === "success" || ev.state === "failed") {
-        setTimeout(() => setTransferText(null), 1500);
+    startSFTPEventBridge();
+    const unsub = onSFTPTransfer((ev) => {
+      setTransfers((prev) =>
+        prev.map((t) => {
+          if (t.transferId !== ev.transferId) return t;
+
+          const now = Date.now();
+          const doneBytes = Number(ev.doneBytes ?? 0);
+          const totalBytes = Number(ev.totalBytes ?? 0);
+
+          const prevSpeed = speedByTransferRef.current.get(ev.transferId);
+          let emaBps = prevSpeed?.emaBps ?? 0;
+          if (!prevSpeed) {
+            speedByTransferRef.current.set(ev.transferId, { lastTs: now, lastDone: doneBytes, emaBps: 0 });
+          } else {
+            const dt = Math.max(1, now - prevSpeed.lastTs);
+            const delta = Math.max(0, doneBytes - prevSpeed.lastDone);
+            const inst = (delta * 1000) / dt;
+            emaBps = emaBps <= 0 ? inst : emaBps * 0.85 + inst * 0.15;
+            speedByTransferRef.current.set(ev.transferId, { lastTs: now, lastDone: doneBytes, emaBps });
+          }
+
+          const etaSec = totalBytes > 0 && emaBps > 1 ? Math.max(0, Math.floor((totalBytes - doneBytes) / emaBps)) : null;
+          return { ...t, state: ev.state, doneBytes, totalBytes, bps: emaBps, etaSec };
+        })
+      );
+
+      if (ev.state === "success" || ev.state === "failed" || ev.state === "cancelled") {
+        setTimeout(() => {
+          setTransfers((cur) => cur.filter((t) => t.transferId !== ev.transferId));
+          speedByTransferRef.current.delete(ev.transferId);
+          cancelByTransferRef.current.delete(ev.transferId);
+        }, 1500);
       }
     });
+    return () => unsub();
   }, []);
 
   const goLocal = async (p: string) => {
@@ -183,26 +294,162 @@ export function FilesManager({ sessionId }: Props) {
   };
 
   const goRemote = async (p: string) => {
+    remotePathLockedRef.current = true;
     // Avoid showing previous directory entries under the new path while refresh is in-flight.
     setRemoteEntries([]);
     setRemotePath(p);
     setSelRemote(null);
   };
 
+  const validateRemoteDir = async (p: string) => {
+    // Validate path exists / is readable
+    await SFTPListDir(sessionId, p);
+  };
+
+  const goRemoteByInput = async () => {
+    const p = remotePathInput.trim() || ".";
+    setError(null);
+    try {
+      await validateRemoteDir(p);
+      await goRemote(p);
+      setRemoteGoOpen(false);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    }
+  };
+
+  const openTerminalHere = () => {
+    onOpenTerminalAtPath?.(remotePath);
+  };
+
+  const openTerminalAtInput = () => {
+    const p = remotePathInput.trim() || ".";
+    onOpenTerminalAtPath?.(p);
+    setRemoteGoOpen(false);
+  };
+
+  const runTransferToEnd = async (transferId: string) => {
+    while (true) {
+      if (cancelByTransferRef.current.has(transferId)) break;
+      try {
+        const ev: any = await SFTPTransferChunk(transferId, 256 * 1024);
+        const state = String(ev?.state ?? "running");
+        if (state !== "running") break;
+        // yield to UI
+        await new Promise((r) => setTimeout(r, 0));
+      } catch {
+        break;
+      }
+    }
+  };
+
+  const cancelTransfer = async (transferId: string) => {
+    const t = transfers.find((x) => x.transferId === transferId);
+    if (!t || t.state !== "running") return;
+    cancelByTransferRef.current.add(transferId);
+    try {
+      await SFTPTransferCancel(transferId);
+    } catch {
+      // ignore
+    }
+    setTransfers((cur) => cur.map((x) => (x.transferId === transferId ? { ...x, state: "cancelled" } : x)));
+  };
+
   const download = async () => {
     const remote = selRemote;
     if (!remote) return;
-    const saveTo = await PickSaveFile(extractName(remote));
-    if (!saveTo) return;
-    setBusy(true);
-    setError(null);
+    const saveTo = joinLocal(localPath, extractName(remote));
+
     try {
-      await SFTPDownloadToLocal(sessionId, remote, saveTo);
-      await refresh();
+      const st: any = await LocalStat(saveTo);
+      // exists -> show conflict modal
+      let remoteInfo: any = remoteEntries.find((e) => e.path === remote) ?? null;
+      try {
+        remoteInfo = (await SFTPStat(sessionId, remote)) as any;
+      } catch {
+        // keep list info if stat fails
+      }
+      setConflict({
+        open: true,
+        remotePath: remote,
+        localPath: saveTo,
+        localExisting: (st as any) as FileEntry,
+        remoteFile: remoteInfo,
+        renameName: extractName(saveTo),
+        error: null,
+      });
+      return;
+    } catch {
+      // doesn't exist -> proceed
+    }
+
+    try {
+      const start: any = await SFTPDownloadStart(sessionId, remote, saveTo);
+      const transferId = String(start?.transferId ?? start?.TransferID ?? "");
+      const totalBytes = Number(start?.totalBytes ?? start?.TotalBytes ?? 0);
+      if (!transferId) throw new Error("failed to start download");
+      speedByTransferRef.current.set(transferId, { lastTs: Date.now(), lastDone: 0, emaBps: 0 });
+      setTransfers((prev) => [...prev, { transferId, direction: "download", state: "running", doneBytes: 0, totalBytes, bps: 0, etaSec: null }]);
+      void runTransferToEnd(transferId);
     } catch (e: any) {
       setError(e?.message ?? String(e));
-    } finally {
-      setBusy(false);
+    }
+  };
+
+  const doStartDownload = async (remote: string, dest: string) => {
+    const start: any = await SFTPDownloadStart(sessionId, remote, dest);
+    const transferId = String(start?.transferId ?? start?.TransferID ?? "");
+    const totalBytes = Number(start?.totalBytes ?? start?.TotalBytes ?? 0);
+    if (!transferId) throw new Error("failed to start download");
+    speedByTransferRef.current.set(transferId, { lastTs: Date.now(), lastDone: 0, emaBps: 0 });
+    setTransfers((prev) => [...prev, { transferId, direction: "download", state: "running", doneBytes: 0, totalBytes, bps: 0, etaSec: null }]);
+    void runTransferToEnd(transferId);
+  };
+
+  const resolveConflictOverwrite = async () => {
+    const remote = conflict.remotePath;
+    const dest = conflict.localPath;
+    setConflict({ open: false, remotePath: "", localPath: "" });
+    try {
+      await doStartDownload(remote, dest);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    }
+  };
+
+  const resolveConflictRename = async () => {
+    const remote = conflict.remotePath;
+    const dest0 = conflict.localPath;
+    setConflict({ open: false, remotePath: "", localPath: "" });
+    try {
+      const dest = await nextAvailablePath(dest0);
+      await doStartDownload(remote, dest);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    }
+  };
+
+  const resolveConflictRenameManual = async () => {
+    const remote = conflict.remotePath;
+    const dir = parentLocal(conflict.localPath);
+    const name = String(conflict.renameName ?? "").trim();
+    if (!name) {
+      setConflict((c) => ({ ...c, error: "Enter a filename." }));
+      return;
+    }
+    const dest = joinLocal(dir, name);
+    try {
+      await LocalStat(dest);
+      setConflict((c) => ({ ...c, error: "That name already exists." }));
+      return;
+    } catch {
+      // ok
+    }
+    setConflict({ open: false, remotePath: "", localPath: "" });
+    try {
+      await doStartDownload(remote, dest);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
     }
   };
 
@@ -212,15 +459,16 @@ export function FilesManager({ sessionId }: Props) {
     const baseName = extractName(localFile);
     // naive: upload into current remote dir
     const remoteTarget = joinRemote(remotePath, baseName);
-    setBusy(true);
-    setError(null);
     try {
-      await SFTPUploadFromLocal(sessionId, localFile, remoteTarget);
-      await refresh();
+      const start: any = await SFTPUploadStart(sessionId, localFile, remoteTarget);
+      const transferId = String(start?.transferId ?? start?.TransferID ?? "");
+      const totalBytes = Number(start?.totalBytes ?? start?.TotalBytes ?? 0);
+      if (!transferId) throw new Error("failed to start upload");
+      speedByTransferRef.current.set(transferId, { lastTs: Date.now(), lastDone: 0, emaBps: 0 });
+      setTransfers((prev) => [...prev, { transferId, direction: "upload", state: "running", doneBytes: 0, totalBytes, bps: 0, etaSec: null }]);
+      void runTransferToEnd(transferId);
     } catch (e: any) {
       setError(e?.message ?? String(e));
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -303,7 +551,7 @@ export function FilesManager({ sessionId }: Props) {
       <div className="panel-titlebar">
         <div className="panel-title">Files</div>
         <div className="panel-meta">
-          {transferText ? <span className="mono">{transferText}</span> : <span className="muted">SFTP session: {sessionId.slice(0, 8)}</span>}
+          <span className="muted">SFTP session: {sessionId.slice(0, 8)}</span>
           {error ? <span className="error-text">{error}</span> : null}
         </div>
         <div className="panel-actions">
@@ -336,15 +584,14 @@ export function FilesManager({ sessionId }: Props) {
         <button className="btn" type="button" onClick={download} disabled={busy || !selRemote}>
           ← Download
         </button>
-        <button className="btn btn-ghost" type="button" onClick={pickLocalDir} disabled={busy}>
-          Local…
-        </button>
       </div>
 
       <div className="files-split">
         <div className={`pane ${activePane === "local" ? "active" : ""}`}>
           <div className="pathbar">
-            <span className="pathlabel">Local:</span>
+            <button className="pathlabel-btn" type="button" onClick={() => void pickLocalDir()} title="Pick local folder">
+              Local:
+            </button>
             {localDrives.length > 0 ? (
               <select
                 className="drive-select"
@@ -394,7 +641,17 @@ export function FilesManager({ sessionId }: Props) {
 
         <div className={`pane ${activePane === "remote" ? "active" : ""}`}>
           <div className="pathbar">
-            <span className="pathlabel">Remote:</span>
+            <button
+              className="pathlabel-btn"
+              type="button"
+              onClick={() => {
+                setRemotePathInput(remotePath);
+                setRemoteGoOpen(true);
+              }}
+              title="Go to remote path"
+            >
+              Remote:
+            </button>
             <div className="crumbs" title={remotePath}>
               {remoteCrumbs.map((c, idx) => (
                 <span key={c.path} className="crumbwrap">
@@ -407,6 +664,9 @@ export function FilesManager({ sessionId }: Props) {
                 </span>
               ))}
             </div>
+            <button className="iconbtn" type="button" onClick={() => void openTerminalHere()} title="Open terminal here">
+              ⌘
+            </button>
           </div>
           <div className="list">
             {remoteDisplayEntries.map((e) => (
@@ -428,6 +688,116 @@ export function FilesManager({ sessionId }: Props) {
           </div>
         </div>
       </div>
+
+      {transfers.length > 0 ? (
+        <div className="transferpanel">
+          {transfers.map((t) => {
+            const pct = t.totalBytes > 0 ? Math.min(100, Math.floor((t.doneBytes / t.totalBytes) * 100)) : 0;
+            const canCancel = t.state === "running";
+            return (
+              <div key={t.transferId} className={`transferrow ${t.state}`}>
+                <div className="progress">
+                  <div className="progress-fill" style={{ width: `${pct}%` }} />
+                  <div className="progress-text">{pct}%</div>
+                </div>
+                <div className="transfermeta mono">
+                  {t.direction} • {fmtBytes(t.doneBytes)}/{fmtBytes(t.totalBytes)} • {fmtBps(t.bps)}
+                  {t.etaSec !== null ? ` • ETA ${fmtEta(t.etaSec)}` : ""} • {t.state}
+                </div>
+                <button className="btn btn-ghost transfer-cancel" type="button" onClick={() => void cancelTransfer(t.transferId)} disabled={!canCancel}>
+                  Cancel
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {conflict.open ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal">
+            <div className="modal-title">File already exists</div>
+            <div className="modal-body">
+              <div className="conflict-grid">
+                <div>
+                  <div className="conflict-h">Local existing</div>
+                  <div className="mono">{conflict.localPath}</div>
+                  <div className="muted">
+                    {conflict.localExisting ? `${fmtBytes(conflict.localExisting.size)} • ${fmtDate(conflict.localExisting.mtimeMs)}` : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="conflict-h">Downloading</div>
+                  <div className="mono">{conflict.remotePath}</div>
+                  <div className="muted">
+                    {conflict.remoteFile ? `${fmtBytes(conflict.remoteFile.size)} • ${fmtDate(conflict.remoteFile.mtimeMs)}` : "—"}
+                  </div>
+                </div>
+              </div>
+              <label>Rename to</label>
+              <input
+                value={conflict.renameName ?? ""}
+                onChange={(e) => setConflict((c) => ({ ...c, renameName: e.target.value, error: null }))}
+                placeholder="new name"
+              />
+              {conflict.error ? <div className="error-text">{conflict.error}</div> : null}
+              <div className="muted">Choose what to do:</div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" type="button" onClick={() => setConflict({ open: false, remotePath: "", localPath: "" })}>
+                Cancel
+              </button>
+              <button className="btn btn-ghost" type="button" onClick={() => void resolveConflictRenameManual()}>
+                Rename…
+              </button>
+              <button className="btn btn-ghost" type="button" onClick={() => void resolveConflictRename()}>
+                Rename (2,3…)
+              </button>
+              <button className="btn" type="button" onClick={() => void resolveConflictOverwrite()}>
+                Overwrite
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {remoteGoOpen
+        ? createPortal(
+            <div className="modal-overlay" role="dialog" aria-modal="true">
+              <div className="modal">
+                <div className="modal-title">Remote path</div>
+                <div className="modal-body">
+                  <label>Path</label>
+                  <input
+                    className="mono"
+                    value={remotePathInput}
+                    onChange={(e) => setRemotePathInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void goRemoteByInput();
+                      }
+                    }}
+                    spellCheck={false}
+                  />
+                  <div className="muted">Enter a directory path (e.g. /root) and press Enter.</div>
+                </div>
+                <div className="modal-actions">
+                  <button className="btn btn-ghost" type="button" onClick={() => setRemoteGoOpen(false)}>
+                    Cancel
+                  </button>
+                  <button className="btn btn-ghost" type="button" onClick={() => void openTerminalAtInput()}>
+                    Terminal
+                  </button>
+                  <button className="btn" type="button" onClick={() => void goRemoteByInput()}>
+                    Go
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
@@ -544,5 +914,61 @@ function normalizeEvent<T>(args: any[]): T | null {
   }
   if (typeof v === "object") return v as T;
   return null;
+}
+
+function fmtBytes(n: number) {
+  if (!Number.isFinite(n) || n < 0) return "0 B";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function fmtBps(bps: number) {
+  if (!Number.isFinite(bps) || bps <= 0) return "—/s";
+  return `${fmtBytes(Math.floor(bps))}/s`;
+}
+
+function fmtPct(done: number, total: number) {
+  if (!total || total <= 0) return "—%";
+  return `${Math.min(100, Math.floor((done / total) * 100))}%`;
+}
+
+function fmtEta(sec: number) {
+  const s = Math.max(0, Math.floor(sec));
+  const mm = Math.floor(s / 60);
+  const ss = s % 60;
+  if (mm < 60) return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+  const hh = Math.floor(mm / 60);
+  const rem = mm % 60;
+  return `${String(hh).padStart(2, "0")}:${String(rem).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
+
+function fmtDate(ms: number) {
+  if (!Number.isFinite(ms) || ms <= 0) return "—";
+  try {
+    return new Date(ms).toLocaleString();
+  } catch {
+    return String(ms);
+  }
+}
+
+async function nextAvailablePath(p: string) {
+  const name = extractName(p);
+  const dir = parentLocal(p);
+  const m = name.match(/^(.*?)(\.[^.]*)?$/);
+  const stem = m?.[1] ?? name;
+  const ext = m?.[2] ?? "";
+
+  for (let i = 2; i < 10000; i++) {
+    const candidate = joinLocal(dir, `${stem} ${i}${ext}`);
+    try {
+      await LocalStat(candidate);
+      // exists -> keep searching
+    } catch {
+      return candidate;
+    }
+  }
+  throw new Error("no free filename found");
 }
 

@@ -25,6 +25,71 @@
   padding: 10px;
 }
 
+.transferpanel {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.transferrow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.progress {
+  position: relative;
+  height: 26px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.progress-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: rgba(95, 120, 240, 0.28);
+}
+
+.transferrow.success .progress-fill {
+  background: rgba(110, 231, 255, 0.22);
+}
+
+.transferrow.failed .progress-fill {
+  background: rgba(255, 120, 120, 0.18);
+}
+
+.transferrow.cancelled .progress-fill {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.progress-text {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.transfermeta {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.transfer-cancel {
+  height: 26px;
+}
+
 .pane {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
@@ -98,6 +163,102 @@
 .pathlabel {
   color: rgba(255, 255, 255, 0.6);
   font-size: 12px;
+}
+
+.pathlabel-btn {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pathlabel-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pathinput {
+  height: 26px;
+  border-radius: 8px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  width: 220px;
+  min-width: 140px;
+}
+
+.iconbtn {
+  height: 26px;
+  width: 30px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+}
+
+.iconbtn:hover {
+  border-color: rgba(110, 231, 255, 0.45);
+  background: rgba(110, 231, 255, 0.10);
+}
+
+.conflict-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 6px 0 10px;
+}
+
+.conflict-h {
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+/* Ensure modals opened from Files are always visible (even if other CSS isn't loaded / stacking contexts exist) */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: grid;
+  place-items: center;
+  z-index: 5000;
+}
+
+.modal {
+  width: 520px;
+  max-width: calc(100vw - 30px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(12, 18, 32, 0.96);
+  overflow: hidden;
+}
+
+.modal-title {
+  padding: 12px;
+  font-weight: 900;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.modal-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-actions {
+  padding: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .list {

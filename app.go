@@ -6,18 +6,18 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"daimon/internal/storage"
 	"daimon/internal/secrets"
 	"daimon/internal/sftp"
+	"daimon/internal/storage"
 )
 
 // App struct
 type App struct {
-	ctx context.Context
-	ssh *SSHManager
-	db  *storage.Store
-	secrets *secrets.Router
-	sftp *sftp.Manager
+	ctx           context.Context
+	ssh           *SSHManager
+	db            *storage.Store
+	secrets       *secrets.Router
+	sftp          *sftp.Manager
 	sftpTransfers *sftp.TransferManager
 }
 
@@ -93,6 +93,11 @@ func (a *App) SSHDisconnect(id string) error {
 // SSHSend writes user input bytes into the remote shell.
 func (a *App) SSHSend(id string, data string) error {
 	return a.ssh.Send(id, data)
+}
+
+// SSHExec runs a non-interactive command on an existing SSH session.
+func (a *App) SSHExec(id string, cmd string) (string, error) {
+	return a.ssh.Exec(id, cmd)
 }
 
 // SSHResize updates the PTY size for the remote session.

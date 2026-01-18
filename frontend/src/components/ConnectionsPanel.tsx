@@ -49,7 +49,7 @@ type Props = {
   activeSessionId: string | null;
   onCloseSession: (sessionId: string) => void;
 
-  fileSessions: { sessionId: string; profileId: string; icon: string; ordinal: number }[];
+  fileSessions: { sessionId: string; profileId: string; icon: string; ordinal: number; remotePath?: string }[];
   activeFileSessionId: string | null;
   rightMode: "terminal" | "files";
   onOpenFileSession: (sessionId: string, profileId: string) => void;
@@ -539,12 +539,8 @@ export function ConnectionsPanel({
                                         }}
                                       >
                                         <span className="dot dot-files" />
-                                        <span>
-                                          {(s.icon ?? "•") +
-                                            " " +
-                                            p.name +
-                                            (profFileSessions.length > 1 ? ` ${s.ordinal ?? 1}` : "") +
-                                            " (files)"}
+                                        <span className="session-files-label" title={s.remotePath ?? "."}>
+                                          {(s.icon ?? "•") + " " + `Files: ${s.remotePath ?? "."}`}
                                         </span>
                                       </button>
                                       <button

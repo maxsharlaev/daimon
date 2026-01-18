@@ -12,9 +12,10 @@ import "./terminalpanel.css";
 type Props = {
   connectionId: string | null;
   onDisconnected?: (id: string) => void;
+  onShowPwd?: () => void;
 };
 
-export function TerminalPanel({ connectionId, onDisconnected }: Props) {
+export function TerminalPanel({ connectionId, onDisconnected, onShowPwd }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -167,6 +168,11 @@ export function TerminalPanel({ connectionId, onDisconnected }: Props) {
           {lastError ? <span className="error-text">{lastError}</span> : null}
         </div>
         <div className="panel-actions">
+          {onShowPwd ? (
+            <button className="btn btn-ghost" type="button" onClick={onShowPwd} title="Open Files at current terminal path">
+              Files
+            </button>
+          ) : null}
           <button
             className="btn btn-ghost"
             onClick={() => termRef.current?.clear()}

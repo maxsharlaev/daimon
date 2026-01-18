@@ -189,6 +189,32 @@ func (m *SSHManager) Disconnect(ctx context.Context, id string) error {
 	return m.disconnect(ctx, id, nil)
 }
 
+// Exec runs a non-interactive command on the existing SSH client for the given session id.
+// It uses a separate ssh.Session (does not reuse the interactive PTY session).
+func (m *SSHManager) Exec(id string, cmd string) (string, error) {
+	m.mu.Lock()
+	c := m.conns[id]
+	m.mu.Unlock()
+	if c == nil || c.client == nil {
+		return "", errors.New("ssh session not found")
+	}
+	if strings.TrimSpace(cmd) == "" {
+		return "", errors.New("cmd required")
+	}
+
+	sess, err := c.client.NewSession()
+	if err != nil {
+		return "", err
+	}
+	defer sess.Close()
+
+	out, err := sess.CombinedOutput(cmd)
+	if err != nil {
+		return "", fmt.Errorf("ssh exec failed: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 func (m *SSHManager) disconnect(ctx context.Context, id string, stateEvent *SSHStateEvent) error {
 	m.mu.Lock()
 	c, ok := m.conns[id]

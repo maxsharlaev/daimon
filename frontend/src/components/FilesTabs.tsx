@@ -9,6 +9,7 @@ export type FilesSession = {
   profileId: string;
   icon: string;
   ordinal: number;
+  remotePath?: string;
 };
 
 type Props = {
@@ -17,9 +18,23 @@ type Props = {
   activeSessionId: string | null;
   onActivate: (sessionId: string) => void;
   onClose: (sessionId: string) => void;
+  initialPathsByProfile: Record<string, { localPath: string; remotePath: string }>;
+  onPathsChanged: (profileId: string, next: { localPath: string; remotePath: string }) => void;
+  onOpenTerminalAtPath: (profileId: string, remotePath: string) => void;
+  onSessionPathsChanged?: (sessionId: string, next: { localPath: string; remotePath: string }) => void;
 };
 
-export function FilesTabs({ profiles, sessions, activeSessionId, onActivate, onClose }: Props) {
+export function FilesTabs({
+  profiles,
+  sessions,
+  activeSessionId,
+  onActivate,
+  onClose,
+  initialPathsByProfile,
+  onPathsChanged,
+  onOpenTerminalAtPath,
+  onSessionPathsChanged,
+}: Props) {
   const byProfile = useMemo(() => {
     const m = new Map<string, ProfileDTO>();
     profiles.forEach((p) => m.set(p.id, p));
@@ -45,6 +60,8 @@ export function FilesTabs({ profiles, sessions, activeSessionId, onActivate, onC
   }
 
   const active = sessions.find((s) => s.sessionId === activeSessionId) ?? sessions[0];
+  const N = 34;
+  const tail = (p: string) => (p.length > N ? `…${p.slice(-N)}` : p);
 
   return (
     <div className="filestabs">
@@ -52,17 +69,16 @@ export function FilesTabs({ profiles, sessions, activeSessionId, onActivate, onC
         {sessions.map((s) => {
           const isActive = s.sessionId === active.sessionId;
           const prof = byProfile.get(s.profileId);
-          const multi = (countsByProfile.get(s.profileId) ?? 0) > 1;
-          const label = prof
-            ? `${s.icon} ${prof.name}${multi ? ` ${s.ordinal}` : ""}`
-            : `${s.icon} ${multi ? s.ordinal : ""}`.trim();
+          const fullPath = s.remotePath ?? initialPathsByProfile[s.profileId]?.remotePath ?? ".";
+          const shortPath = tail(fullPath);
+          const label = prof ? `${s.icon} ${shortPath}` : `${s.icon} ${shortPath}`;
           return (
             <button
               key={s.sessionId}
               className={`tab ${isActive ? "active" : ""}`}
               type="button"
               onClick={() => onActivate(s.sessionId)}
-              title={label}
+              title={fullPath}
             >
               <span className="dot dot-files" />
               <span className="tab-label">{label}</span>
@@ -82,7 +98,15 @@ export function FilesTabs({ profiles, sessions, activeSessionId, onActivate, onC
       <div className="filestabs-panels">
         {sessions.map((s) => (
           <div key={s.sessionId} className={`filestabs-panel ${s.sessionId === active.sessionId ? "active" : ""}`}>
-            <FilesManager sessionId={s.sessionId} />
+            <FilesManager
+              sessionId={s.sessionId}
+              profileId={s.profileId}
+              initialLocalPath={initialPathsByProfile[s.profileId]?.localPath}
+              initialRemotePath={s.remotePath ?? initialPathsByProfile[s.profileId]?.remotePath}
+              onPathsChanged={(next) => onPathsChanged(s.profileId, next)}
+              onOpenTerminalAtPath={(rp) => onOpenTerminalAtPath(s.profileId, rp)}
+              onSessionPathsChanged={(next) => onSessionPathsChanged?.(s.sessionId, next)}
+            />
           </div>
         ))}
       </div>
