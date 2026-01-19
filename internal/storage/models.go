@@ -131,3 +131,78 @@ func (m *Place) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+// Macro is a reusable script with tags and parameterized content.
+type Macro struct {
+	ID string `gorm:"primaryKey;size:36"`
+
+	Name     string `gorm:"not null"`
+	TagsJSON string `gorm:"not null;default:'[]'"`
+	Script   string `gorm:"not null;default:''"`
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (m *Macro) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	return nil
+}
+
+type MacroDataItem struct {
+	ID      string `gorm:"primaryKey;size:36"`
+	MacroID string `gorm:"index;size:36;not null"`
+
+	Key   string `gorm:"not null"`
+	Value string `gorm:"not null;default:''"`
+	Order int    `gorm:"not null;default:0"`
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (m *MacroDataItem) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	return nil
+}
+
+type MacroParam struct {
+	ID      string `gorm:"primaryKey;size:36"`
+	MacroID string `gorm:"index;size:36;not null"`
+
+	Name   string `gorm:"not null"`
+	Prompt string `gorm:"not null;default:''"`
+	Order  int    `gorm:"not null;default:0"`
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (m *MacroParam) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	return nil
+}
+
+type MacroBinding struct {
+	ID        string `gorm:"primaryKey;size:36"`
+	ProfileID string `gorm:"index;size:36;not null;uniqueIndex:idx_macro_binding"`
+	MacroID   string `gorm:"index;size:36;not null;uniqueIndex:idx_macro_binding"`
+
+	IsFavorite bool `gorm:"not null;default:false"`
+	Enabled    bool `gorm:"not null;default:true"`
+
+	UpdatedAt time.Time
+}
+
+func (m *MacroBinding) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	return nil
+}
+

@@ -52,10 +52,11 @@ type DashboardDiskDTO struct {
 }
 
 type DashboardProcessDTO struct {
-	PID  int     `json:"pid"`
-	Comm string  `json:"comm"`
-	CPU  float64 `json:"cpu"`
-	MEM  float64 `json:"mem"`
+	PID      int     `json:"pid"`
+	Comm     string  `json:"comm"`
+	CPU      float64 `json:"cpu"`
+	MEM      float64 `json:"mem"`
+	RSSBytes uint64  `json:"rssBytes"`
 }
 
 type DashboardNetDevDTO struct {
@@ -100,8 +101,8 @@ sleep 1
 echo "__STAT2__"; head -n 1 /proc/stat
 echo "__MEM__"; egrep "^(MemTotal|MemAvailable):" /proc/meminfo
 echo "__DF__"; df -PT -B1
-echo "__PSCPU__"; ps -eo pid,comm,%cpu,%mem --sort=-%cpu | head -n 21
-echo "__PSMEM__"; ps -eo pid,comm,%cpu,%mem --sort=-%mem | head -n 21
+echo "__PSCPU__"; ps -eo pid,comm,%cpu,%mem,rss --sort=-%cpu | head -n 21
+echo "__PSMEM__"; ps -eo pid,comm,%cpu,%mem,rss --sort=-%mem | head -n 21
 echo "__NETDEV__"; cat /proc/net/dev
 true
 '`
@@ -344,11 +345,17 @@ func parsePS(s string) []DashboardProcessDTO {
 		if err != nil {
 			continue
 		}
+		var rssBytes uint64
+		if len(f) >= 5 {
+			// rss is reported in KB by ps
+			rssBytes = parseUint(f[4]) * 1024
+		}
 		out = append(out, DashboardProcessDTO{
-			PID:  pid,
-			Comm: f[1],
-			CPU:  parseFloat(f[2]),
-			MEM:  parseFloat(f[3]),
+			PID:      pid,
+			Comm:     f[1],
+			CPU:      parseFloat(f[2]),
+			MEM:      parseFloat(f[3]),
+			RSSBytes: rssBytes,
 		})
 	}
 	return out

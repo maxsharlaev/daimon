@@ -1,0 +1,134 @@
+.macroeditormodal {
+  width: 720px;
+  max-width: 90vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.macroeditormodal-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.macroeditormodal .modal-body {
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.macroeditormodal .modal-body {
+  scrollbar-color: rgba(255, 255, 255, 0.22) rgba(10, 14, 24, 0.6);
+  scrollbar-width: thin;
+}
+
+.macroeditormodal .modal-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.macroeditormodal .modal-body::-webkit-scrollbar-track {
+  background: rgba(10, 14, 24, 0.6);
+  border-radius: 10px;
+}
+
+.macroeditormodal .modal-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+}
+
+.macroeditormodal .modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.macroeditormodal-tabs .tab {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.macroeditormodal-tabs .tab.active {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.macroeditormodal-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.macroeditormodal input,
+.macroeditormodal textarea {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(11, 18, 32, 0.55);
+  color: white;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.macroeditormodal input {
+  height: 34px;
+}
+
+.macroeditormodal textarea {
+  resize: vertical;
+}
+
+.macroeditormodal input:focus,
+.macroeditormodal textarea:focus {
+  border-color: rgba(110, 231, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.12);
+}
+
+.tag-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tag-list {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tag-chip {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tag-remove {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  margin-left: 4px;
+  cursor: pointer;
+}
+
+.row-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.kv-row,
+.param-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 2fr auto;
+  align-items: start;
+}
+
+.kv-row textarea {
+  resize: vertical;
+}
+
+.macroeditormodal .danger {
+  color: #ff8b8b;
+}

@@ -4,14 +4,25 @@ import "./App.css";
 import { SplitView } from "./components/SplitView";
 import { ConnectionsPanel } from "./components/ConnectionsPanel";
 import { TerminalTabs, type TerminalSession } from "./components/TerminalTabs";
-import type { PlaceDTO, ProfileDTO, ProfileGroupDTO } from "./types/models";
+import type { MacroDTO, PlaceDTO, ProfileDTO, ProfileGroupDTO } from "./types/models";
 import { fetchProfilesAndGroups } from "./components/ConnectionsPanel";
 import { onSSHOutput, onSSHState, onTaskState, startSSHEventBridge } from "./ssh/events";
 import type { SSHStateEvent } from "./types/ssh";
-import { LoadUILayout, SaveUILayout, SSHConnectProfile, SSHSend, SFTPConnectProfile, UpsertPlace } from "../wailsjs/go/main/App";
+import {
+  LoadUILayout,
+  SaveUILayout,
+  SSHConnectProfile,
+  SSHSend,
+  SFTPConnectProfile,
+  UpsertPlace,
+  UpsertMacro,
+} from "../wailsjs/go/main/App";
 import { pickSessionIcon } from "./utils/sessionTag";
 import { FilesTabs, type FilesSession } from "./components/FilesTabs";
 import { PlacesPanel } from "./components/PlacesPanel";
+import { MacrosPanel } from "./components/MacrosPanel";
+import { MacroEditorModal } from "./components/MacroEditorModal";
+import { MacroRunModal } from "./components/MacroRunModal";
 import { DashboardTabs } from "./components/DashboardTabs";
 
 type FilesLastPathsByProfile = Record<string, { localPath: string; remotePath: string }>;
@@ -48,7 +59,7 @@ function App() {
   const [filesLastPathsByProfile, setFilesLastPathsByProfile] = useState<FilesLastPathsByProfile>({});
   const fileSessionsRef = useRef<FilesSession[]>([]);
 
-  const [leftMode, setLeftMode] = useState<"connections" | "places">("connections");
+  const [leftMode, setLeftMode] = useState<"connections" | "places" | "macros">("connections");
   const [placesProfileId, setPlacesProfileId] = useState<string | null>(null);
   const [placesRefreshToken, setPlacesRefreshToken] = useState(0);
   const [placeModal, setPlaceModal] = useState<{ open: boolean; id?: string; profileId: string; name: string; remotePath: string }>({
@@ -57,6 +68,13 @@ function App() {
     name: "",
     remotePath: "",
   });
+
+  const [macrosProfileId, setMacrosProfileId] = useState<string | null>(null);
+  const [macrosRefreshToken, setMacrosRefreshToken] = useState(0);
+  const [macroEditorOpen, setMacroEditorOpen] = useState(false);
+  const [macroEditorMacro, setMacroEditorMacro] = useState<MacroDTO | null>(null);
+  const [macroRunOpen, setMacroRunOpen] = useState(false);
+  const [macroRunMacro, setMacroRunMacro] = useState<MacroDTO | null>(null);
 
   const [navToRemoteBySessionId, setNavToRemoteBySessionId] = useState<Record<string, { path: string; token: number }>>({});
 
@@ -68,6 +86,12 @@ function App() {
     if (!profileId) return;
     setPlacesProfileId(profileId);
     setLeftMode("places");
+  }, []);
+
+  const openMacrosForProfile = useCallback((profileId: string) => {
+    if (!profileId) return;
+    setMacrosProfileId(profileId);
+    setLeftMode("macros");
   }, []);
 
   const refresh = useCallback(async () => {
@@ -172,6 +196,21 @@ function App() {
     setActiveSessionId(sessionId);
     setRightMode("terminal");
   }, []);
+
+  const ensureTerminalSession = useCallback(
+    async (profileId: string) => {
+      let sid = sessions.find((s) => s.profileId === profileId)?.sessionId ?? null;
+      if (!sid) {
+        sid = await SSHConnectProfile(profileId);
+        openSession(sid, profileId);
+      } else {
+        setActiveSessionId(sid);
+        setRightMode("terminal");
+      }
+      return sid;
+    },
+    [openSession, sessions]
+  );
 
   const openDashboardSession = useCallback((sessionId: string, profileId: string) => {
     setDashboardSessions((prev) => {
@@ -279,7 +318,7 @@ function App() {
         }}
         onDataChanged={refresh}
       />
-    ) : placesProfileId ? (
+    ) : leftMode === "places" && placesProfileId ? (
       <PlacesPanel
         profileId={placesProfileId}
         profiles={profiles}
@@ -319,10 +358,28 @@ function App() {
           setNavToRemoteBySessionId((prev) => ({ ...prev, [sid!]: { path: remotePath, token: Date.now() } }));
         }}
       />
+    ) : leftMode === "macros" && macrosProfileId ? (
+      <MacrosPanel
+        profileId={macrosProfileId}
+        refreshToken={macrosRefreshToken}
+        onBack={() => setLeftMode("connections")}
+        onCreate={() => {
+          setMacroEditorMacro(null);
+          setMacroEditorOpen(true);
+        }}
+        onEdit={(m) => {
+          setMacroEditorMacro(m);
+          setMacroEditorOpen(true);
+        }}
+        onRun={(m) => {
+          setMacroRunMacro(m);
+          setMacroRunOpen(true);
+        }}
+      />
     ) : (
       <div className="panel">
         <div className="panel-titlebar">
-          <div className="panel-title">Places</div>
+          <div className="panel-title">Panel</div>
           <div className="panel-meta">no active profile</div>
         </div>
       </div>
@@ -356,6 +413,7 @@ function App() {
             setRightMode("files");
           }}
           onOpenPlaces={(profileId) => openPlacesForProfile(profileId)}
+          onOpenMacros={(profileId) => openMacrosForProfile(profileId)}
           onAddLocation={async (sshSessionId, profileId) => {
             const pwd = await queryPwdFromTerminal(sshSessionId);
             const remotePath = (pwd || ".").trim() || ".";
@@ -461,6 +519,29 @@ function App() {
           </div>
         </div>
       ) : null}
+
+      <MacroEditorModal
+        open={macroEditorOpen}
+        macro={macroEditorMacro}
+        onCancel={() => setMacroEditorOpen(false)}
+        onSave={async (next) => {
+          await UpsertMacro(next as any);
+          setMacroEditorOpen(false);
+          setMacrosRefreshToken((n) => n + 1);
+        }}
+      />
+
+      <MacroRunModal
+        open={macroRunOpen}
+        macro={macroRunMacro}
+        onCancel={() => setMacroRunOpen(false)}
+        onRun={async (script) => {
+          if (!macrosProfileId) return;
+          const sid = await ensureTerminalSession(macrosProfileId);
+          await SSHSend(sid, script + "\n");
+          setMacroRunOpen(false);
+        }}
+      />
     </div>
   );
 }

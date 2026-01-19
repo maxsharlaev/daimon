@@ -1,0 +1,158 @@
+.macrospanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.macrospanel-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  align-items: center;
+}
+
+.macrospanel-search {
+  flex: 1;
+  min-width: 160px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(11, 18, 32, 0.55);
+  color: white;
+  padding: 0 10px;
+  outline: none;
+}
+
+.macrospanel-search:focus {
+  border-color: rgba(110, 231, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.12);
+}
+
+.star-toggle {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+}
+
+.star-toggle.on {
+  color: #ffd36e;
+  border-color: rgba(255, 211, 110, 0.6);
+}
+
+.macrospanel-list {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.macrospanel-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: visible;
+}
+
+.macrospanel-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.macrospanel-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.macrospanel-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.macrospanel-tag {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.macrospanel-actions2 {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.macrospanel .danger {
+  color: #ff8b8b;
+}
+
+.macrospanel .star {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+}
+
+.macrospanel .star.on {
+  color: #ffd36e;
+  border-color: rgba(255, 211, 110, 0.6);
+}
+
+.macrospanel-menu {
+  position: relative;
+}
+
+.macrospanel .dots {
+  width: 30px;
+  height: 30px;
+}
+
+.macrospanel-dropdown {
+  position: absolute;
+  right: 0;
+  top: 34px;
+  min-width: 140px;
+  background: rgba(12, 18, 32, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 6px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.macrospanel-dropdown .menu-item {
+  text-align: left;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+}
+
+.macrospanel-dropdown .menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.macrospanel-dropdown .menu-item.danger {
+  color: #ff8b8b;
+}

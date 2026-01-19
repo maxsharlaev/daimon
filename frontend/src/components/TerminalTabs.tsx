@@ -24,6 +24,7 @@ type Props = {
   onShowPwd: (sessionId: string) => void;
   onAddLocation?: (sessionId: string, profileId: string) => void;
   onOpenPlaces?: (profileId: string) => void;
+  onOpenMacros?: (profileId: string) => void;
 };
 
 export function TerminalTabs({
@@ -35,6 +36,7 @@ export function TerminalTabs({
   onShowPwd,
   onAddLocation,
   onOpenPlaces,
+  onOpenMacros,
 }: Props) {
   const byProfile = useMemo(() => {
     const m = new Map<string, ProfileDTO>();
@@ -107,6 +109,7 @@ export function TerminalTabs({
                 onShowPwd={() => onShowPwd(s.sessionId)}
                 onAddLocation={onAddLocation ? () => onAddLocation(s.sessionId, s.profileId) : undefined}
                 onOpenPlaces={onOpenPlaces ? () => onOpenPlaces(s.profileId) : undefined}
+                onOpenMacros={onOpenMacros ? () => onOpenMacros(s.profileId) : undefined}
                 onDisconnected={() => {
                   // marker updates happen in parent via events; nothing needed here
                 }}

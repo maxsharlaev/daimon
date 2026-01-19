@@ -52,3 +52,46 @@ export type UpsertPlaceRequest = {
   order: number;
 };
 
+export type MacroDataItemDTO = {
+  id: string;
+  key: string;
+  value: string;
+  order: number;
+};
+
+export type MacroParamDTO = {
+  id: string;
+  name: string;
+  prompt: string;
+  order: number;
+};
+
+export type MacroDTO = {
+  id: string;
+  name: string;
+  tags: string[];
+  script: string;
+  dataItems: MacroDataItemDTO[];
+  params: MacroParamDTO[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UpsertMacroRequest = {
+  id?: string;
+  name: string;
+  tags: string[];
+  script: string;
+  dataItems: MacroDataItemDTO[];
+  params: MacroParamDTO[];
+};
+
+export type MacroBindingDTO = {
+  id: string;
+  profileId: string;
+  macroId: string;
+  isFavorite: boolean;
+  enabled: boolean;
+  updatedAt: string;
+};
+

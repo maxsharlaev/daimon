@@ -729,7 +729,7 @@ function WidgetBody({
           <div key={p.pid} className="list-row">
             <span className="mono">{p.comm}</span>
             <span className="muted mono">
-              {Number(p.cpu).toFixed(1)}% • {Number(p.mem).toFixed(1)}%
+              cpu {Number(p.cpu).toFixed(1)}%
             </span>
           </div>
         ))}
@@ -743,7 +743,7 @@ function WidgetBody({
           <div key={p.pid} className="list-row">
             <span className="mono">{p.comm}</span>
             <span className="muted mono">
-              {Number(p.mem).toFixed(1)}% • {Number(p.cpu).toFixed(1)}%
+              mem {Number(p.mem).toFixed(1)}% • {fmtBytes(Number(p.rssBytes ?? 0))}
             </span>
           </div>
         ))}
