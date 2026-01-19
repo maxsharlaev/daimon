@@ -201,7 +201,7 @@ export function ConnectionPanel({ connectionId, onConnected, onDisconnected }: P
             Insecure: ignore host key (MVP)
           </label>
           <div className="help">
-            Если выключить — потребуется `~/.ssh/known_hosts` (host key verification).
+            If disabled, `~/.ssh/known_hosts` is required (host key verification).
           </div>
         </div>
 
