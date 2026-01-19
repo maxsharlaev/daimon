@@ -11,7 +11,15 @@
   gap: 10px;
 }
 
+.dash-row-wrapper {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
 .dash-row {
+  flex: 1;
   display: grid;
   gap: 10px;
 }
@@ -26,25 +34,181 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.dash-row-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 6px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
+.dash-row-menu-wrapper {
+  position: relative;
+  flex-shrink: 0;
 }
 
-.dash-row-head .left {
+.row-menu-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.row-menu-dropdown {
+  position: absolute;
+  z-index: 100;
+  min-width: 180px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 18, 32, 0.98);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.row-menu-item-wrapper {
+  position: relative;
+}
+
+.row-menu-item {
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.86);
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.row-menu-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.row-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.row-menu-item-danger {
+  color: rgba(255, 120, 120, 0.95);
+}
+
+.row-menu-item-danger:hover:not(:disabled) {
+  background: rgba(255, 120, 120, 0.12);
+}
+
+.row-menu-sep {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 4px 0;
+}
+
+.edit-cols-dropdown {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 4px;
+  z-index: 101;
+  min-width: 160px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 18, 32, 0.98);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.edit-cols-option {
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.86);
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 13px;
   display: flex;
   align-items: center;
   gap: 10px;
+  white-space: nowrap;
 }
 
-.dash-row-head .right {
+.edit-cols-option span {
+  white-space: nowrap;
+}
+
+.edit-cols-option:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.add-row-wrapper {
+  position: relative;
+}
+
+.add-row-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  z-index: 100;
+  min-width: 160px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 18, 32, 0.98);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  padding: 4px;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+}
+
+.add-row-option {
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.86);
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.add-row-option span {
+  white-space: nowrap;
+}
+
+.add-row-option:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.row-preview {
+  display: grid;
+  gap: 4px;
+  width: 60px;
+  height: 24px;
+}
+
+.row-preview.cols-1 {
+  grid-template-columns: repeat(1, 1fr);
+}
+
+.row-preview.cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.row-preview.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.preview-slot {
+  background: rgba(185, 110, 255, 0.25);
+  border: 1px solid rgba(185, 110, 255, 0.40);
+  border-radius: 4px;
+  height: 100%;
 }
 
 .slot {
@@ -104,6 +268,27 @@
 
 .kpi {
   padding: 12px 10px 10px;
+}
+
+.kpi-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kpi-main {
+  flex: 1;
+}
+
+.kpi-side {
+  text-align: right;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.kpi-side-line {
+  line-height: 1.2;
 }
 
 .kpi-value {
@@ -180,4 +365,3 @@
   font-size: 12px;
   color: rgba(255, 255, 255, 0.7);
 }
-

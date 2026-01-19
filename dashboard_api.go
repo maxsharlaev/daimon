@@ -309,7 +309,12 @@ func parseDF(s string) []DashboardDiskDTO {
 		if size == 0 {
 			continue
 		}
-		usedPct := pct(float64(used), float64(size))
+		// df "Use%" is based on used / (used + available) to exclude reserved blocks.
+		denom := float64(used + avail)
+		if denom <= 0 {
+			denom = float64(size)
+		}
+		usedPct := pct(float64(used), denom)
 		out = append(out, DashboardDiskDTO{
 			Filesystem: fs,
 			FSType:     fst,
@@ -516,4 +521,3 @@ func round1(v float64) float64 {
 func isFinite(v float64) bool {
 	return !math.IsNaN(v) && !math.IsInf(v, 0)
 }
-

@@ -21,7 +21,7 @@ export type DashboardSession = {
   profileId: string;
   icon: string;
   ordinal: number;
-  marker: "green" | "red";
+  marker: "purple" | "red";
   lastError?: string | null;
 };
 
@@ -123,7 +123,7 @@ function App() {
       setDashboardSessions((prev) =>
         prev.map((s) => {
           if (s.sessionId !== ev.id) return s;
-          if (ev.state === "connected") return { ...s, marker: "green", lastError: null };
+          if (ev.state === "connected") return { ...s, marker: "purple", lastError: null };
           return { ...s, marker: "red", lastError: ev.error ?? null };
         })
       );
@@ -186,7 +186,7 @@ function App() {
           profileId,
           icon,
           ordinal: 1,
-          marker: "green",
+          marker: "purple",
         },
       ];
     });

@@ -204,6 +204,10 @@
   background: rgba(255, 210, 110, 0.95);
 }
 
+.dot-purple {
+  background: rgba(185, 110, 255, 0.95);
+}
+
 .dot-none {
   background: rgba(255, 255, 255, 0.25);
 }

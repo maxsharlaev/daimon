@@ -44,7 +44,7 @@ export type DashboardSessionSummary = {
   profileId: string;
   icon: string;
   ordinal: number;
-  marker: "green" | "red";
+  marker: "purple" | "red";
   lastError?: string | null;
 };
 

@@ -22,21 +22,9 @@ export function DashboardTabs({ profiles, sessions, activeSessionId, onActivate,
     return m;
   }, [profiles]);
 
-  if (sessions.length === 0) {
-    return (
-      <div className="panel">
-        <div className="panel-titlebar">
-          <div className="panel-title">Dashboard</div>
-          <div className="panel-meta">no active dashboards</div>
-        </div>
-        <div className="empty">Click Dashboard on a profile to open monitoring.</div>
-      </div>
-    );
-  }
-
-  const active = sessions.find((s) => s.sessionId === activeSessionId) ?? sessions[0];
-  const prof = byProfile.get(active.profileId);
-  const scope = `dashboard:${active.profileId}`;
+  const active = sessions.find((s) => s.sessionId === activeSessionId) ?? sessions[0] ?? null;
+  const prof = active ? byProfile.get(active.profileId) : null;
+  const scope = active ? `dashboard:${active.profileId}` : "";
 
   const [layout, setLayout] = useState<StoredLayoutV2>(() => defaultLayoutV2());
   const [activeTabId, setActiveTabId] = useState<string>("tab-general");
@@ -57,6 +45,7 @@ export function DashboardTabs({ profiles, sessions, activeSessionId, onActivate,
     };
     setLayout(out);
     if (out.activeTabId) setActiveTabId(out.activeTabId);
+    if (!scope) return;
     try {
       await SaveUILayout(scope, JSON.stringify(out));
     } catch {
@@ -65,6 +54,7 @@ export function DashboardTabs({ profiles, sessions, activeSessionId, onActivate,
   };
 
   useEffect(() => {
+    if (!scope || !active) return;
     const load = async () => {
       try {
         const raw = await LoadUILayout(scope);
@@ -89,7 +79,19 @@ export function DashboardTabs({ profiles, sessions, activeSessionId, onActivate,
     };
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active.profileId]);
+  }, [scope, active?.profileId]);
+
+  if (sessions.length === 0) {
+    return (
+      <div className="panel">
+        <div className="panel-titlebar">
+          <div className="panel-title">Dashboard</div>
+          <div className="panel-meta">no active dashboards</div>
+        </div>
+        <div className="empty">Click Dashboard on a profile to open monitoring.</div>
+      </div>
+    );
+  }
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0] ?? null;
 
@@ -165,14 +167,16 @@ export function DashboardTabs({ profiles, sessions, activeSessionId, onActivate,
       </div>
       <div className="dashboardtabs-panels">
         <div className="dashboardtabs-panel active">
-          <DashboardPanel
-            sessionId={active.sessionId}
-            profileId={active.profileId}
-            profileName={prof?.name}
-            layout={layout}
-            activeTabId={activeTabId}
-            persistLayout={persistLayout}
-          />
+          {active ? (
+            <DashboardPanel
+              sessionId={active.sessionId}
+              profileId={active.profileId}
+              profileName={prof?.name}
+              layout={layout}
+              activeTabId={activeTabId}
+              persistLayout={persistLayout}
+            />
+          ) : null}
         </div>
       </div>
 
