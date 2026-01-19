@@ -37,19 +37,35 @@ export function DashboardPanel({ sessionId, profileId, profileName, layout, acti
   const [pendingDeleteRowId, setPendingDeleteRowId] = useState<string | null>(null);
 
   const inFlightRef = useRef(false);
+  const sessionIdRef = useRef<string>(sessionId);
+
+  // Prevent showing stale data when switching dashboard sessions and avoid race conditions
+  // where an old in-flight refresh resolves after the session has changed.
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+    inFlightRef.current = false;
+    setSnap(null);
+    setError(null);
+    setBusy(false);
+  }, [sessionId]);
 
   const refresh = async () => {
-    if (!sessionId) return;
+    const id = sessionIdRef.current;
+    if (!id) return;
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setBusy(true);
     setError(null);
     try {
-      const next = await SSHDashboardSnapshot(sessionId);
+      const next = await SSHDashboardSnapshot(id);
+      // Ignore stale responses from previous sessionId
+      if (sessionIdRef.current !== id) return;
       setSnap(next as any);
     } catch (e: any) {
+      if (sessionIdRef.current !== id) return;
       setError(e?.message ?? String(e));
     } finally {
+      if (sessionIdRef.current !== id) return;
       inFlightRef.current = false;
       setBusy(false);
     }

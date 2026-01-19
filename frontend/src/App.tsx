@@ -491,11 +491,15 @@ function App() {
         <div className="modal-overlay" role="dialog" aria-modal="true">
           <div className="modal">
             <div className="modal-title">{placeModal.id ? "Edit Place" : "Save Location"}</div>
-            <div className="modal-body">
-              <label>Name (optional)</label>
-              <input value={placeModal.name} onChange={(e) => setPlaceModal((p) => ({ ...p, name: e.target.value }))} />
-              <label>Remote path</label>
-              <input className="mono" value={placeModal.remotePath} onChange={(e) => setPlaceModal((p) => ({ ...p, remotePath: e.target.value }))} />
+            <div className="modal-body form">
+              <div className="row">
+                <label>Name (optional)</label>
+                <input value={placeModal.name} onChange={(e) => setPlaceModal((p) => ({ ...p, name: e.target.value }))} />
+              </div>
+              <div className="row">
+                <label>Remote path</label>
+                <input className="mono" value={placeModal.remotePath} onChange={(e) => setPlaceModal((p) => ({ ...p, remotePath: e.target.value }))} />
+              </div>
             </div>
             <div className="modal-actions">
               <button className="btn btn-ghost" type="button" onClick={() => setPlaceModal({ open: false, profileId: "", name: "", remotePath: "" })}>

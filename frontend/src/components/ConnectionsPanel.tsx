@@ -590,8 +590,8 @@ export function ConnectionsPanel({
                                   >
                                     ⋯
                                   </button>
-                                  <span className={`marker marker-${topMarker}`} title={topMarker} />
                                 </div>
+                                <span className={`marker marker-${topMarker} profile-marker`} title={topMarker} />
                               </div>
 
                               {profDashboard ? (
@@ -617,11 +617,15 @@ export function ConnectionsPanel({
                                     </button>
                                     <button
                                       type="button"
-                                      className="session-close"
-                                      onClick={() => void disconnectDashboardSession(profDashboard.sessionId)}
-                                      title="Disconnect dashboard"
+                                        className={`session-close ${profDashboard.marker === "red" ? "neutral" : ""}`}
+                                        onClick={() =>
+                                          profDashboard.marker === "red"
+                                            ? onCloseDashboardSession(profDashboard.sessionId)
+                                            : void disconnectDashboardSession(profDashboard.sessionId)
+                                        }
+                                        title={profDashboard.marker === "red" ? "Close dashboard session" : "Disconnect dashboard"}
                                     >
-                                      Disconnect
+                                        {profDashboard.marker === "red" ? "Close" : "Disconnect"}
                                     </button>
                                   </div>
                                 </div>
@@ -649,11 +653,11 @@ export function ConnectionsPanel({
                                       </button>
                                       <button
                                         type="button"
-                                        className="session-close"
-                                        onClick={() => disconnectSession(s.sessionId)}
-                                        title="Disconnect"
+                                        className={`session-close ${s.marker === "red" ? "neutral" : ""}`}
+                                        onClick={() => (s.marker === "red" ? onCloseSession(s.sessionId) : void disconnectSession(s.sessionId))}
+                                        title={s.marker === "red" ? "Close session" : "Disconnect"}
                                       >
-                                        Disconnect
+                                        {s.marker === "red" ? "Close" : "Disconnect"}
                                       </button>
                                     </div>
                                   ))}

@@ -59,6 +59,8 @@
   border-radius: 10px;
   padding: 8px;
   background: rgba(255, 255, 255, 0.02);
+  /* Adapt based on actual left pane width (container), not the full window. */
+  container-type: inline-size;
 }
 
 .profile.active-terminal {
@@ -74,10 +76,11 @@
 }
 
 .profile-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 12px;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  column-gap: 10px;
+  row-gap: 10px;
 }
 
 .profile-main {
@@ -86,6 +89,15 @@
 
 .profile-name {
   font-weight: 800;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-marker {
+  justify-self: end;
+  align-self: center;
 }
 
 .profile-sub {
@@ -100,6 +112,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .marker {
@@ -107,6 +120,46 @@
   height: 10px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+}
+
+/* In a narrow left pane (profile card width) move buttons below the title, keep marker by the title. */
+@container (max-width: 520px) {
+  .profile-row {
+    grid-template-columns: minmax(0, 1fr) 12px;
+    grid-template-areas:
+      "main marker"
+      "actions actions";
+    align-items: start;
+  }
+
+  .profile-main {
+    grid-area: main;
+  }
+
+  .profile-actions {
+    grid-area: actions;
+    justify-content: stretch;
+  }
+
+  .profile-marker {
+    grid-area: marker;
+    align-self: start;
+    margin-top: 2px;
+  }
+
+  .profile-actions .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* keep menu button compact */
+  .profile-actions .btn.btn-ghost {
+    flex: 0 0 auto;
+  }
 }
 
 .marker-green {
@@ -183,6 +236,16 @@
   background: rgba(255, 120, 120, 0.12);
   color: white;
   cursor: pointer;
+}
+
+.session-close.neutral {
+  border-color: rgba(95, 120, 240, 0.55);
+  background: rgba(95, 120, 240, 0.14);
+}
+
+.session-close.neutral:hover {
+  border-color: rgba(95, 120, 240, 0.80);
+  background: rgba(95, 120, 240, 0.20);
 }
 
 .dot {

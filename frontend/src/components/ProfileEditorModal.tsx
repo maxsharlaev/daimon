@@ -396,75 +396,83 @@ export function ProfileEditorModal({
         <div className="modal-body modal-grid">
           <div className="section form">
             <div className="section-title">Connection</div>
-            <label>Group</label>
-            <select value={groupId} onChange={(e) => setGroupId(e.target.value)} disabled={busy}>
-              <option value="" disabled>
-                Select group…
-              </option>
-              {groups
-                .slice()
-                .sort((a, b) => a.order - b.order)
-                .map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-            </select>
+            <div className="row">
+              <label>Group</label>
+              <select value={groupId} onChange={(e) => setGroupId(e.target.value)} disabled={busy}>
+                <option value="" disabled>
+                  Select group…
+                </option>
+                {groups
+                  .slice()
+                  .sort((a, b) => a.order - b.order)
+                  .map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
 
-            <label>Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
+            <div className="row">
+              <label>Name</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
+            </div>
 
-            <label>Host</label>
-            <input value={host} onChange={(e) => setHost(e.target.value)} disabled={busy} placeholder="example.com" />
+            <div className="row">
+              <label>Host</label>
+              <input value={host} onChange={(e) => setHost(e.target.value)} disabled={busy} placeholder="example.com" />
+            </div>
 
             <div className="row two">
-              <div>
+              <div className="row">
                 <label>Port</label>
                 <input type="number" value={port} onChange={(e) => setPort(Number(e.target.value))} disabled={busy} />
               </div>
-              <div>
+              <div className="row">
                 <label>User</label>
                 <input value={username} onChange={(e) => setUsername(e.target.value)} disabled={busy} />
               </div>
             </div>
 
-            <div className="row two">
-              <div>
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={insecureIgnoreHostKey}
-                    onChange={(e) => setInsecureIgnoreHostKey(e.target.checked)}
-                    disabled={busy}
-                  />
-                  Insecure: ignore host key (MVP)
-                </label>
-              </div>
-              <div>
-                <label>Timeout (ms)</label>
-                <input type="number" value={timeoutMs} onChange={(e) => setTimeoutMs(Number(e.target.value))} disabled={busy} min={1000} step={500} />
-              </div>
+            <div className="row">
+              <label>Host key verification</label>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={insecureIgnoreHostKey}
+                  onChange={(e) => setInsecureIgnoreHostKey(e.target.checked)}
+                  disabled={busy}
+                />
+                Insecure: ignore host key (MVP)
+              </label>
+            </div>
+
+            <div className="row">
+              <label>Timeout (ms)</label>
+              <input type="number" value={timeoutMs} onChange={(e) => setTimeoutMs(Number(e.target.value))} disabled={busy} min={1000} step={500} />
             </div>
           </div>
 
           <div className="section form">
             <div className="section-title">Auth + Secrets</div>
 
-            <label>Primary auth</label>
-            <div className="segmented">
-              <button className={`seg ${authKind === "password" ? "active" : ""}`} type="button" onClick={() => setAuthKind("password")} disabled={busy}>
-                Password
-              </button>
-              <button className={`seg ${authKind === "private_key" ? "active" : ""}`} type="button" onClick={() => setAuthKind("private_key")} disabled={busy}>
-                Private key
-              </button>
+            <div className="row">
+              <label>Primary auth</label>
+              <div className="segmented">
+                <button className={`seg ${authKind === "password" ? "active" : ""}`} type="button" onClick={() => setAuthKind("password")} disabled={busy}>
+                  Password
+                </button>
+                <button className={`seg ${authKind === "private_key" ? "active" : ""}`} type="button" onClick={() => setAuthKind("private_key")} disabled={busy}>
+                  Private key
+                </button>
+              </div>
             </div>
 
             {authKind === "password" ? (
               <div className="subsection">
                 <div className="subsection-title">Password storage</div>
                 <div className="row two">
-                  <div>
+                  <div className="row">
                     <label>Storage</label>
                     <select value={passwordStorage} onChange={(e) => setPasswordStorage(e.target.value as any)} disabled={busy}>
                       <option value="none">none (ask each time)</option>
@@ -472,7 +480,7 @@ export function ProfileEditorModal({
                       <option value="internal">internal vault</option>
                     </select>
                   </div>
-                  <div>
+                  <div className="row">
                     <label>Password</label>
                     <input
                       type="password"
@@ -486,36 +494,44 @@ export function ProfileEditorModal({
             ) : (
               <div className="subsection">
                 <div className="subsection-title">Private key storage</div>
-                <label>Storage</label>
-                <select value={keyStorage} onChange={(e) => setKeyStorage(e.target.value as any)} disabled={busy}>
-                  <option value="none">none (ask each time)</option>
-                  <option value="external">external file path</option>
-                  <option value="keyring">keyring (OS) (stores PEM)</option>
-                  <option value="internal">internal vault (stores PEM)</option>
-                </select>
+                <div className="row">
+                  <label>Storage</label>
+                  <select value={keyStorage} onChange={(e) => setKeyStorage(e.target.value as any)} disabled={busy}>
+                    <option value="none">none (ask each time)</option>
+                    <option value="external">external file path</option>
+                    <option value="keyring">keyring (OS) (stores PEM)</option>
+                    <option value="internal">internal vault (stores PEM)</option>
+                  </select>
+                </div>
 
                 {keyStorage === "external" ? (
                   <>
-                    <label>Key file path</label>
-                    <div className="inline">
-                      <input value={keyPath} onChange={(e) => setKeyPath(e.target.value)} disabled={busy} />
-                      <button className="btn" type="button" onClick={pickKeyFile} disabled={busy}>
-                        Browse…
-                      </button>
+                    <div className="row">
+                      <label>Key file path</label>
+                      <div className="inline">
+                        <input value={keyPath} onChange={(e) => setKeyPath(e.target.value)} disabled={busy} />
+                        <button className="btn" type="button" onClick={pickKeyFile} disabled={busy}>
+                          Browse…
+                        </button>
+                      </div>
                     </div>
                   </>
                 ) : keyStorage === "none" ? null : (
                   <>
-                    <label>Private key PEM</label>
-                    <textarea
-                      className="textarea"
-                      value={keyPEM}
-                      onChange={(e) => setKeyPEM(e.target.value)}
-                      disabled={busy}
-                      placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                    />
-                    <label>Passphrase (optional)</label>
-                    <input type="password" value={keyPassphrase} onChange={(e) => setKeyPassphrase(e.target.value)} disabled={busy} />
+                    <div className="row">
+                      <label>Private key PEM</label>
+                      <textarea
+                        className="textarea"
+                        value={keyPEM}
+                        onChange={(e) => setKeyPEM(e.target.value)}
+                        disabled={busy}
+                        placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                      />
+                    </div>
+                    <div className="row">
+                      <label>Passphrase (optional)</label>
+                      <input type="password" value={keyPassphrase} onChange={(e) => setKeyPassphrase(e.target.value)} disabled={busy} />
+                    </div>
                   </>
                 )}
               </div>

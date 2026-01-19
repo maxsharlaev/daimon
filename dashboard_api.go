@@ -109,6 +109,11 @@ true
 
 	raw, err := a.ssh.Exec(sessionId, cmd)
 	if err != nil {
+		// Exec-only dashboard sessions don't have a PTY session to Wait() on,
+		// so a remote disconnect may only surface as an Exec() error.
+		// Best-effort: mark the session as disconnected (emits ssh:state) and
+		// let the frontend show a red marker + Close action.
+		_ = a.ssh.Disconnect(a.ctx, sessionId)
 		return DashboardSnapshotDTO{}, err
 	}
 	sections := splitMarkedSections(raw)
