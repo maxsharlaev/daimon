@@ -243,11 +243,8 @@ func parseProcStatCPU(line string) procCPU {
 	for _, u := range vals {
 		total += u
 	}
+	// idle is field 4; keep iowait as busy to align with top's "100 - id".
 	idle := vals[3]
-	// iowait counts as idle time for "busy%" purposes (when present)
-	if len(vals) >= 5 {
-		idle += vals[4]
-	}
 	return procCPU{total: total, idle: idle}
 }
 

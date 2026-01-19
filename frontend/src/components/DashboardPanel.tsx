@@ -637,8 +637,26 @@ function WidgetBody({
   }
 
   if (w.metric === "cpu_busy") {
-    const v = Number(snap.cpu?.busyPct ?? 0);
-    return <ProgressKPI label={`${v.toFixed(1)}%`} pct={v} sub="busy" />;
+    const overall = Number(snap.cpu?.busyPct ?? 0);
+    const cores = Math.max(1, Number(snap.load?.cores ?? 1));
+    const topStyle = overall * cores;
+    return (
+      <div className="kpi">
+        <div className="kpi-header">
+          <div className="kpi-main">
+            <div className="kpi-value">{topStyle.toFixed(1)}%</div>
+            <div className="kpi-sub">busy (top-style)</div>
+          </div>
+          <div className="kpi-side">
+            <div className="kpi-side-line">overall {overall.toFixed(1)}%</div>
+            <div className="kpi-side-line">cores {cores}</div>
+          </div>
+        </div>
+        <div className="progress" style={{ marginTop: 10 }}>
+          <div className="progress-fill" style={{ width: `${Math.max(0, Math.min(100, overall))}%` }} />
+        </div>
+      </div>
+    );
   }
   if (w.metric === "mem_available") {
     const total = Number(snap.mem?.totalBytes ?? 0);
@@ -666,10 +684,14 @@ function WidgetBody({
   if (w.metric === "load1") {
     const v = Number(snap.load?.load1 ?? 0);
     const cores = Number(snap.load?.cores ?? 0);
+    const pctOfCores = cores > 0 ? (v / cores) * 100 : 0;
     return (
       <div className="kpi">
         <div className="kpi-value">{v.toFixed(2)}</div>
-        <div className="kpi-sub">cores: {cores || "—"}</div>
+        <div className="kpi-sub">avg runnable tasks (1 min)</div>
+        <div className="kpi-sub">
+          ~{v.toFixed(2)} cores ({pctOfCores.toFixed(1)}% of {cores || "—"})
+        </div>
       </div>
     );
   }
