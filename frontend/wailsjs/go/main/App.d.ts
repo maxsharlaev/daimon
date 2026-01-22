@@ -13,6 +13,112 @@ export function DeleteProfileGroup(arg1:string):Promise<void>;
 
 export function DemoRunTask(arg1:string,arg2:number):Promise<void>;
 
+export function DockerLocalContainerRemove(arg1:string):Promise<void>;
+
+export function DockerLocalContainerRestart(arg1:string):Promise<void>;
+
+export function DockerLocalContainerStart(arg1:string):Promise<void>;
+
+export function DockerLocalContainerStop(arg1:string):Promise<void>;
+
+export function DockerLocalCreateTempContainer(arg1:string):Promise<string>;
+
+export function DockerLocalDanglingPreview():Promise<main.DockerDanglingPreviewDTO>;
+
+export function DockerLocalDownload(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function DockerLocalExecStart(arg1:string,arg2:number,arg3:number):Promise<string>;
+
+export function DockerLocalFileDelete(arg1:string,arg2:string):Promise<void>;
+
+export function DockerLocalImageInspect(arg1:string):Promise<string>;
+
+export function DockerLocalImagePull(arg1:string):Promise<string>;
+
+export function DockerLocalImageRemove(arg1:string,arg2:boolean):Promise<void>;
+
+export function DockerLocalListContainers():Promise<Array<main.DockerContainerDTO>>;
+
+export function DockerLocalListDanglingImages():Promise<Array<main.DockerImageDTO>>;
+
+export function DockerLocalListDir(arg1:string,arg2:string):Promise<Array<main.DockerFileEntryDTO>>;
+
+export function DockerLocalListImages():Promise<Array<main.DockerImageDTO>>;
+
+export function DockerLocalLogsStart(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function DockerLocalMkdir(arg1:string,arg2:string):Promise<void>;
+
+export function DockerLocalPruneDangling():Promise<main.DockerDanglingPreviewDTO>;
+
+export function DockerLocalRemoveImages(arg1:Array<string>):Promise<void>;
+
+export function DockerLocalRename(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function DockerLocalStatus():Promise<main.DockerStatusDTO>;
+
+export function DockerLocalSystemInfo():Promise<main.DockerSystemDTO>;
+
+export function DockerLocalUpload(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function DockerRemoteConnectProfile(arg1:string):Promise<string>;
+
+export function DockerRemoteContainerRemove(arg1:string,arg2:string):Promise<void>;
+
+export function DockerRemoteContainerRestart(arg1:string,arg2:string):Promise<void>;
+
+export function DockerRemoteContainerStart(arg1:string,arg2:string):Promise<void>;
+
+export function DockerRemoteContainerStop(arg1:string,arg2:string):Promise<void>;
+
+export function DockerRemoteCreateTempContainer(arg1:string,arg2:string):Promise<string>;
+
+export function DockerRemoteDanglingPreview(arg1:string):Promise<main.DockerDanglingPreviewDTO>;
+
+export function DockerRemoteDisconnect(arg1:string):Promise<void>;
+
+export function DockerRemoteDownload(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
+export function DockerRemoteExecStart(arg1:string,arg2:string,arg3:number,arg4:number):Promise<string>;
+
+export function DockerRemoteFileDelete(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function DockerRemoteImageInspect(arg1:string,arg2:string):Promise<string>;
+
+export function DockerRemoteImagePull(arg1:string,arg2:string):Promise<string>;
+
+export function DockerRemoteImageRemove(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+
+export function DockerRemoteListContainers(arg1:string):Promise<Array<main.DockerContainerDTO>>;
+
+export function DockerRemoteListDanglingImages(arg1:string):Promise<Array<main.DockerImageDTO>>;
+
+export function DockerRemoteListDir(arg1:string,arg2:string,arg3:string):Promise<Array<main.DockerFileEntryDTO>>;
+
+export function DockerRemoteListImages(arg1:string):Promise<Array<main.DockerImageDTO>>;
+
+export function DockerRemoteLogsStart(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
+
+export function DockerRemoteMkdir(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function DockerRemotePruneDangling(arg1:string):Promise<main.DockerDanglingPreviewDTO>;
+
+export function DockerRemoteRemoveImages(arg1:string,arg2:Array<string>):Promise<void>;
+
+export function DockerRemoteRename(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
+export function DockerRemoteStatus(arg1:string):Promise<main.DockerStatusDTO>;
+
+export function DockerRemoteSystemInfo(arg1:string):Promise<main.DockerSystemDTO>;
+
+export function DockerRemoteUpload(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
+export function DockerStreamResize(arg1:string,arg2:number,arg3:number):Promise<void>;
+
+export function DockerStreamSend(arg1:string,arg2:string):Promise<void>;
+
+export function DockerStreamStop(arg1:string):Promise<void>;
+
 export function DuplicateProfile(arg1:string,arg2:string):Promise<main.ProfileDTO>;
 
 export function EnsureDefaultGroup():Promise<main.ProfileGroupDTO>;

@@ -59,6 +59,25 @@ type sshConn struct {
 	once   sync.Once
 }
 
+type SSHCmdSession struct {
+	session *ssh.Session
+	stdin   io.WriteCloser
+	stdout  io.Reader
+	stderr  io.Reader
+}
+
+func (s *SSHCmdSession) Stdin() io.WriteCloser { return s.stdin }
+func (s *SSHCmdSession) Stdout() io.Reader     { return s.stdout }
+func (s *SSHCmdSession) Stderr() io.Reader     { return s.stderr }
+func (s *SSHCmdSession) Wait() error           { return s.session.Wait() }
+func (s *SSHCmdSession) Close() error          { return s.session.Close() }
+func (s *SSHCmdSession) Resize(cols int, rows int) error {
+	if rows <= 0 || cols <= 0 {
+		return nil
+	}
+	return s.session.WindowChange(rows, cols)
+}
+
 type SSHOutputEvent struct {
 	ID    string `json:"id"`
 	Data  string `json:"data"`
@@ -236,6 +255,106 @@ func (m *SSHManager) Exec(id string, cmd string) (string, error) {
 		return "", fmt.Errorf("ssh exec failed: %w", err)
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// Client returns the underlying ssh.Client for a connection id.
+func (m *SSHManager) Client(id string) (*ssh.Client, error) {
+	m.mu.Lock()
+	c := m.conns[id]
+	m.mu.Unlock()
+	if c == nil || c.client == nil {
+		return nil, errors.New("ssh session not found")
+	}
+	return c.client, nil
+}
+
+// OpenCommandSession starts a non-interactive command session with streaming stdout/stderr.
+func (m *SSHManager) OpenCommandSession(id string, cmd string) (*SSHCmdSession, error) {
+	m.mu.Lock()
+	c := m.conns[id]
+	m.mu.Unlock()
+	if c == nil || c.client == nil {
+		return nil, errors.New("ssh session not found")
+	}
+	if strings.TrimSpace(cmd) == "" {
+		return nil, errors.New("cmd required")
+	}
+	sess, err := c.client.NewSession()
+	if err != nil {
+		return nil, err
+	}
+	stdin, err := sess.StdinPipe()
+	if err != nil {
+		sess.Close()
+		return nil, err
+	}
+	stdout, err := sess.StdoutPipe()
+	if err != nil {
+		sess.Close()
+		return nil, err
+	}
+	stderr, err := sess.StderrPipe()
+	if err != nil {
+		sess.Close()
+		return nil, err
+	}
+	if err := sess.Start(cmd); err != nil {
+		sess.Close()
+		return nil, err
+	}
+	return &SSHCmdSession{session: sess, stdin: stdin, stdout: stdout, stderr: stderr}, nil
+}
+
+// OpenCommandPTY starts an interactive command session with PTY and streaming IO.
+func (m *SSHManager) OpenCommandPTY(id string, cmd string, cols int, rows int) (*SSHCmdSession, error) {
+	m.mu.Lock()
+	c := m.conns[id]
+	m.mu.Unlock()
+	if c == nil || c.client == nil {
+		return nil, errors.New("ssh session not found")
+	}
+	if strings.TrimSpace(cmd) == "" {
+		return nil, errors.New("cmd required")
+	}
+	sess, err := c.client.NewSession()
+	if err != nil {
+		return nil, err
+	}
+	stdin, err := sess.StdinPipe()
+	if err != nil {
+		sess.Close()
+		return nil, err
+	}
+	stdout, err := sess.StdoutPipe()
+	if err != nil {
+		sess.Close()
+		return nil, err
+	}
+	stderr, err := sess.StderrPipe()
+	if err != nil {
+		sess.Close()
+		return nil, err
+	}
+	if rows <= 0 {
+		rows = 24
+	}
+	if cols <= 0 {
+		cols = 80
+	}
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          1,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+	if err := sess.RequestPty("xterm-256color", rows, cols, modes); err != nil {
+		sess.Close()
+		return nil, fmt.Errorf("request pty: %w", err)
+	}
+	if err := sess.Start(cmd); err != nil {
+		sess.Close()
+		return nil, err
+	}
+	return &SSHCmdSession{session: sess, stdin: stdin, stdout: stdout, stderr: stderr}, nil
 }
 
 func (m *SSHManager) disconnect(ctx context.Context, id string, stateEvent *SSHStateEvent) error {

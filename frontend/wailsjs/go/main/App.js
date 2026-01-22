@@ -22,6 +22,218 @@ export function DemoRunTask(arg1, arg2) {
   return window['go']['main']['App']['DemoRunTask'](arg1, arg2);
 }
 
+export function DockerLocalContainerRemove(arg1) {
+  return window['go']['main']['App']['DockerLocalContainerRemove'](arg1);
+}
+
+export function DockerLocalContainerRestart(arg1) {
+  return window['go']['main']['App']['DockerLocalContainerRestart'](arg1);
+}
+
+export function DockerLocalContainerStart(arg1) {
+  return window['go']['main']['App']['DockerLocalContainerStart'](arg1);
+}
+
+export function DockerLocalContainerStop(arg1) {
+  return window['go']['main']['App']['DockerLocalContainerStop'](arg1);
+}
+
+export function DockerLocalCreateTempContainer(arg1) {
+  return window['go']['main']['App']['DockerLocalCreateTempContainer'](arg1);
+}
+
+export function DockerLocalDanglingPreview() {
+  return window['go']['main']['App']['DockerLocalDanglingPreview']();
+}
+
+export function DockerLocalDownload(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DockerLocalDownload'](arg1, arg2, arg3);
+}
+
+export function DockerLocalExecStart(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DockerLocalExecStart'](arg1, arg2, arg3);
+}
+
+export function DockerLocalFileDelete(arg1, arg2) {
+  return window['go']['main']['App']['DockerLocalFileDelete'](arg1, arg2);
+}
+
+export function DockerLocalImageInspect(arg1) {
+  return window['go']['main']['App']['DockerLocalImageInspect'](arg1);
+}
+
+export function DockerLocalImagePull(arg1) {
+  return window['go']['main']['App']['DockerLocalImagePull'](arg1);
+}
+
+export function DockerLocalImageRemove(arg1, arg2) {
+  return window['go']['main']['App']['DockerLocalImageRemove'](arg1, arg2);
+}
+
+export function DockerLocalListContainers() {
+  return window['go']['main']['App']['DockerLocalListContainers']();
+}
+
+export function DockerLocalListDanglingImages() {
+  return window['go']['main']['App']['DockerLocalListDanglingImages']();
+}
+
+export function DockerLocalListDir(arg1, arg2) {
+  return window['go']['main']['App']['DockerLocalListDir'](arg1, arg2);
+}
+
+export function DockerLocalListImages() {
+  return window['go']['main']['App']['DockerLocalListImages']();
+}
+
+export function DockerLocalLogsStart(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DockerLocalLogsStart'](arg1, arg2, arg3);
+}
+
+export function DockerLocalMkdir(arg1, arg2) {
+  return window['go']['main']['App']['DockerLocalMkdir'](arg1, arg2);
+}
+
+export function DockerLocalPruneDangling() {
+  return window['go']['main']['App']['DockerLocalPruneDangling']();
+}
+
+export function DockerLocalRemoveImages(arg1) {
+  return window['go']['main']['App']['DockerLocalRemoveImages'](arg1);
+}
+
+export function DockerLocalRename(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DockerLocalRename'](arg1, arg2, arg3);
+}
+
+export function DockerLocalStatus() {
+  return window['go']['main']['App']['DockerLocalStatus']();
+}
+
+export function DockerLocalSystemInfo() {
+  return window['go']['main']['App']['DockerLocalSystemInfo']();
+}
+
+export function DockerLocalUpload(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DockerLocalUpload'](arg1, arg2, arg3);
+}
+
+export function DockerRemoteConnectProfile(arg1) {
+  return window['go']['main']['App']['DockerRemoteConnectProfile'](arg1);
+}
+
+export function DockerRemoteContainerRemove(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteContainerRemove'](arg1, arg2);
+}
+
+export function DockerRemoteContainerRestart(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteContainerRestart'](arg1, arg2);
+}
+
+export function DockerRemoteContainerStart(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteContainerStart'](arg1, arg2);
+}
+
+export function DockerRemoteContainerStop(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteContainerStop'](arg1, arg2);
+}
+
+export function DockerRemoteCreateTempContainer(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteCreateTempContainer'](arg1, arg2);
+}
+
+export function DockerRemoteDanglingPreview(arg1) {
+  return window['go']['main']['App']['DockerRemoteDanglingPreview'](arg1);
+}
+
+export function DockerRemoteDisconnect(arg1) {
+  return window['go']['main']['App']['DockerRemoteDisconnect'](arg1);
+}
+
+export function DockerRemoteDownload(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DockerRemoteDownload'](arg1, arg2, arg3, arg4);
+}
+
+export function DockerRemoteExecStart(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DockerRemoteExecStart'](arg1, arg2, arg3, arg4);
+}
+
+export function DockerRemoteFileDelete(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DockerRemoteFileDelete'](arg1, arg2, arg3);
+}
+
+export function DockerRemoteImageInspect(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteImageInspect'](arg1, arg2);
+}
+
+export function DockerRemoteImagePull(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteImagePull'](arg1, arg2);
+}
+
+export function DockerRemoteImageRemove(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DockerRemoteImageRemove'](arg1, arg2, arg3);
+}
+
+export function DockerRemoteListContainers(arg1) {
+  return window['go']['main']['App']['DockerRemoteListContainers'](arg1);
+}
+
+export function DockerRemoteListDanglingImages(arg1) {
+  return window['go']['main']['App']['DockerRemoteListDanglingImages'](arg1);
+}
+
+export function DockerRemoteListDir(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DockerRemoteListDir'](arg1, arg2, arg3);
+}
+
+export function DockerRemoteListImages(arg1) {
+  return window['go']['main']['App']['DockerRemoteListImages'](arg1);
+}
+
+export function DockerRemoteLogsStart(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DockerRemoteLogsStart'](arg1, arg2, arg3, arg4);
+}
+
+export function DockerRemoteMkdir(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DockerRemoteMkdir'](arg1, arg2, arg3);
+}
+
+export function DockerRemotePruneDangling(arg1) {
+  return window['go']['main']['App']['DockerRemotePruneDangling'](arg1);
+}
+
+export function DockerRemoteRemoveImages(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteRemoveImages'](arg1, arg2);
+}
+
+export function DockerRemoteRename(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DockerRemoteRename'](arg1, arg2, arg3, arg4);
+}
+
+export function DockerRemoteStatus(arg1) {
+  return window['go']['main']['App']['DockerRemoteStatus'](arg1);
+}
+
+export function DockerRemoteSystemInfo(arg1) {
+  return window['go']['main']['App']['DockerRemoteSystemInfo'](arg1);
+}
+
+export function DockerRemoteUpload(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DockerRemoteUpload'](arg1, arg2, arg3, arg4);
+}
+
+export function DockerStreamResize(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DockerStreamResize'](arg1, arg2, arg3);
+}
+
+export function DockerStreamSend(arg1, arg2) {
+  return window['go']['main']['App']['DockerStreamSend'](arg1, arg2);
+}
+
+export function DockerStreamStop(arg1) {
+  return window['go']['main']['App']['DockerStreamStop'](arg1);
+}
+
 export function DuplicateProfile(arg1, arg2) {
   return window['go']['main']['App']['DuplicateProfile'](arg1, arg2);
 }

@@ -24,6 +24,7 @@ import { MacrosPanel } from "./components/MacrosPanel";
 import { MacroEditorModal } from "./components/MacroEditorModal";
 import { MacroRunModal } from "./components/MacroRunModal";
 import { DashboardTabs } from "./components/DashboardTabs";
+import { DockerMode } from "./components/docker/DockerMode";
 
 type FilesLastPathsByProfile = Record<string, { localPath: string; remotePath: string }>;
 
@@ -43,6 +44,7 @@ function shellQuote(p: string) {
 }
 
 function App() {
+  const [appMode, setAppMode] = useState<"connections" | "docker">("connections");
   const [groups, setGroups] = useState<ProfileGroupDTO[]>([]);
   const [profiles, setProfiles] = useState<ProfileDTO[]>([]);
   const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>([]);
@@ -115,6 +117,10 @@ function App() {
       const raw = await LoadUILayout("app");
       try {
         const v = JSON.parse(raw);
+        const nextMode = v?.appMode;
+        if (nextMode === "connections" || nextMode === "docker") {
+          setAppMode(nextMode);
+        }
         if (Array.isArray(v?.expandedGroupIds)) setExpandedGroupIds(v.expandedGroupIds);
         if (v?.filesLastPathsByProfile && typeof v.filesLastPathsByProfile === "object") {
           setFilesLastPathsByProfile(v.filesLastPathsByProfile as FilesLastPathsByProfile);
@@ -128,11 +134,11 @@ function App() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      const payload = JSON.stringify({ version: 2, expandedGroupIds, filesLastPathsByProfile });
+      const payload = JSON.stringify({ version: 3, appMode, expandedGroupIds, filesLastPathsByProfile });
       void SaveUILayout("app", payload);
     }, 250);
     return () => clearTimeout(t);
-  }, [expandedGroupIds, filesLastPathsByProfile]);
+  }, [appMode, expandedGroupIds, filesLastPathsByProfile]);
 
   // Update session markers from ssh:state events
   useEffect(() => {
@@ -476,19 +482,44 @@ function App() {
     </div>
   );
 
+  const connectionsContent = (
+    <SplitView left={sidebar} right={rightPane} initialLeftPct={34} minLeftPx={340} minRightPx={420} />
+  );
+
+  const dockerContent = <DockerMode profiles={profiles} />;
+
   return (
     <div className="app-shell">
       <div className="topbar">
         <div className="brand">
           <span className="brand-name">daimon</span>
-          <span className="brand-sub">connections + terminals</span>
+          <div className="topbar-tabs" role="tablist" aria-label="App mode">
+            <button
+              className={`topbar-tab ${appMode === "connections" ? "active" : ""}`}
+              type="button"
+              role="tab"
+              aria-selected={appMode === "connections"}
+              onClick={() => setAppMode("connections")}
+            >
+              Connections
+            </button>
+            <button
+              className={`topbar-tab ${appMode === "docker" ? "active" : ""}`}
+              type="button"
+              role="tab"
+              aria-selected={appMode === "docker"}
+              onClick={() => setAppMode("docker")}
+            >
+              Docker
+            </button>
+          </div>
         </div>
         <div className="topbar-actions" />
       </div>
 
       <div className="content">
         <div className="app-grid">
-          <SplitView left={sidebar} right={rightPane} initialLeftPct={34} minLeftPx={340} minRightPx={420} />
+          {appMode === "connections" ? connectionsContent : dockerContent}
         </div>
       </div>
 

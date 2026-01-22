@@ -19,12 +19,14 @@ type App struct {
 	secrets       *secrets.Router
 	sftp          *sftp.Manager
 	sftpTransfers *sftp.TransferManager
+	dockerStreams *DockerStreamManager
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
-		ssh: NewSSHManager(),
+		ssh:           NewSSHManager(),
+		dockerStreams: NewDockerStreamManager(),
 	}
 }
 

@@ -1,0 +1,526 @@
+.docker-sidebar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.docker-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.docker-tabs-inline {
+  padding: 0;
+}
+
+.docker-tab {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.docker-tab.active {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
+.docker-tab-icon {
+  margin-right: 6px;
+  font-size: 12px;
+}
+
+.docker-search {
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  padding: 0 10px;
+  font-size: 12px;
+  min-width: 160px;
+}
+
+.docker-sidebar-section {
+  padding: 0 10px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.docker-sidebar-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
+}
+
+.docker-sidebar-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.docker-sidebar-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.docker-sidebar-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0.0);
+  background-clip: padding-box;
+}
+
+.docker-sidebar-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.docker-main .panel-body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
+}
+
+.docker-main .panel-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.docker-main .panel-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.docker-main .panel-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0.0);
+  background-clip: padding-box;
+}
+
+.docker-main .panel-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.docker-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.docker-section-title-spaced {
+  margin-top: 6px;
+}
+
+.docker-container {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.docker-container.active {
+  border-color: rgba(110, 231, 255, 0.45);
+  background: rgba(110, 231, 255, 0.06);
+}
+
+.docker-container-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: pointer;
+}
+
+.docker-container-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.docker-container-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.docker-container-name {
+  font-weight: 600;
+  font-size: 13px;
+  word-break: break-all;
+  white-space: normal;
+}
+
+.docker-container-ports {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.docker-container-image {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+
+.docker-container-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.docker-container-active {
+  font-size: 11px;
+  color: rgba(110, 231, 255, 0.85);
+}
+
+.docker-container-active.logs {
+  color: rgba(110, 231, 255, 0.9);
+}
+
+.docker-container-active.shell {
+  color: rgba(180, 255, 170, 0.9);
+}
+
+.docker-container-active.files {
+  color: rgba(140, 180, 255, 0.9);
+}
+
+.docker-container.active-kind-logs {
+  border-color: rgba(110, 231, 255, 0.55);
+}
+
+.docker-container.active-kind-shell {
+  border-color: rgba(180, 255, 170, 0.55);
+}
+
+.docker-container.active-kind-files {
+  border-color: rgba(140, 180, 255, 0.55);
+}
+
+.docker-action-btn.active.logs {
+  border-color: rgba(110, 231, 255, 0.6);
+  background: rgba(110, 231, 255, 0.18);
+}
+
+.docker-action-btn.active.shell {
+  border-color: rgba(180, 255, 170, 0.6);
+  background: rgba(180, 255, 170, 0.18);
+}
+
+.docker-action-btn.active.files {
+  border-color: rgba(140, 180, 255, 0.6);
+  background: rgba(140, 180, 255, 0.18);
+}
+
+.docker-tabs-bar {
+  display: flex;
+  gap: 8px;
+  padding: 10px 10px 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
+}
+
+.docker-tabs-bar::-webkit-scrollbar {
+  height: 10px;
+}
+
+.docker-tabs-bar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.docker-tabs-bar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0.0);
+  background-clip: padding-box;
+}
+
+.docker-tabs-bar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.docker-tabbtn {
+  height: 34px;
+  max-width: 260px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.86);
+  cursor: pointer;
+}
+
+.docker-tabbtn.active {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.docker-tabbtn.kind-logs.active {
+  border-color: rgba(110, 231, 255, 0.6);
+  background: rgba(110, 231, 255, 0.12);
+}
+
+.docker-tabbtn.kind-shell.active {
+  border-color: rgba(180, 255, 170, 0.6);
+  background: rgba(180, 255, 170, 0.12);
+}
+
+.docker-tabbtn.kind-files.active {
+  border-color: rgba(140, 180, 255, 0.6);
+  background: rgba(140, 180, 255, 0.12);
+}
+
+.docker-tabbtn-icon {
+  font-size: 13px;
+}
+
+.docker-tabbtn-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-tabbtn-close {
+  margin-left: auto;
+  font-size: 18px;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.docker-menu-wrap {
+  position: relative;
+}
+
+.docker-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 6px;
+  background: #0b1220;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+  min-width: 140px;
+}
+
+.docker-menu button {
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.docker-menu button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.docker-menu .danger {
+  color: rgba(255, 120, 120, 0.95);
+}
+
+.docker-system-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.docker-system-pre {
+  white-space: pre-wrap;
+  margin: 8px 0 0;
+  font-size: 11px;
+}
+
+.docker-dangling {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.docker-dangling-toggle {
+  text-align: left;
+  font-size: 12px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 4px 2px;
+}
+
+.docker-dangling-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.docker-profile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+}
+
+.docker-profile.active {
+  border-color: rgba(110, 231, 255, 0.6);
+  background: rgba(110, 231, 255, 0.08);
+}
+
+.docker-profile-name {
+  font-size: 13px;
+}
+
+.docker-profile-meta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.docker-main {
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.panel-body {
+  padding: 10px 12px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.docker-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.docker-table th,
+.docker-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.docker-table th {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.docker-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.docker-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 10, 20, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.docker-modal {
+  width: min(1100px, 92%);
+  height: min(760px, 90%);
+  background: #0b1220;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.docker-modal-compact {
+  width: min(520px, 92%);
+  height: auto;
+}
+
+.docker-modal-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.docker-modal-close {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.docker-modal-close:hover {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.docker-modal-body {
+  flex: 1;
+  min-height: 0;
+  padding: 8px;
+}
+
+.docker-terminal {
+  height: 100%;
+}
+
+.docker-files {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.docker-files-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.docker-files-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.error {
+  color: rgba(255, 120, 120, 0.95);
+  margin: 6px 0;
+}

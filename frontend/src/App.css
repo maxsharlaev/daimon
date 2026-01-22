@@ -32,6 +32,33 @@
   color: rgba(255, 255, 255, 0.6);
 }
 
+.topbar-tabs {
+  display: flex;
+  gap: 6px;
+  padding-left: 6px;
+}
+
+.topbar-tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.topbar-tab:hover {
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.topbar-tab.active {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
 .topbar-actions {
   display: flex;
   gap: 10px;
