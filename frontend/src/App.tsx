@@ -303,7 +303,7 @@ function App() {
             const icon = pickSessionIcon(sessionId, existingForProfile.map((s) => s.icon));
             const ordinal = existingForProfile.length + 1;
             const remotePath = filesLastPathsByProfile[profileId]?.remotePath ?? ".";
-            return [...prev, { sessionId, profileId, icon, ordinal, remotePath }];
+            return [...prev, { sessionId, profileId, icon, ordinal, remotePath, marker: "files" as const, lastError: null }];
           });
           setActiveFileSessionId(sessionId);
           setRightMode("files");
@@ -350,7 +350,7 @@ function App() {
               const existingForProfile = prev.filter((s) => s.profileId === profId);
               const icon = pickSessionIcon(sid!, existingForProfile.map((s) => s.icon));
               const ordinal = existingForProfile.length + 1;
-              return [...prev, { sessionId: sid!, profileId: profId, icon, ordinal, remotePath }];
+              return [...prev, { sessionId: sid!, profileId: profId, icon, ordinal, remotePath, marker: "files" as const, lastError: null }];
             });
           }
           setActiveFileSessionId(sid);
@@ -406,7 +406,7 @@ function App() {
               const existingForProfile = prev.filter((s) => s.profileId === cur.profileId);
               const icon = pickSessionIcon(sid, existingForProfile.map((s) => s.icon));
               const ordinal = existingForProfile.length + 1;
-              return [...prev, { sessionId: sid, profileId: cur.profileId, icon, ordinal, remotePath }];
+              return [...prev, { sessionId: sid, profileId: cur.profileId, icon, ordinal, remotePath, marker: "files" as const, lastError: null }];
             });
             setFilesLastPathsByProfile((prev) => ({ ...prev, [cur.profileId]: { localPath: prev[cur.profileId]?.localPath ?? "", remotePath } }));
             setActiveFileSessionId(sid);
@@ -431,6 +431,11 @@ function App() {
           onClose={(sid) => {
             setFileSessions((prev) => prev.filter((s) => s.sessionId !== sid));
             setActiveFileSessionId((cur) => (cur === sid ? null : cur));
+          }}
+          onSessionDisconnected={(sid, err) => {
+            setFileSessions((prev) =>
+              prev.map((s) => (s.sessionId === sid ? { ...s, marker: "red" as const, lastError: err } : s))
+            );
           }}
           initialPathsByProfile={filesLastPathsByProfile}
           onPathsChanged={(profileId, next) => {

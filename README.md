@@ -2,6 +2,11 @@
 
 `daimon` is a **Golang + Wails** desktop app for working with remote hosts: an **SSH terminal**, **SFTP file browser**, **Places** (saved remote paths), **Macros** (parameterized scripts), and a Linux **Dashboard** (metrics + alerts).
 
+## License
+
+- Source code: **MPL-2.0** (see `LICENSE`)
+- Trademarks (name/logo usage): see `TRADEMARKS.md`
+
 ## Features
 
 - **Split layout**: two panels with a draggable divider.

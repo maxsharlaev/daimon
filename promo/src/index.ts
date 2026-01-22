@@ -1,0 +1,1 @@
+export { DaimonPromo } from "./DaimonPromo";

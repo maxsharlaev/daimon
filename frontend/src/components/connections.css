@@ -5,6 +5,35 @@
 .connections-list {
   padding: 10px 12px 12px;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
+  /* Use container queries to adapt file-path display to actual panel width. */
+  container-type: inline-size;
+}
+
+.connections-list::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.connections-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.connections-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0.0);
+  background-clip: padding-box;
+}
+
+.connections-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.connections-list::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.34);
 }
 
 .connections-empty {
@@ -191,12 +220,14 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .session {
   display: flex;
   gap: 8px;
   align-items: center;
+  min-width: 0;
 }
 
 .session-btn {
@@ -211,6 +242,7 @@
   height: 34px;
   padding: 0 10px;
   cursor: pointer;
+  min-width: 0; /* allow content to shrink inside narrow containers */
 }
 
 .session-btn.active {
@@ -279,15 +311,60 @@
   background: rgba(95, 120, 240, 0.95);
 }
 
-/* ensure files dot stays blue even if other global .dot rules load later */
-.session-btn.files .dot {
+/* ensure files dot stays blue even if other global .dot rules load later,
+   but allow dot-red/etc to override for disconnected/error states */
+.session-btn.files .dot.dot-files {
   background: rgba(95, 120, 240, 0.95);
 }
 
 .session-files-label {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
+  display: block;
+}
+
+.session-files-full {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis; /* right-ellipsis only for the full-path variant */
+}
+
+.session-files-tail {
+  display: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip; /* avoid a second ellipsis on the right */
+}
+
+ .session-files-tail-short {
+  display: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+/* In narrow Connections pane show the tail-version (more informative), otherwise show full. */
+@container (max-width: 520px) {
+  .session-files-full {
+    display: none;
+  }
+  .session-files-tail {
+    display: inline;
+  }
+}
+
+/* In very narrow panes show an even shorter tail. */
+@container (max-width: 380px) {
+  .session-files-tail {
+    display: none;
+  }
+  .session-files-tail-short {
+    display: inline;
+  }
 }
 
 .modal-overlay {

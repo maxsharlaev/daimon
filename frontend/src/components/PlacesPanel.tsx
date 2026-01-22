@@ -8,8 +8,8 @@ type Props = {
   profiles: ProfileDTO[];
   refreshToken: number;
   onBack: () => void;
-  onGoTerminal: (remotePath: string) => void;
-  onGoFiles: (remotePath: string) => void;
+  onGoTerminal: (remotePath: string) => Promise<void> | void;
+  onGoFiles: (remotePath: string) => Promise<void> | void;
   onAddNew: () => void;
   onEdit: (p: PlaceDTO) => void;
 };
@@ -77,10 +77,36 @@ export function PlacesPanel({ profileId, profiles, refreshToken, onBack, onGoTer
               <div className="placespanel-path mono">{p.remotePath}</div>
             </div>
             <div className="placespanel-actions2">
-              <button className="btn btn-ghost" type="button" onClick={() => onGoTerminal(p.remotePath)}>
+              <button
+                className="btn btn-ghost"
+                type="button"
+                onClick={() =>
+                  void (async () => {
+                    try {
+                      setErr(null);
+                      await onGoTerminal(p.remotePath);
+                    } catch (e: any) {
+                      setErr(e?.message ?? String(e));
+                    }
+                  })()
+                }
+              >
                 Terminal
               </button>
-              <button className="btn btn-ghost" type="button" onClick={() => onGoFiles(p.remotePath)}>
+              <button
+                className="btn btn-ghost"
+                type="button"
+                onClick={() =>
+                  void (async () => {
+                    try {
+                      setErr(null);
+                      await onGoFiles(p.remotePath);
+                    } catch (e: any) {
+                      setErr(e?.message ?? String(e));
+                    }
+                  })()
+                }
+              >
                 Files
               </button>
               <button className="btn btn-ghost" type="button" onClick={() => onEdit(p)}>

@@ -31,6 +31,28 @@
   gap: 8px;
   overflow-x: auto;
   padding: 10px 10px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
+}
+
+.terminaltabs-bar::-webkit-scrollbar {
+  height: 10px;
+}
+
+.terminaltabs-bar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.terminaltabs-bar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0.0);
+  background-clip: padding-box;
+}
+
+.terminaltabs-bar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
 }
 
 

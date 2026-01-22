@@ -173,22 +173,22 @@ export function TerminalPanel({ connectionId, onDisconnected, onShowPwd, onAddLo
         <div className="panel-actions">
           {onShowPwd ? (
             <button className="btn btn-ghost" type="button" onClick={onShowPwd} title="Open Files at current terminal path">
-              Files
+              📁 Files
             </button>
           ) : null}
           {onAddLocation ? (
-            <button className="btn btn-ghost" type="button" onClick={onAddLocation} title="Save current location">
-              + Location
+            <button className="btn btn-ghost" type="button" onClick={onAddLocation} title="Add current directory to Places">
+              📍 Add Place
             </button>
           ) : null}
           {onOpenPlaces ? (
             <button className="btn btn-ghost" type="button" onClick={onOpenPlaces} title="Open Places">
-              Places
+              🧭 Places
             </button>
           ) : null}
           {onOpenMacros ? (
             <button className="btn btn-ghost" type="button" onClick={onOpenMacros} title="Open Macros">
-              Macro
+              🧰 Macros
             </button>
           ) : null}
           <button
@@ -196,7 +196,7 @@ export function TerminalPanel({ connectionId, onDisconnected, onShowPwd, onAddLo
             onClick={() => termRef.current?.clear()}
             type="button"
           >
-            Clear
+            🧹 Clear
           </button>
         </div>
       </div>

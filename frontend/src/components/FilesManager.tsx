@@ -32,6 +32,7 @@ type Props = {
   onPathsChanged?: (next: { localPath: string; remotePath: string }) => void;
   onOpenTerminalAtPath?: (remotePath: string) => void;
   onSessionPathsChanged?: (next: { localPath: string; remotePath: string }) => void;
+  onSessionDisconnected?: (sessionId: string, error: string) => void;
   onOpenPlaces?: (profileId: string) => void;
   onAddLocation?: (profileId: string, remotePath: string) => void;
   navToRemote?: { path: string; token: number };
@@ -73,6 +74,7 @@ export function FilesManager({
   onPathsChanged,
   onOpenTerminalAtPath,
   onSessionPathsChanged,
+  onSessionDisconnected,
   onOpenPlaces,
   onAddLocation,
   navToRemote,
@@ -83,6 +85,9 @@ export function FilesManager({
   const [remoteEntries, setRemoteEntries] = useState<FileEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const disconnectedReportedRef = useRef(false);
+  // Forces a refresh even when navigating to the same remote path (React may skip setState).
+  const [remoteNavTick, setRemoteNavTick] = useState(0);
 
   const [activePane, setActivePane] = useState<"local" | "remote">("remote");
   const [selLocal, setSelLocal] = useState<string | null>(null);
@@ -123,6 +128,7 @@ export function FilesManager({
   const localDrive = useMemo(() => driveFromLocalPath(localPath), [localPath]);
 
   useEffect(() => {
+    disconnectedReportedRef.current = false;
     const init = async () => {
       if (initialLocalPath && initialLocalPath.trim()) {
         setLocalPath(initialLocalPath);
@@ -158,6 +164,21 @@ export function FilesManager({
     };
     void init();
   }, [sessionId, initialLocalPath, initialRemotePath]);
+
+  const isDisconnectError = (msg: string) => {
+    const s = String(msg || "");
+    return /(session not found|not found|eof|closed|connection.*closed|connection.*lost|use of closed network connection|broken pipe|reset by peer)/i.test(
+      s
+    );
+  };
+
+  const reportIfDisconnected = (e: any) => {
+    if (disconnectedReportedRef.current) return;
+    const msg = e?.message ?? String(e);
+    if (!isDisconnectError(msg)) return;
+    disconnectedReportedRef.current = true;
+    onSessionDisconnected?.(sessionId, msg);
+  };
 
   useEffect(() => {
     setRemotePathInput(remotePath);
@@ -279,6 +300,7 @@ export function FilesManager({
       await Promise.all(jobs);
     } catch (e: any) {
       setError(e?.message ?? String(e));
+      reportIfDisconnected(e);
     } finally {
       setBusy(false);
     }
@@ -287,7 +309,7 @@ export function FilesManager({
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localPath, remotePath, sessionId]);
+  }, [localPath, remotePath, sessionId, remoteNavTick]);
 
   useEffect(() => {
     startSFTPEventBridge();
@@ -341,11 +363,17 @@ export function FilesManager({
     setRemoteEntries([]);
     setRemotePath(p);
     setSelRemote(null);
+    setRemoteNavTick((n) => n + 1);
   };
 
   const validateRemoteDir = async (p: string) => {
     // Validate path exists / is readable
-    await SFTPListDir(sessionId, p);
+    try {
+      await SFTPListDir(sessionId, p);
+    } catch (e) {
+      reportIfDisconnected(e);
+      throw e;
+    }
   };
 
   const goRemoteByInput = async () => {
@@ -599,7 +627,7 @@ export function FilesManager({
         <div className="panel-actions">
           {onOpenPlaces ? (
             <button className="btn btn-ghost" type="button" onClick={() => onOpenPlaces(profileId)} disabled={busy}>
-              Places
+              🧭 Places
             </button>
           ) : null}
           <button className="btn btn-ghost" type="button" onClick={refresh} disabled={busy}>
@@ -715,8 +743,8 @@ export function FilesManager({
               ⌘
             </button>
             {onAddLocation ? (
-              <button className="iconbtn" type="button" onClick={() => onAddLocation(profileId, remotePath)} title="Save location">
-                +
+              <button className="iconbtn" type="button" onClick={() => onAddLocation(profileId, remotePath)} title="Add Place">
+                📍
               </button>
             ) : null}
           </div>

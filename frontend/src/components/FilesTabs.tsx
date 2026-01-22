@@ -10,6 +10,8 @@ export type FilesSession = {
   icon: string;
   ordinal: number;
   remotePath?: string;
+  marker: "files" | "red";
+  lastError?: string | null;
 };
 
 type Props = {
@@ -18,6 +20,7 @@ type Props = {
   activeSessionId: string | null;
   onActivate: (sessionId: string) => void;
   onClose: (sessionId: string) => void;
+  onSessionDisconnected?: (sessionId: string, error: string) => void;
   initialPathsByProfile: Record<string, { localPath: string; remotePath: string }>;
   onPathsChanged: (profileId: string, next: { localPath: string; remotePath: string }) => void;
   onOpenTerminalAtPath: (profileId: string, remotePath: string) => void;
@@ -33,6 +36,7 @@ export function FilesTabs({
   activeSessionId,
   onActivate,
   onClose,
+  onSessionDisconnected,
   initialPathsByProfile,
   onPathsChanged,
   onOpenTerminalAtPath,
@@ -53,6 +57,22 @@ export function FilesTabs({
     return m;
   }, [sessions]);
 
+  // Use a conservative limit so the tail is meaningful in narrow tab widths.
+  const tailPath = (p: string, max = 24) => {
+    const raw = String(p ?? "");
+    if (!raw) return ".";
+    if (raw.length <= max) return raw;
+    const parts = raw.split("/").filter(Boolean);
+    if (parts.length === 0) return `…${raw.slice(-max)}`;
+    let out = parts[parts.length - 1];
+    for (let i = parts.length - 2; i >= 0; i--) {
+      const next = `${parts[i]}/${out}`;
+      if (next.length > max) break;
+      out = next;
+    }
+    return `…/${out}`;
+  };
+
   if (sessions.length === 0) {
     return (
       <div className="panel">
@@ -66,18 +86,14 @@ export function FilesTabs({
   }
 
   const active = sessions.find((s) => s.sessionId === activeSessionId) ?? sessions[0];
-  const N = 34;
-  const tail = (p: string) => (p.length > N ? `…${p.slice(-N)}` : p);
 
   return (
     <div className="filestabs">
       <div className="filestabs-bar">
         {sessions.map((s) => {
           const isActive = s.sessionId === active.sessionId;
-          const prof = byProfile.get(s.profileId);
           const fullPath = s.remotePath ?? initialPathsByProfile[s.profileId]?.remotePath ?? ".";
-          const shortPath = tail(fullPath);
-          const label = prof ? `${s.icon} ${shortPath}` : `${s.icon} ${shortPath}`;
+          const shortPath = tailPath(fullPath);
           return (
             <button
               key={s.sessionId}
@@ -86,8 +102,8 @@ export function FilesTabs({
               onClick={() => onActivate(s.sessionId)}
               title={fullPath}
             >
-              <span className="dot dot-files" />
-              <span className="tab-label">{label}</span>
+              <span className={`dot ${s.marker === "red" ? "dot-red" : "dot-files"}`} />
+              <span className="tab-label">{`${s.icon} ${shortPath}`}</span>
               <span
                 className="tab-close"
                 onClick={(e) => {
@@ -112,6 +128,7 @@ export function FilesTabs({
               onPathsChanged={(next) => onPathsChanged(s.profileId, next)}
               onOpenTerminalAtPath={(rp) => onOpenTerminalAtPath(s.profileId, rp)}
               onSessionPathsChanged={(next) => onSessionPathsChanged?.(s.sessionId, next)}
+              onSessionDisconnected={(sid, err) => onSessionDisconnected?.(sid, err)}
               onOpenPlaces={onOpenPlaces}
               onAddLocation={onAddLocation}
               navToRemote={navToRemoteBySessionId?.[s.sessionId]}

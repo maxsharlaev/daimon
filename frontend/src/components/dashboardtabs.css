@@ -9,6 +9,28 @@
   gap: 8px;
   padding: 10px 10px 10px;
   overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
+}
+
+.dashboardtabs-bar::-webkit-scrollbar {
+  height: 10px;
+}
+
+.dashboardtabs-bar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.dashboardtabs-bar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0.0);
+  background-clip: padding-box;
+}
+
+.dashboardtabs-bar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
 }
 
 .dashboardtabs-actions {

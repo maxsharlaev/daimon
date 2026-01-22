@@ -48,6 +48,16 @@ export type DashboardSessionSummary = {
   lastError?: string | null;
 };
 
+export type FilesSessionSummary = {
+  sessionId: string;
+  profileId: string;
+  icon: string;
+  ordinal: number;
+  remotePath?: string;
+  marker: "files" | "red";
+  lastError?: string | null;
+};
+
 type Props = {
   groups: ProfileGroupDTO[];
   profiles: ProfileDTO[];
@@ -60,7 +70,7 @@ type Props = {
   activeSessionId: string | null;
   onCloseSession: (sessionId: string) => void;
 
-  fileSessions: { sessionId: string; profileId: string; icon: string; ordinal: number; remotePath?: string }[];
+  fileSessions: FilesSessionSummary[];
   activeFileSessionId: string | null;
   rightMode: "terminal" | "files" | "dashboard";
   onOpenFileSession: (sessionId: string, profileId: string) => void;
@@ -166,6 +176,24 @@ export function ConnectionsPanel({
     dashboardSessions.forEach((s) => m.set(s.profileId, s));
     return m;
   }, [dashboardSessions]);
+
+  // Build a tail-preserving display string like "…/var/www/html".
+  const tailPath = (p: string, max = 24) => {
+    const raw = String(p ?? "");
+    if (!raw) return ".";
+    if (raw.length <= max) return raw;
+    const parts = raw.split("/").filter(Boolean);
+    if (parts.length === 0) return `…${raw.slice(-max)}`;
+    let out = parts[parts.length - 1];
+    for (let i = parts.length - 2; i >= 0; i--) {
+      const next = `${parts[i]}/${out}`;
+      if (next.length > max) break;
+      out = next;
+    }
+    return `…/${out}`;
+  };
+
+  const tailPathShort = (p: string) => tailPath(p, 11);
 
   useEffect(() => {
     // ensure at least one group exists
@@ -676,18 +704,24 @@ export function ConnectionsPanel({
                                           onFilesMode();
                                         }}
                                       >
-                                        <span className="dot dot-files" />
+                                        <span className={`dot ${s.marker === "red" ? "dot-red" : "dot-files"}`} />
                                         <span className="session-files-label" title={s.remotePath ?? "."}>
-                                          {(s.icon ?? "•") + " " + `Files: ${s.remotePath ?? "."}`}
+                                          <span className="session-files-full">{(s.icon ?? "•") + " " + `Files: ${s.remotePath ?? "."}`}</span>
+                                          <span className="session-files-tail">{(s.icon ?? "•") + " " + `Files: ${tailPath(s.remotePath ?? ".")}`}</span>
+                                          <span className="session-files-tail-short">
+                                            {(s.icon ?? "•") + " " + `Files: ${tailPathShort(s.remotePath ?? ".")}`}
+                                          </span>
                                         </span>
                                       </button>
                                       <button
                                         type="button"
-                                        className="session-close"
-                                        onClick={() => void disconnectFileSession(s.sessionId)}
-                                        title="Disconnect files"
+                                        className={`session-close ${s.marker === "red" ? "neutral" : ""}`}
+                                        onClick={() =>
+                                          s.marker === "red" ? onCloseFileSession(s.sessionId) : void disconnectFileSession(s.sessionId)
+                                        }
+                                        title={s.marker === "red" ? "Close files session" : "Disconnect files"}
                                       >
-                                        Disconnect
+                                        {s.marker === "red" ? "Close" : "Disconnect"}
                                       </button>
                                     </div>
                                   ))}
