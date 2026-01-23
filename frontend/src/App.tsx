@@ -8,6 +8,7 @@ import type { MacroDTO, PlaceDTO, ProfileDTO, ProfileGroupDTO } from "./types/mo
 import { fetchProfilesAndGroups } from "./components/ConnectionsPanel";
 import { onSSHOutput, onSSHState, onTaskState, startSSHEventBridge } from "./ssh/events";
 import type { SSHStateEvent } from "./types/ssh";
+import { onSFTPState, startSFTPEventBridge } from "./sftp/events";
 import {
   LoadUILayout,
   SaveUILayout,
@@ -33,7 +34,7 @@ export type DashboardSession = {
   profileId: string;
   icon: string;
   ordinal: number;
-  marker: "purple" | "red";
+  marker: "purple" | "gray";
   lastError?: string | null;
 };
 
@@ -108,6 +109,7 @@ function App() {
 
   useEffect(() => {
     startSSHEventBridge();
+    startSFTPEventBridge();
     void refresh();
   }, [refresh]);
 
@@ -147,14 +149,28 @@ function App() {
         prev.map((s) => {
           if (s.sessionId !== ev.id) return s;
           if (ev.state === "connected") return { ...s, marker: "green", lastError: null };
-          return { ...s, marker: "red", lastError: ev.error ?? null, taskRunning: false };
+          return { ...s, marker: "gray", lastError: ev.error ?? null, taskRunning: false };
         })
       );
       setDashboardSessions((prev) =>
         prev.map((s) => {
           if (s.sessionId !== ev.id) return s;
           if (ev.state === "connected") return { ...s, marker: "purple", lastError: null };
-          return { ...s, marker: "red", lastError: ev.error ?? null };
+          return { ...s, marker: "gray", lastError: ev.error ?? null };
+        })
+      );
+    });
+    return () => unsub();
+  }, []);
+
+  // Update file session markers from sftp:state events
+  useEffect(() => {
+    const unsub = onSFTPState((ev) => {
+      setFileSessions((prev) =>
+        prev.map((s) => {
+          if (s.sessionId !== ev.id) return s;
+          if (ev.state === "connected") return { ...s, marker: "files", lastError: null };
+          return { ...s, marker: "gray", lastError: ev.error ?? s.lastError ?? null };
         })
       );
     });
@@ -168,8 +184,8 @@ function App() {
         prev.map((s) => {
           if (s.sessionId !== ev.sessionId) return s;
           if (ev.state === "running") return { ...s, marker: "yellow", taskRunning: true };
-          // on completion: revert to green unless session was already red
-          const nextMarker = s.marker === "red" ? "red" : "green";
+          // on completion: revert to green unless session was already disconnected
+          const nextMarker = s.marker === "gray" ? "gray" : "green";
           return { ...s, marker: nextMarker, taskRunning: false, lastError: ev.error ?? s.lastError ?? null };
         })
       );
@@ -440,7 +456,7 @@ function App() {
           }}
           onSessionDisconnected={(sid, err) => {
             setFileSessions((prev) =>
-              prev.map((s) => (s.sessionId === sid ? { ...s, marker: "red" as const, lastError: err } : s))
+              prev.map((s) => (s.sessionId === sid ? { ...s, marker: "gray" as const, lastError: err } : s))
             );
           }}
           initialPathsByProfile={filesLastPathsByProfile}

@@ -28,7 +28,7 @@ import "./connections.css";
 import { ProfileEditorModal } from "./ProfileEditorModal";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 
-export type Marker = "green" | "red" | "yellow" | "blue" | "purple" | "none";
+export type Marker = "green" | "gray" | "yellow" | "blue" | "purple" | "none";
 
 export type SessionSummary = {
   sessionId: string;
@@ -44,7 +44,7 @@ export type DashboardSessionSummary = {
   profileId: string;
   icon: string;
   ordinal: number;
-  marker: "purple" | "red";
+  marker: "purple" | "gray";
   lastError?: string | null;
 };
 
@@ -54,7 +54,7 @@ export type FilesSessionSummary = {
   icon: string;
   ordinal: number;
   remotePath?: string;
-  marker: "files" | "red";
+  marker: "files" | "gray";
   lastError?: string | null;
 };
 
@@ -569,7 +569,7 @@ export function ConnectionsPanel({
                           const topMarker: Marker =
                             profSessions.find((s) => s.marker === "yellow")?.marker ??
                             profSessions.find((s) => s.marker === "green")?.marker ??
-                            profSessions.find((s) => s.marker === "red")?.marker ??
+                            profSessions.find((s) => s.marker === "gray")?.marker ??
                             (hasActiveFiles ? "blue" : hasActiveDashboard ? "purple" : "none");
 
                           return (
@@ -624,7 +624,7 @@ export function ConnectionsPanel({
 
                               {profDashboard ? (
                                 <div className="sessions">
-                                  <div className="session">
+                                  <div className={`session ${profDashboard.marker === "gray" ? "disconnected" : ""}`}>
                                     <button
                                       type="button"
                                       className={`session-btn dashboard ${
@@ -645,15 +645,15 @@ export function ConnectionsPanel({
                                     </button>
                                     <button
                                       type="button"
-                                        className={`session-close ${profDashboard.marker === "red" ? "neutral" : ""}`}
+                                        className={`session-close ${profDashboard.marker === "gray" ? "neutral" : ""}`}
                                         onClick={() =>
-                                          profDashboard.marker === "red"
+                                          profDashboard.marker === "gray"
                                             ? onCloseDashboardSession(profDashboard.sessionId)
                                             : void disconnectDashboardSession(profDashboard.sessionId)
                                         }
-                                        title={profDashboard.marker === "red" ? "Close dashboard session" : "Disconnect dashboard"}
+                                        title={profDashboard.marker === "gray" ? "Close dashboard session" : "Disconnect dashboard"}
                                     >
-                                        {profDashboard.marker === "red" ? "Close" : "Disconnect"}
+                                        {profDashboard.marker === "gray" ? "Close" : "Disconnect"}
                                     </button>
                                   </div>
                                 </div>
@@ -662,7 +662,7 @@ export function ConnectionsPanel({
                               {profSessions.length > 0 ? (
                                 <div className="sessions">
                                   {profSessions.map((s) => (
-                                    <div key={s.sessionId} className="session">
+                                    <div key={s.sessionId} className={`session ${s.marker === "gray" ? "disconnected" : ""}`}>
                                       <button
                                         type="button"
                                         className={`session-btn ${rightMode === "terminal" && s.sessionId === activeSessionId ? "active" : ""}`}
@@ -681,11 +681,11 @@ export function ConnectionsPanel({
                                       </button>
                                       <button
                                         type="button"
-                                        className={`session-close ${s.marker === "red" ? "neutral" : ""}`}
-                                        onClick={() => (s.marker === "red" ? onCloseSession(s.sessionId) : void disconnectSession(s.sessionId))}
-                                        title={s.marker === "red" ? "Close session" : "Disconnect"}
+                                        className={`session-close ${s.marker === "gray" ? "neutral" : ""}`}
+                                        onClick={() => (s.marker === "gray" ? onCloseSession(s.sessionId) : void disconnectSession(s.sessionId))}
+                                        title={s.marker === "gray" ? "Close session" : "Disconnect"}
                                       >
-                                        {s.marker === "red" ? "Close" : "Disconnect"}
+                                        {s.marker === "gray" ? "Close" : "Disconnect"}
                                       </button>
                                     </div>
                                   ))}
@@ -695,7 +695,7 @@ export function ConnectionsPanel({
                               {profFileSessions.length > 0 ? (
                                 <div className="sessions">
                                   {profFileSessions.map((s) => (
-                                    <div key={s.sessionId} className="session">
+                                    <div key={s.sessionId} className={`session ${s.marker === "gray" ? "disconnected" : ""}`}>
                                       <button
                                         type="button"
                                         className={`session-btn files ${rightMode === "files" && s.sessionId === activeFileSessionId ? "active" : ""}`}
@@ -704,7 +704,7 @@ export function ConnectionsPanel({
                                           onFilesMode();
                                         }}
                                       >
-                                        <span className={`dot ${s.marker === "red" ? "dot-red" : "dot-files"}`} />
+                                        <span className={`dot ${s.marker === "gray" ? "dot-gray" : "dot-files"}`} />
                                         <span className="session-files-label" title={s.remotePath ?? "."}>
                                           <span className="session-files-full">{(s.icon ?? "•") + " " + `Files: ${s.remotePath ?? "."}`}</span>
                                           <span className="session-files-tail">{(s.icon ?? "•") + " " + `Files: ${tailPath(s.remotePath ?? ".")}`}</span>
@@ -715,13 +715,13 @@ export function ConnectionsPanel({
                                       </button>
                                       <button
                                         type="button"
-                                        className={`session-close ${s.marker === "red" ? "neutral" : ""}`}
+                                        className={`session-close ${s.marker === "gray" ? "neutral" : ""}`}
                                         onClick={() =>
-                                          s.marker === "red" ? onCloseFileSession(s.sessionId) : void disconnectFileSession(s.sessionId)
+                                          s.marker === "gray" ? onCloseFileSession(s.sessionId) : void disconnectFileSession(s.sessionId)
                                         }
-                                        title={s.marker === "red" ? "Close files session" : "Disconnect files"}
+                                        title={s.marker === "gray" ? "Close files session" : "Disconnect files"}
                                       >
-                                        {s.marker === "red" ? "Close" : "Disconnect"}
+                                        {s.marker === "gray" ? "Close" : "Disconnect"}
                                       </button>
                                     </div>
                                   ))}

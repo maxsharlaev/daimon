@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"daimon/internal/secrets"
@@ -18,6 +19,41 @@ import (
 type SFTPFileEntryDTO = sftp.FileEntryDTO
 
 type SFTPTransferEvent = sftp.TransferEvent
+
+type SFTPStateEvent struct {
+	ID    string `json:"id"`
+	State string `json:"state"` // "connected" | "disconnected"
+	Error string `json:"error,omitempty"`
+}
+
+func isSFTPDisconnectErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(strings.TrimSpace(err.Error()))
+	if s == "" {
+		return false
+	}
+	// Keep this conservative: match typical "connection is gone" errors.
+	return strings.Contains(s, "session not found") ||
+		strings.Contains(s, "use of closed network connection") ||
+		strings.Contains(s, "connection reset by peer") ||
+		strings.Contains(s, "broken pipe") ||
+		strings.Contains(s, "connection closed") ||
+		strings.Contains(s, "connection lost") ||
+		strings.Contains(s, "eof")
+}
+
+func (a *App) emitSFTPState(sessionId string, state string, err error) {
+	if a.ctx == nil {
+		return
+	}
+	ev := SFTPStateEvent{ID: sessionId, State: state}
+	if err != nil {
+		ev.Error = err.Error()
+	}
+	runtime.EventsEmit(a.ctx, "sftp:state", ev)
+}
 
 func (a *App) ensureSFTP() (*sftp.Manager, error) {
 	if a.sftp == nil {
@@ -57,7 +93,11 @@ func (a *App) SFTPConnectProfile(profileId string) (string, error) {
 				cfg.AuthType = "privateKey"
 				cfg.PrivateKeyPEM = val.PrivateKeyPEM
 				cfg.Passphrase = val.Passphrase
-				return m.Connect(context.Background(), cfg)
+				sid, err := m.Connect(context.Background(), cfg)
+				if err == nil {
+					a.emitSFTPState(sid, "connected", nil)
+				}
+				return sid, err
 			}
 		case secrets.StorageExternal:
 			// In SFTP manager we require PEM; read file here and provide PEM.
@@ -66,7 +106,14 @@ func (a *App) SFTPConnectProfile(profileId string) (string, error) {
 				if err == nil {
 					cfg.AuthType = "privateKey"
 					cfg.PrivateKeyPEM = string(b)
-					return m.Connect(context.Background(), cfg)
+					if val, _, err := a.secrets.GetSecretValue(profileId, secrets.KindPrivateKey); err == nil {
+						cfg.Passphrase = val.Passphrase
+					}
+					sid, err := m.Connect(context.Background(), cfg)
+					if err == nil {
+						a.emitSFTPState(sid, "connected", nil)
+					}
+					return sid, err
 				}
 			}
 		}
@@ -82,7 +129,11 @@ func (a *App) SFTPConnectProfile(profileId string) (string, error) {
 	}
 	cfg.AuthType = "password"
 	cfg.Password = val.Password
-	return m.Connect(context.Background(), cfg)
+	sid, err := m.Connect(context.Background(), cfg)
+	if err == nil {
+		a.emitSFTPState(sid, "connected", nil)
+	}
+	return sid, err
 }
 
 func (a *App) SFTPDisconnect(sessionId string) error {
@@ -90,7 +141,10 @@ func (a *App) SFTPDisconnect(sessionId string) error {
 	if err != nil {
 		return err
 	}
-	return m.Disconnect(sessionId)
+	derr := m.Disconnect(sessionId)
+	// Always emit: UI needs to reflect "closed" even if the session was already gone.
+	a.emitSFTPState(sessionId, "disconnected", derr)
+	return derr
 }
 
 func (a *App) SFTPListDir(sessionId string, dir string) ([]SFTPFileEntryDTO, error) {
@@ -98,7 +152,12 @@ func (a *App) SFTPListDir(sessionId string, dir string) ([]SFTPFileEntryDTO, err
 	if err != nil {
 		return nil, err
 	}
-	return m.ListDir(sessionId, dir)
+	out, e := m.ListDir(sessionId, dir)
+	if e != nil && isSFTPDisconnectErr(e) {
+		_ = m.Disconnect(sessionId)
+		a.emitSFTPState(sessionId, "disconnected", e)
+	}
+	return out, e
 }
 
 func (a *App) SFTPGetwd(sessionId string) (string, error) {
@@ -106,7 +165,12 @@ func (a *App) SFTPGetwd(sessionId string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return m.Getwd(sessionId)
+	out, e := m.Getwd(sessionId)
+	if e != nil && isSFTPDisconnectErr(e) {
+		_ = m.Disconnect(sessionId)
+		a.emitSFTPState(sessionId, "disconnected", e)
+	}
+	return out, e
 }
 
 func (a *App) SFTPStat(sessionId string, p string) (SFTPFileEntryDTO, error) {
@@ -114,7 +178,12 @@ func (a *App) SFTPStat(sessionId string, p string) (SFTPFileEntryDTO, error) {
 	if err != nil {
 		return SFTPFileEntryDTO{}, err
 	}
-	return m.Stat(sessionId, p)
+	out, e := m.Stat(sessionId, p)
+	if e != nil && isSFTPDisconnectErr(e) {
+		_ = m.Disconnect(sessionId)
+		a.emitSFTPState(sessionId, "disconnected", e)
+	}
+	return out, e
 }
 
 func (a *App) SFTPMkdir(sessionId string, dir string) error {
@@ -122,7 +191,12 @@ func (a *App) SFTPMkdir(sessionId string, dir string) error {
 	if err != nil {
 		return err
 	}
-	return m.Mkdir(sessionId, dir)
+	e := m.Mkdir(sessionId, dir)
+	if e != nil && isSFTPDisconnectErr(e) {
+		_ = m.Disconnect(sessionId)
+		a.emitSFTPState(sessionId, "disconnected", e)
+	}
+	return e
 }
 
 func (a *App) SFTPRename(sessionId string, oldPath string, newPath string) error {
@@ -130,7 +204,12 @@ func (a *App) SFTPRename(sessionId string, oldPath string, newPath string) error
 	if err != nil {
 		return err
 	}
-	return m.Rename(sessionId, oldPath, newPath)
+	e := m.Rename(sessionId, oldPath, newPath)
+	if e != nil && isSFTPDisconnectErr(e) {
+		_ = m.Disconnect(sessionId)
+		a.emitSFTPState(sessionId, "disconnected", e)
+	}
+	return e
 }
 
 func (a *App) SFTPDelete(sessionId string, p string) error {
@@ -138,7 +217,12 @@ func (a *App) SFTPDelete(sessionId string, p string) error {
 	if err != nil {
 		return err
 	}
-	return m.Remove(sessionId, p)
+	e := m.Remove(sessionId, p)
+	if e != nil && isSFTPDisconnectErr(e) {
+		_ = m.Disconnect(sessionId)
+		a.emitSFTPState(sessionId, "disconnected", e)
+	}
+	return e
 }
 
 func (a *App) LocalHomeDir() (string, error) {

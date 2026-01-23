@@ -15,9 +15,18 @@ import (
 func (a *App) DockerRemoteListDir(sessionId string, containerId string, path string) ([]DockerFileEntryDTO, error) {
 	out, err := a.dockerRemoteExecInContainer(sessionId, containerId, fmt.Sprintf("cd %s && ls -la --time-style=+%%s", shellQuote(path)))
 	if err != nil {
+		if strings.Contains(err.Error(), "unrecognized option") || strings.Contains(err.Error(), "Usage: ls") {
+			out, err = a.dockerRemoteExecInContainer(sessionId, containerId, fmt.Sprintf("cd %s && ls -la", shellQuote(path)))
+		}
+	}
+	if err != nil {
 		return nil, err
 	}
-	return parseLsOutput(out, path), nil
+	entries := parseLsOutput(out, path)
+	entries = resolveSymlinkDirs(entries, func(cmd string) (string, error) {
+		return a.dockerRemoteExecInContainer(sessionId, containerId, cmd)
+	})
+	return entries, nil
 }
 
 func (a *App) DockerRemoteFileDelete(sessionId string, containerId string, path string) error {

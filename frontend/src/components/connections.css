@@ -199,6 +199,10 @@
   background: rgba(255, 120, 120, 0.95);
 }
 
+.marker-gray {
+  background: rgba(160, 165, 175, 0.95);
+}
+
 .marker-yellow {
   background: rgba(255, 210, 110, 0.95);
 }
@@ -295,6 +299,10 @@
   background: rgba(255, 120, 120, 0.95);
 }
 
+.dot-gray {
+  background: rgba(160, 165, 175, 0.95);
+}
+
 .dot-yellow {
   background: rgba(255, 210, 110, 0.95);
 }
@@ -312,9 +320,18 @@
 }
 
 /* ensure files dot stays blue even if other global .dot rules load later,
-   but allow dot-red/etc to override for disconnected/error states */
+   but allow dot-gray/etc to override for disconnected/error states */
 .session-btn.files .dot.dot-files {
   background: rgba(95, 120, 240, 0.95);
+}
+
+.session.disconnected .session-btn {
+  opacity: 0.65;
+  filter: saturate(0.85);
+}
+
+.session.disconnected .session-btn.active {
+  opacity: 0.85;
 }
 
 .session-files-label {
@@ -379,10 +396,13 @@
 .modal {
   width: 520px;
   max-width: calc(100vw - 30px);
+  max-height: 90vh;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.10);
   background: rgba(12, 18, 32, 0.96);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-title {
@@ -396,6 +416,30 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-y: auto;
+  min-height: 0; /* allow body to shrink so modal can respect max-height */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
+}
+
+.modal-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0.0);
+  background-clip: padding-box;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
 }
 
 .modal-actions {

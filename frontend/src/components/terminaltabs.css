@@ -90,6 +90,10 @@
   background: rgba(255, 120, 120, 0.95);
 }
 
+.dot-gray {
+  background: rgba(160, 165, 175, 0.95);
+}
+
 .dot-yellow {
   background: rgba(255, 210, 110, 0.95);
 }

@@ -160,6 +160,11 @@
   font-size: 12px;
 }
 
+/* Root crumb renders an empty separator span; hide it to avoid extra spacing */
+.crumbsep:empty {
+  display: none;
+}
+
 .pathlabel {
   color: rgba(255, 255, 255, 0.6);
   font-size: 12px;
@@ -234,10 +239,13 @@
 .modal {
   width: 520px;
   max-width: calc(100vw - 30px);
+  max-height: 90vh;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.10);
   background: rgba(12, 18, 32, 0.96);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-title {
@@ -251,6 +259,30 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-y: auto;
+  min-height: 0; /* allow body to shrink so modal can respect max-height */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
+}
+
+.modal-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0.0);
+  background-clip: padding-box;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
 }
 
 .modal-actions {
@@ -288,6 +320,10 @@
 
 .name.dir {
   color: rgba(110, 231, 255, 0.95);
+}
+
+.name.link {
+  color: rgba(186, 115, 255, 0.95);
 }
 
 .meta {

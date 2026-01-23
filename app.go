@@ -51,6 +51,7 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.db != nil {
 		_ = a.db.Close()
 	}
+	_ = a.DockerLocalCleanupTempContainers("")
 }
 
 // Greet returns a greeting for the given name

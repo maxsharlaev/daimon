@@ -9,8 +9,15 @@ type TransferEvent = {
   error?: string;
 };
 
+type StateEvent = {
+  id: string;
+  state: string; // "connected" | "disconnected"
+  error?: string;
+};
+
 let started = false;
 const subs = new Set<(ev: TransferEvent) => void>();
+const stateSubs = new Set<(ev: StateEvent) => void>();
 
 function normalizeEvent<T>(args: any[]): T | null {
   if (!args || args.length === 0) return null;
@@ -37,6 +44,12 @@ export function startSFTPEventBridge() {
     if (!ev) return;
     subs.forEach((cb) => cb(ev));
   });
+
+  EventsOn("sftp:state", (...args: any[]) => {
+    const ev = normalizeEvent<StateEvent>(args);
+    if (!ev) return;
+    stateSubs.forEach((cb) => cb(ev));
+  });
 }
 
 export function onSFTPTransfer(cb: (ev: TransferEvent) => void) {
@@ -46,14 +59,23 @@ export function onSFTPTransfer(cb: (ev: TransferEvent) => void) {
   };
 }
 
+export function onSFTPState(cb: (ev: StateEvent) => void) {
+  stateSubs.add(cb);
+  return () => {
+    stateSubs.delete(cb);
+  };
+}
+
 export function stopSFTPEventBridge() {
   // not strictly needed in app lifetime, but keeps API symmetrical
   try {
     EventsOff("sftp:transfer");
+    EventsOff("sftp:state");
   } catch {
     // ignore
   }
   subs.clear();
+  stateSubs.clear();
   started = false;
 }
 

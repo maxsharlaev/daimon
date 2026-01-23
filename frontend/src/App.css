@@ -59,6 +59,7 @@
   border-color: rgba(255, 255, 255, 0.9);
 }
 
+
 .topbar-actions {
   display: flex;
   gap: 10px;
@@ -67,7 +68,7 @@
 .content {
   flex: 1;
   min-height: 0;
-  padding: 12px;
+  padding: 12px 2px;
 }
 
 .app-grid {

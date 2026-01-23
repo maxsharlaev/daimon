@@ -73,7 +73,7 @@ func (a *App) DockerRemoteDisconnect(sessionId string) error {
 func (a *App) DockerRemoteStatus(sessionId string) (DockerStatusDTO, error) {
 	raw, err := a.ssh.Exec(sessionId, "docker version --format '{{json .Server}}'")
 	if err != nil {
-		return DockerStatusDTO{Available: false, Message: err.Error()}, nil
+		return DockerStatusDTO{Available: false, Message: formatDockerRemoteError(err)}, nil
 	}
 	type server struct {
 		Version    string `json:"Version"`
@@ -92,6 +92,14 @@ func (a *App) DockerRemoteStatus(sessionId string) (DockerStatusDTO, error) {
 		OS:         s.Os,
 		Arch:       s.Arch,
 	}, nil
+}
+
+func formatDockerRemoteError(err error) string {
+	raw := strings.ToLower(err.Error())
+	if strings.Contains(raw, "status 127") || strings.Contains(raw, "exit status 127") || strings.Contains(raw, "command not found") || strings.Contains(raw, "not found") {
+		return "Docker CLI not found on remote host"
+	}
+	return err.Error()
 }
 
 func (a *App) DockerRemoteListContainers(sessionId string) ([]DockerContainerDTO, error) {
@@ -201,7 +209,20 @@ func (a *App) DockerRemoteImageInspect(sessionId string, id string) (string, err
 }
 
 func (a *App) DockerRemoteCreateTempContainer(sessionId string, imageRef string) (string, error) {
-	id, err := a.ssh.Exec(sessionId, fmt.Sprintf("docker create %s sh -lc %s", shellescape.Quote(imageRef), shellescape.Quote("sleep 3600")))
+	_ = cleanupRemoteTempContainersByLabels(sessionId, []string{
+		"daimon.temp=true",
+		fmt.Sprintf("daimon.temp.image=%s", imageRef),
+	}, a.ssh.Exec)
+	name := tempContainerName(imageRef)
+	id, err := a.ssh.Exec(sessionId, fmt.Sprintf(
+		"docker create --name %s --label %s --label %s --label %s %s sh -lc %s",
+		shellescape.Quote(name),
+		shellescape.Quote("daimon.temp=true"),
+		shellescape.Quote("daimon.temp.kind=image"),
+		shellescape.Quote(fmt.Sprintf("daimon.temp.image=%s", imageRef)),
+		shellescape.Quote(imageRef),
+		shellescape.Quote("sleep 3600"),
+	))
 	if err != nil {
 		return "", err
 	}
@@ -211,6 +232,39 @@ func (a *App) DockerRemoteCreateTempContainer(sessionId string, imageRef string)
 	}
 	_, err = a.ssh.Exec(sessionId, fmt.Sprintf("docker start %s", shellescape.Quote(id)))
 	if err != nil {
+		_, _ = a.ssh.Exec(sessionId, fmt.Sprintf("docker rm -f %s", shellescape.Quote(id)))
+		return "", err
+	}
+	return id, nil
+}
+
+func (a *App) DockerRemoteCreateVolumeTempContainer(sessionId string, volumeName string) (string, error) {
+	imageRef := "alpine"
+	_ = a.DockerRemoteCleanupTempContainers(sessionId, volumeName)
+	if _, err := a.ssh.Exec(sessionId, fmt.Sprintf("docker image inspect %s", shellescape.Quote(imageRef))); err != nil {
+		if _, pullErr := a.ssh.Exec(sessionId, fmt.Sprintf("docker pull %s", shellescape.Quote(imageRef))); pullErr != nil {
+			return "", pullErr
+		}
+	}
+	name := tempContainerName(volumeName)
+	id, err := a.ssh.Exec(sessionId, fmt.Sprintf(
+		"docker create --name %s --label %s --label %s --label %s -v %s:/mnt %s sh -lc %s",
+		shellescape.Quote(name),
+		shellescape.Quote("daimon.temp=true"),
+		shellescape.Quote("daimon.temp.kind=volume"),
+		shellescape.Quote(fmt.Sprintf("daimon.temp.volume=%s", volumeName)),
+		shellescape.Quote(volumeName),
+		shellescape.Quote(imageRef),
+		shellescape.Quote("sleep 3600"),
+	))
+	if err != nil {
+		return "", err
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return "", errors.New("failed to create temp container")
+	}
+	if _, err = a.ssh.Exec(sessionId, fmt.Sprintf("docker start %s", shellescape.Quote(id))); err != nil {
 		_, _ = a.ssh.Exec(sessionId, fmt.Sprintf("docker rm -f %s", shellescape.Quote(id)))
 		return "", err
 	}

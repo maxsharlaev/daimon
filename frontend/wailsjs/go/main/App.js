@@ -22,6 +22,10 @@ export function DemoRunTask(arg1, arg2) {
   return window['go']['main']['App']['DemoRunTask'](arg1, arg2);
 }
 
+export function DockerLocalCleanupTempContainers(arg1) {
+  return window['go']['main']['App']['DockerLocalCleanupTempContainers'](arg1);
+}
+
 export function DockerLocalContainerRemove(arg1) {
   return window['go']['main']['App']['DockerLocalContainerRemove'](arg1);
 }
@@ -40,6 +44,10 @@ export function DockerLocalContainerStop(arg1) {
 
 export function DockerLocalCreateTempContainer(arg1) {
   return window['go']['main']['App']['DockerLocalCreateTempContainer'](arg1);
+}
+
+export function DockerLocalCreateVolumeTempContainer(arg1) {
+  return window['go']['main']['App']['DockerLocalCreateVolumeTempContainer'](arg1);
 }
 
 export function DockerLocalDanglingPreview() {
@@ -86,12 +94,28 @@ export function DockerLocalListImages() {
   return window['go']['main']['App']['DockerLocalListImages']();
 }
 
+export function DockerLocalListNetworks() {
+  return window['go']['main']['App']['DockerLocalListNetworks']();
+}
+
+export function DockerLocalListVolumes() {
+  return window['go']['main']['App']['DockerLocalListVolumes']();
+}
+
 export function DockerLocalLogsStart(arg1, arg2, arg3) {
   return window['go']['main']['App']['DockerLocalLogsStart'](arg1, arg2, arg3);
 }
 
 export function DockerLocalMkdir(arg1, arg2) {
   return window['go']['main']['App']['DockerLocalMkdir'](arg1, arg2);
+}
+
+export function DockerLocalNetworkInspect(arg1) {
+  return window['go']['main']['App']['DockerLocalNetworkInspect'](arg1);
+}
+
+export function DockerLocalNetworkRemove(arg1) {
+  return window['go']['main']['App']['DockerLocalNetworkRemove'](arg1);
 }
 
 export function DockerLocalPruneDangling() {
@@ -118,6 +142,18 @@ export function DockerLocalUpload(arg1, arg2, arg3) {
   return window['go']['main']['App']['DockerLocalUpload'](arg1, arg2, arg3);
 }
 
+export function DockerLocalVolumeInspect(arg1) {
+  return window['go']['main']['App']['DockerLocalVolumeInspect'](arg1);
+}
+
+export function DockerLocalVolumeRemove(arg1) {
+  return window['go']['main']['App']['DockerLocalVolumeRemove'](arg1);
+}
+
+export function DockerRemoteCleanupTempContainers(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteCleanupTempContainers'](arg1, arg2);
+}
+
 export function DockerRemoteConnectProfile(arg1) {
   return window['go']['main']['App']['DockerRemoteConnectProfile'](arg1);
 }
@@ -140,6 +176,10 @@ export function DockerRemoteContainerStop(arg1, arg2) {
 
 export function DockerRemoteCreateTempContainer(arg1, arg2) {
   return window['go']['main']['App']['DockerRemoteCreateTempContainer'](arg1, arg2);
+}
+
+export function DockerRemoteCreateVolumeTempContainer(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteCreateVolumeTempContainer'](arg1, arg2);
 }
 
 export function DockerRemoteDanglingPreview(arg1) {
@@ -190,12 +230,28 @@ export function DockerRemoteListImages(arg1) {
   return window['go']['main']['App']['DockerRemoteListImages'](arg1);
 }
 
+export function DockerRemoteListNetworks(arg1) {
+  return window['go']['main']['App']['DockerRemoteListNetworks'](arg1);
+}
+
+export function DockerRemoteListVolumes(arg1) {
+  return window['go']['main']['App']['DockerRemoteListVolumes'](arg1);
+}
+
 export function DockerRemoteLogsStart(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['DockerRemoteLogsStart'](arg1, arg2, arg3, arg4);
 }
 
 export function DockerRemoteMkdir(arg1, arg2, arg3) {
   return window['go']['main']['App']['DockerRemoteMkdir'](arg1, arg2, arg3);
+}
+
+export function DockerRemoteNetworkInspect(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteNetworkInspect'](arg1, arg2);
+}
+
+export function DockerRemoteNetworkRemove(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteNetworkRemove'](arg1, arg2);
 }
 
 export function DockerRemotePruneDangling(arg1) {
@@ -220,6 +276,14 @@ export function DockerRemoteSystemInfo(arg1) {
 
 export function DockerRemoteUpload(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['DockerRemoteUpload'](arg1, arg2, arg3, arg4);
+}
+
+export function DockerRemoteVolumeInspect(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteVolumeInspect'](arg1, arg2);
+}
+
+export function DockerRemoteVolumeRemove(arg1, arg2) {
+  return window['go']['main']['App']['DockerRemoteVolumeRemove'](arg1, arg2);
 }
 
 export function DockerStreamResize(arg1, arg2, arg3) {

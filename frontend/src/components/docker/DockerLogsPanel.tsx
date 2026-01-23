@@ -54,5 +54,9 @@ export function DockerLogsPanel({ scope, sessionId, containerId, onClose }: Prop
     );
   }
 
-  return <DockerTerminal streamId={streamId} inputEnabled={false} convertEol onDisconnected={() => onClose()} />;
+  return (
+    <div className="docker-terminal-wrap">
+      <DockerTerminal streamId={streamId} inputEnabled={false} convertEol />
+    </div>
+  );
 }

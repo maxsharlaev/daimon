@@ -10,7 +10,7 @@ export type FilesSession = {
   icon: string;
   ordinal: number;
   remotePath?: string;
-  marker: "files" | "red";
+  marker: "files" | "gray";
   lastError?: string | null;
 };
 
@@ -102,7 +102,7 @@ export function FilesTabs({
               onClick={() => onActivate(s.sessionId)}
               title={fullPath}
             >
-              <span className={`dot ${s.marker === "red" ? "dot-red" : "dot-files"}`} />
+              <span className={`dot ${s.marker === "gray" ? "dot-gray" : "dot-files"}`} />
               <span className="tab-label">{`${s.icon} ${shortPath}`}</span>
               <span
                 className="tab-close"

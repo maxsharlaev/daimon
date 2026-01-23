@@ -41,6 +41,9 @@ func (a *App) SSHConnectProfile(profileId string) (string, error) {
 			if strings.TrimSpace(sr.Ref) != "" {
 				cfg.AuthType = "privateKey"
 				cfg.PrivateKeyPath = sr.Ref
+				if val, _, err := a.secrets.GetSecretValue(profileId, secrets.KindPrivateKey); err == nil {
+					cfg.Passphrase = val.Passphrase
+				}
 				return a.ssh.Connect(a.ctx, cfg)
 			}
 		case secrets.StorageKeyring, secrets.StorageInternal:
@@ -100,6 +103,9 @@ func (a *App) SSHDashboardConnectProfile(profileId string) (string, error) {
 			if strings.TrimSpace(sr.Ref) != "" {
 				cfg.AuthType = "privateKey"
 				cfg.PrivateKeyPath = sr.Ref
+				if val, _, err := a.secrets.GetSecretValue(profileId, secrets.KindPrivateKey); err == nil {
+					cfg.Passphrase = val.Passphrase
+				}
 				return a.ssh.ConnectExecOnly(a.ctx, cfg)
 			}
 		case secrets.StorageKeyring, secrets.StorageInternal:

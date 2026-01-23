@@ -22,11 +22,12 @@ export function PromoFilesPanel({ sessionId, remotePath, onRemotePathChange }: P
   const [selLocal, setSelLocal] = useState<string | null>(null);
   const [selRemote, setSelRemote] = useState<string | null>(null);
 
-  const localEntries = useMemo(() => listLocal(localPath), [localPath]);
-  const remoteEntries = useMemo(() => listRemote(remotePath || DEFAULT_REMOTE), [remotePath]);
+  const safeRemotePath = remotePath || DEFAULT_REMOTE;
+  const localEntries = useMemo(() => listLocal(localPath) ?? [], [localPath]);
+  const remoteEntries = useMemo(() => listRemote(safeRemotePath) ?? [], [safeRemotePath]);
 
   const localCrumbs = useMemo(() => breadcrumbsLocal(localPath), [localPath]);
-  const remoteCrumbs = useMemo(() => breadcrumbsRemote(remotePath || DEFAULT_REMOTE), [remotePath]);
+  const remoteCrumbs = useMemo(() => breadcrumbsRemote(safeRemotePath), [safeRemotePath]);
 
   const localDisplay = useMemo(() => {
     const out = [];
@@ -39,12 +40,12 @@ export function PromoFilesPanel({ sessionId, remotePath, onRemotePathChange }: P
 
   const remoteDisplay = useMemo(() => {
     const out = [];
-    const up = parentRemotePath(remotePath || DEFAULT_REMOTE);
-    if (remotePath && up && up !== remotePath) {
+    const up = parentRemotePath(safeRemotePath);
+    if (safeRemotePath && up && up !== safeRemotePath) {
       out.push({ name: "..", path: up, isDir: true, size: 0 });
     }
     return out.concat(remoteEntries);
-  }, [remoteEntries, remotePath]);
+  }, [remoteEntries, safeRemotePath]);
 
   const goLocal = (p: string) => {
     setLocalPath(p);
@@ -137,7 +138,7 @@ export function PromoFilesPanel({ sessionId, remotePath, onRemotePathChange }: P
             <button className="pathlabel-btn" type="button">
               Remote:
             </button>
-            <div className="crumbs" title={remotePath || DEFAULT_REMOTE}>
+            <div className="crumbs" title={safeRemotePath}>
               {remoteCrumbs.map((c, idx) => (
                 <span key={c.path} className="crumbwrap">
                   <button className="crumb" type="button" onClick={() => goRemote(c.path)}>

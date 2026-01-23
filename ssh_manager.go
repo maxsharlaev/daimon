@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"daimon/internal/sshkeys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
@@ -497,12 +498,7 @@ func buildAuth(cfg SSHConfig) ([]ssh.AuthMethod, error) {
 		if err != nil {
 			return nil, err
 		}
-		var signer ssh.Signer
-		if cfg.Passphrase != "" {
-			signer, err = ssh.ParsePrivateKeyWithPassphrase(pemBytes, []byte(cfg.Passphrase))
-		} else {
-			signer, err = ssh.ParsePrivateKey(pemBytes)
-		}
+		signer, err := sshkeys.ParseSigner(pemBytes, cfg.Passphrase)
 		if err != nil {
 			return nil, fmt.Errorf("parse private key: %w", err)
 		}
@@ -518,10 +514,10 @@ func resolvePrivateKey(cfg SSHConfig) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read private key file: %w", err)
 		}
-		return b, nil
+		return sshkeys.SanitizeKeyBytes(b), nil
 	}
 	if strings.TrimSpace(cfg.PrivateKeyPEM) != "" {
-		return []byte(cfg.PrivateKeyPEM), nil
+		return sshkeys.SanitizeKeyBytes([]byte(cfg.PrivateKeyPEM)), nil
 	}
 	return nil, errors.New("private key path or PEM is required")
 }

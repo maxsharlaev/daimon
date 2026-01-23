@@ -34,6 +34,48 @@ export type DockerSystemDTO = {
   diskUsageText?: string;
 };
 
+export type DockerDanglingPreviewDTO = {
+  count: number;
+  sizeBytes: number;
+};
+
+export type DockerVolumeDTO = {
+  name: string;
+  driver?: string;
+  scope?: string;
+};
+
+export type DockerVolumeDetailsDTO = {
+  name: string;
+  driver?: string;
+  mountpoint?: string;
+  scope?: string;
+  createdAt?: string;
+  labels?: Record<string, string>;
+  options?: Record<string, string>;
+  refCount?: number;
+  sizeBytes?: number;
+  usedBy?: string[];
+};
+
+export type DockerNetworkDTO = {
+  id: string;
+  name: string;
+  driver?: string;
+  scope?: string;
+};
+
+export type DockerNetworkDetailsDTO = {
+  id: string;
+  name: string;
+  driver?: string;
+  scope?: string;
+  internal?: boolean;
+  attachable?: boolean;
+  ingress?: boolean;
+  containers?: string[];
+};
+
 export type DockerOutputEvent = {
   id: string;
   data: string;
@@ -52,4 +94,6 @@ export type DockerFileEntry = {
   isDir: boolean;
   size: number;
   mtimeMs: number;
+  isSymlink?: boolean;
+  linkTarget?: string;
 };

@@ -216,6 +216,8 @@ export namespace main {
 	    isDir: boolean;
 	    size: number;
 	    mtimeMs: number;
+	    isSymlink: boolean;
+	    linkTarget?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DockerFileEntryDTO(source);
@@ -228,6 +230,8 @@ export namespace main {
 	        this.isDir = source["isDir"];
 	        this.size = source["size"];
 	        this.mtimeMs = source["mtimeMs"];
+	        this.isSymlink = source["isSymlink"];
+	        this.linkTarget = source["linkTarget"];
 	    }
 	}
 	export class DockerImageDTO {
@@ -252,6 +256,50 @@ export namespace main {
 	        this.createdSince = source["createdSince"];
 	        this.size = source["size"];
 	        this.sizeBytes = source["sizeBytes"];
+	    }
+	}
+	export class DockerNetworkDTO {
+	    id: string;
+	    name: string;
+	    driver?: string;
+	    scope?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DockerNetworkDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.driver = source["driver"];
+	        this.scope = source["scope"];
+	    }
+	}
+	export class DockerNetworkDetailsDTO {
+	    id: string;
+	    name: string;
+	    driver?: string;
+	    scope?: string;
+	    internal?: boolean;
+	    attachable?: boolean;
+	    ingress?: boolean;
+	    containers?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DockerNetworkDetailsDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.driver = source["driver"];
+	        this.scope = source["scope"];
+	        this.internal = source["internal"];
+	        this.attachable = source["attachable"];
+	        this.ingress = source["ingress"];
+	        this.containers = source["containers"];
 	    }
 	}
 	export class DockerStatusDTO {
@@ -309,6 +357,52 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class DockerVolumeDTO {
+	    name: string;
+	    driver?: string;
+	    scope?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DockerVolumeDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.driver = source["driver"];
+	        this.scope = source["scope"];
+	    }
+	}
+	export class DockerVolumeDetailsDTO {
+	    name: string;
+	    driver?: string;
+	    mountpoint?: string;
+	    scope?: string;
+	    createdAt?: string;
+	    labels?: Record<string, string>;
+	    options?: Record<string, string>;
+	    refCount?: number;
+	    sizeBytes?: number;
+	    usedBy?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DockerVolumeDetailsDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.driver = source["driver"];
+	        this.mountpoint = source["mountpoint"];
+	        this.scope = source["scope"];
+	        this.createdAt = source["createdAt"];
+	        this.labels = source["labels"];
+	        this.options = source["options"];
+	        this.refCount = source["refCount"];
+	        this.sizeBytes = source["sizeBytes"];
+	        this.usedBy = source["usedBy"];
+	    }
 	}
 	export class ImportOptions {
 	    groupId?: string;
@@ -721,6 +815,8 @@ export namespace sftp {
 	    isDir: boolean;
 	    size: number;
 	    mtimeMs: number;
+	    isSymlink: boolean;
+	    linkTarget?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FileEntryDTO(source);
@@ -733,6 +829,8 @@ export namespace sftp {
 	        this.isDir = source["isDir"];
 	        this.size = source["size"];
 	        this.mtimeMs = source["mtimeMs"];
+	        this.isSymlink = source["isSymlink"];
+	        this.linkTarget = source["linkTarget"];
 	    }
 	}
 	export class TransferEvent {

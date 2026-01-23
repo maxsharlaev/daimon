@@ -3,7 +3,7 @@ import type { ProfileDTO } from "../types/models";
 import { TerminalPanel } from "./TerminalPanel";
 import "./terminaltabs.css";
 
-export type SessionMarker = "green" | "red" | "yellow" | "none";
+export type SessionMarker = "green" | "gray" | "yellow" | "none";
 
 export type TerminalSession = {
   sessionId: string;

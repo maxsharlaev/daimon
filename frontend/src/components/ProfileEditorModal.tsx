@@ -243,6 +243,7 @@ export function ProfileEditorModal({
         cfg.authType = "privateKey";
         if (keyStorage === "external") {
           cfg.privateKeyPath = keyPath;
+          cfg.passphrase = keyPassphrase;
         } else {
           cfg.privateKeyPem = keyPEM;
           cfg.passphrase = keyPassphrase;
@@ -347,6 +348,7 @@ export function ProfileEditorModal({
                 kind: "private_key",
                 storage: "external",
                 ref: keyPath,
+                passphrase: keyPassphrase,
                 metaJson: "{}",
               })
             );
@@ -514,6 +516,10 @@ export function ProfileEditorModal({
                           Browse…
                         </button>
                       </div>
+                    </div>
+                    <div className="row">
+                      <label>Passphrase (optional)</label>
+                      <input type="password" value={keyPassphrase} onChange={(e) => setKeyPassphrase(e.target.value)} disabled={busy} />
                     </div>
                   </>
                 ) : keyStorage === "none" ? null : (

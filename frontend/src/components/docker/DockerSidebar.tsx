@@ -1,9 +1,17 @@
 import type { ProfileDTO } from "../../types/models";
 import { useEffect, useState } from "react";
-import type { DockerContainerDTO, DockerImageDTO, DockerStatusDTO, DockerSystemDTO } from "../../types/docker";
+import type {
+  DockerContainerDTO,
+  DockerImageDTO,
+  DockerStatusDTO,
+  DockerSystemDTO,
+  DockerVolumeDTO,
+  DockerVolumeDetailsDTO,
+  DockerNetworkDTO,
+} from "../../types/docker";
 import "./docker.css";
 
-type View = "containers" | "images" | "system";
+type View = "containers" | "images" | "volumes" | "networks" | "system";
 type Scope = "local" | "remote";
 
 type RemoteSessionState = {
@@ -35,6 +43,15 @@ type Props = {
   imagesBusy: boolean;
   imagesError: string | null;
   activeImageId: string | null;
+  volumesInUse: DockerVolumeDTO[];
+  volumesNotInUse: DockerVolumeDTO[];
+  volumesError: string | null;
+  volumesBusy: boolean;
+  activeVolumeName: string | null;
+  volumeDetailsByName: Record<string, DockerVolumeDetailsDTO>;
+  networks: DockerNetworkDTO[];
+  networksError: string | null;
+  activeNetworkId: string | null;
   systemInfo: DockerSystemDTO | null;
   systemError: string | null;
   imageQuery: string;
@@ -57,6 +74,12 @@ type Props = {
   onSelectImage: (id: string, source: "normal" | "dangling") => void;
   onOpenDanglingModal: () => void;
   onOpenNotInUseModal: () => void;
+  onSelectVolume: (name: string) => void;
+  onVolumeFiles: (name: string) => void;
+  onVolumeRemove: (name: string) => void;
+  onSelectNetwork: (id: string) => void;
+  onNetworkInspect: (id: string) => void;
+  onNetworkRemove: (id: string) => void;
   onRefreshSystem: () => void;
 };
 
@@ -81,6 +104,15 @@ export function DockerSidebar({
   imagesBusy,
   imagesError,
   activeImageId,
+  volumesInUse,
+  volumesNotInUse,
+  volumesError,
+  volumesBusy,
+  activeVolumeName,
+  volumeDetailsByName,
+  networks,
+  networksError,
+  activeNetworkId,
   systemInfo,
   systemError,
   imageQuery,
@@ -103,11 +135,26 @@ export function DockerSidebar({
   onSelectImage,
   onOpenDanglingModal,
   onOpenNotInUseModal,
+  onSelectVolume,
+  onVolumeFiles,
+  onVolumeRemove,
+  onSelectNetwork,
+  onNetworkInspect,
+  onNetworkRemove,
   onRefreshSystem,
 }: Props) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [danglingOpen, setDanglingOpen] = useState(false);
   const [notInUseOpen, setNotInUseOpen] = useState(false);
+  const [volumesNotInUseOpen, setVolumesNotInUseOpen] = useState(false);
+  const [remoteListOpen, setRemoteListOpen] = useState(true);
+  const activeRemote = activeRemoteProfileId ? remoteByProfile[activeRemoteProfileId] ?? null : null;
+  const remoteConnected = !!activeRemote?.sessionId;
+  const remoteReady = remoteConnected && activeRemote?.status?.available === true;
+  const hideRemoteViews = scope === "remote" && (!remoteConnected || activeRemote?.status?.available !== true);
+  const visibleRemoteProfiles = remoteListOpen || !activeRemoteProfileId
+    ? profiles
+    : profiles.filter((p) => p.id === activeRemoteProfileId);
   useEffect(() => {
     const handler = (ev: MouseEvent) => {
       const target = ev.target as HTMLElement | null;
@@ -122,6 +169,12 @@ export function DockerSidebar({
   useEffect(() => {
     setOpenMenuId(null);
   }, [view, scope]);
+
+  useEffect(() => {
+    if (scope !== "remote") return;
+    if (!activeRemoteProfileId) return;
+    setRemoteListOpen(false);
+  }, [activeRemoteProfileId, scope]);
 
   return (
     <div className="panel docker-sidebar">
@@ -150,23 +203,48 @@ export function DockerSidebar({
         </div>
       </div>
 
-      <div className="docker-tabs" role="tablist" aria-label="Docker view">
-        {([
-          ["containers", "Containers"],
-          ["images", "Images"],
-          ["system", "System"],
-        ] as const).map(([key, label]) => (
-          <button
-            key={key}
-            className={`docker-tab ${view === key ? "active" : ""}`}
-            type="button"
-            role="tab"
-            aria-selected={view === key}
-            onClick={() => onViewChange(key)}
-          >
-            {label}
+      <div className="docker-tabs-row">
+        {scope === "local" || !hideRemoteViews ? (
+          <div className="docker-tabs" role="tablist" aria-label="Docker view">
+            {([
+              ["containers", "Containers"],
+              ["images", "Images"],
+              ["volumes", "Volumes"],
+              ["networks", "Networks"],
+              ["system", "System"],
+            ] as const).map(([key, label]) => {
+              const icon = key === "containers"
+                ? "📦"
+                : key === "images"
+                  ? "🧱"
+                  : key === "volumes"
+                    ? "💾"
+                    : key === "networks"
+                      ? "🕸"
+                      : "🧰";
+              return (
+                <button
+                  key={key}
+                  className={`docker-tab ${view === key ? "active" : ""}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={view === key}
+                  onClick={() => onViewChange(key)}
+                >
+                  <span className="docker-tab-icon">{icon}</span>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div />
+        )}
+        {scope === "remote" && !remoteListOpen ? (
+          <button className="btn btn-ghost docker-tabs-list-btn" type="button" onClick={() => setRemoteListOpen(true)}>
+            List →
           </button>
-        ))}
+        ) : null}
       </div>
 
       {scope === "local" ? (
@@ -187,7 +265,7 @@ export function DockerSidebar({
         </div>
       ) : (
         <div className="docker-sidebar-section">
-          {profiles.map((p) => {
+          {visibleRemoteProfiles.map((p) => {
             const st = remoteByProfile[p.id];
             const active = activeRemoteProfileId === p.id;
             const connected = !!st?.sessionId;
@@ -196,7 +274,10 @@ export function DockerSidebar({
               <div
                 key={p.id}
                 className={`docker-profile ${active ? "active" : ""}`}
-                onClick={() => onSelectRemoteProfile(p.id)}
+                onClick={() => {
+                  onSelectRemoteProfile(p.id);
+                  setRemoteListOpen(false);
+                }}
               >
                 <div>
                   <div className="docker-profile-name">{p.name || `${p.username}@${p.host}`}</div>
@@ -231,7 +312,15 @@ export function DockerSidebar({
         </div>
       )}
 
-      {view === "containers" ? (
+      {hideRemoteViews ? (
+        <div className="docker-sidebar-section">
+          <div className="muted">
+            {remoteConnected
+              ? activeRemote?.status?.message ?? "Docker unavailable on remote host."
+              : "Connect to a remote profile to view Docker resources."}
+          </div>
+        </div>
+      ) : view === "containers" ? (
         <div className="docker-sidebar-section docker-sidebar-list">
           <div className="docker-section-title docker-section-title-spaced">
             <span>Containers</span>
@@ -252,13 +341,15 @@ export function DockerSidebar({
               const isRunning = String(c.state || "").toLowerCase() === "running";
               const activeLabel = activeTabContainerId === c.id && activeTabKind ? activeTabKind : null;
               const openKinds = tabsByContainerKind[c.id] ?? new Set();
+              const isTemp = (c.name || "").startsWith("daimon_temp_");
               const menuId = `c:${c.id}`;
               return (
                 <div key={c.id} className={`docker-container ${isActive ? "active" : ""} ${activeLabel ? `active-kind-${activeLabel}` : ""}`}>
                   <div className="docker-container-row" onClick={() => onSelectContainer(c.id, c.name || c.id)}>
                     <div className="docker-container-info">
                       <div className="docker-container-title">
-                        <span className="docker-container-name">{c.name ? c.name : `ID: ${c.id}`}</span>
+                        <span className={`docker-container-name ${isTemp ? "temp" : ""}`}>{c.name ? c.name : `ID: ${c.id}`}</span>
+                        {isTemp ? <span className="docker-temp-badge">temp</span> : null}
                         {c.ports ? <span className="docker-container-ports">{c.ports}</span> : null}
                       </div>
                       <div className="docker-container-image">{c.image.startsWith("sha256:") ? "Image ID: " : "Image: "}{c.image}</div>
@@ -317,81 +408,79 @@ export function DockerSidebar({
 
       {view === "images" ? (
         <div className="docker-sidebar-section docker-sidebar-list">
-          <div className="docker-section-title">
-            <span>Images (in use)</span>
-            <div className="docker-actions">
-              <input
-                className="docker-search"
-                placeholder="Search name or ID"
-                value={imageQuery}
-                onChange={(e) => onImageQueryChange(e.target.value)}
-              />
-            </div>
-          </div>
           {imagesError ? <div className="error">{imagesError}</div> : null}
-          {images.length === 0 ? (
-            <div className="muted">No images.</div>
-          ) : (
-            images.map((img) => {
-              const isActive = activeImageId === img.id;
-              const menuId = `i:${img.id}`;
-              const label = `${img.repository}:${img.tag}`;
-              return (
-                <div key={img.id} className={`docker-container ${isActive ? "active" : ""}`}>
-                  <div className="docker-container-row" onClick={() => onSelectImage(img.id, "normal")}>
-                    <span className="dot dot-green" />
-                    <div className="docker-container-info">
-                      <div className="docker-container-title">
-                        <span className="docker-container-name">{label}</span>
-                      </div>
-                      <div
-                        className="docker-container-image"
-                        title={`Created: ${formatImageDate(img).full}`}
-                      >
-                        Created: {formatImageDate(img).short} • {img.size ?? "-"}
-                      </div>
-                    </div>
-                    <div className="docker-container-actions">
-                      <div className="docker-menu-wrap">
-                        <button
-                          className="btn btn-ghost"
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenuId((cur) => (cur === menuId ? null : menuId));
-                          }}
+          {images.length > 0 ? (
+            <>
+              <div className="docker-section-title">
+                <span>Images (in use)</span>
+                <div className="docker-actions">
+                  <input
+                    className="docker-search"
+                    placeholder="Search name or ID"
+                    value={imageQuery}
+                    onChange={(e) => onImageQueryChange(e.target.value)}
+                  />
+                </div>
+              </div>
+              {images.map((img) => {
+                const isActive = activeImageId === img.id;
+                const menuId = `i:${img.id}`;
+                const label = `${img.repository}:${img.tag}`;
+                return (
+                  <div key={img.id} className={`docker-container ${isActive ? "active" : ""}`}>
+                    <div className="docker-container-row" onClick={() => onSelectImage(img.id, "normal")}>
+                      <span className="dot dot-green" />
+                      <div className="docker-container-info">
+                        <div className="docker-container-title">
+                          <span className="docker-container-name">{label}</span>
+                        </div>
+                        <div
+                          className="docker-container-image"
+                          title={`Created: ${formatImageDate(img).full}`}
                         >
-                          …
-                        </button>
-                        {openMenuId === menuId ? (
-                          <div className="docker-menu">
-                            <button className="danger" type="button" onClick={() => { setOpenMenuId(null); onImageAction(img.id, "remove"); }}>
-                              Remove
-                            </button>
-                          </div>
-                        ) : null}
+                          Created: {formatImageDate(img).short} • {img.size ?? "-"}
+                        </div>
+                      </div>
+                      <div className="docker-container-actions">
+                        <div className="docker-menu-wrap">
+                          <button
+                            className="btn btn-ghost"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId((cur) => (cur === menuId ? null : menuId));
+                            }}
+                          >
+                            …
+                          </button>
+                          {openMenuId === menuId ? (
+                            <div className="docker-menu">
+                              <button className="danger" type="button" onClick={() => { setOpenMenuId(null); onImageAction(img.id, "remove"); }}>
+                                Remove
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })
-          )}
-          <div className="docker-dangling">
-            <div className="docker-section-title">
-              <button className="docker-dangling-toggle" type="button" onClick={() => setNotInUseOpen((v) => !v)}>
-                {notInUseOpen ? "▾" : "▸"} Not in use ({notInUseImages.length})
-              </button>
-              <button className="btn btn-danger" type="button" onClick={onOpenNotInUseModal} disabled={imagesBusy}>
-                Prune
-              </button>
-            </div>
-            {notInUseOpen ? (
-              <div className="docker-dangling-list">
-                {notInUseImages.length === 0 ? (
-                  <div className="muted">No not-in-use images.</div>
-                ) : (
-                  notInUseImages.map((img) => {
+                );
+              })}
+            </>
+          ) : null}
+          {notInUseImages.length > 0 ? (
+            <div className="docker-dangling">
+              <div className="docker-section-title">
+                <button className="docker-dangling-toggle" type="button" onClick={() => setNotInUseOpen((v) => !v)}>
+                  {notInUseOpen ? "▾" : "▸"} Not in use ({notInUseImages.length})
+                </button>
+                <button className="btn btn-danger" type="button" onClick={onOpenNotInUseModal} disabled={imagesBusy}>
+                  Prune
+                </button>
+              </div>
+              {notInUseOpen ? (
+                <div className="docker-dangling-list">
+                  {notInUseImages.map((img) => {
                     const menuId = `n:${img.id}`;
                     const isActive = activeImageId === img.id;
                     const label = `${img.repository}:${img.tag}`;
@@ -431,26 +520,24 @@ export function DockerSidebar({
                         </div>
                       </div>
                     );
-                  })
-                )}
-              </div>
-            ) : null}
-          </div>
-          <div className="docker-dangling">
-            <div className="docker-section-title">
-              <button className="docker-dangling-toggle" type="button" onClick={() => setDanglingOpen((v) => !v)}>
-                {danglingOpen ? "▾" : "▸"} Dangling images ({danglingImages.length})
-              </button>
-              <button className="btn btn-danger" type="button" onClick={onOpenDanglingModal} disabled={imagesBusy}>
-                Prune
-              </button>
+                  })}
+                </div>
+              ) : null}
             </div>
-            {danglingOpen ? (
-              <div className="docker-dangling-list">
-                {danglingImages.length === 0 ? (
-                  <div className="muted">No dangling images.</div>
-                ) : (
-                  danglingImages.map((img) => {
+          ) : null}
+          {danglingImages.length > 0 ? (
+            <div className="docker-dangling">
+              <div className="docker-section-title">
+                <button className="docker-dangling-toggle" type="button" onClick={() => setDanglingOpen((v) => !v)}>
+                  {danglingOpen ? "▾" : "▸"} Dangling images ({danglingImages.length})
+                </button>
+                <button className="btn btn-danger" type="button" onClick={onOpenDanglingModal} disabled={imagesBusy}>
+                  Prune
+                </button>
+              </div>
+              {danglingOpen ? (
+                <div className="docker-dangling-list">
+                  {danglingImages.map((img) => {
                     const menuId = `d:${img.id}`;
                     const isActive = activeImageId === img.id;
                     return (
@@ -492,11 +579,211 @@ export function DockerSidebar({
                         </div>
                       </div>
                     );
-                  })
-                )}
+                  })}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {view === "volumes" ? (
+        <div className="docker-sidebar-section docker-sidebar-list">
+          {volumesError ? <div className="error">{volumesError}</div> : null}
+          {volumesInUse.length > 0 ? (
+            <>
+              <div className="docker-section-title">
+                <span>Volumes (in use)</span>
               </div>
-            ) : null}
+              {volumesInUse.map((v) => {
+                const isActive = activeVolumeName === v.name;
+                const menuId = `v:${v.name}`;
+                const details = volumeDetailsByName[v.name];
+                const refCount = details?.refCount;
+                const refLabel = typeof refCount === "number" && refCount >= 0 ? String(refCount) : "-";
+                const sizeBytes = details?.sizeBytes;
+                const usageLabel = typeof sizeBytes === "number" && sizeBytes >= 0 ? formatBytes(sizeBytes) : "n/a";
+                return (
+                  <div key={v.name} className={`docker-container ${isActive ? "active" : ""}`}>
+                    <div className="docker-container-row" onClick={() => onSelectVolume(v.name)}>
+                      <span className="dot dot-green" />
+                      <div className="docker-container-info">
+                        <div className="docker-container-title">
+                          <span className="docker-container-name">{v.name}</span>
+                        </div>
+                        <div className="docker-container-image">
+                          Driver: {v.driver ?? "-"} • Scope: {v.scope ?? "-"} • Refs: {refLabel} • Usage: {usageLabel}
+                        </div>
+                      </div>
+                      <div className="docker-container-actions">
+                        <button
+                          className="btn btn-ghost"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onVolumeFiles(v.name);
+                          }}
+                        >
+                          Files
+                        </button>
+                        <div className="docker-menu-wrap">
+                          <button
+                            className="btn btn-ghost"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId((cur) => (cur === menuId ? null : menuId));
+                            }}
+                          >
+                            …
+                          </button>
+                          {openMenuId === menuId ? (
+                            <div className="docker-menu">
+                              <button className="danger" type="button" onClick={() => { setOpenMenuId(null); onVolumeRemove(v.name); }}>
+                                Remove
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          ) : null}
+          {volumesNotInUse.length > 0 ? (
+            <div className="docker-dangling">
+              <div className="docker-section-title">
+                <button className="docker-dangling-toggle" type="button" onClick={() => setVolumesNotInUseOpen((v) => !v)}>
+                  {volumesNotInUseOpen ? "▾" : "▸"} Not in use ({volumesNotInUse.length})
+                </button>
+              </div>
+              {volumesNotInUseOpen ? (
+                <div className="docker-dangling-list">
+                  {volumesNotInUse.map((v) => {
+                    const isActive = activeVolumeName === v.name;
+                    const menuId = `vn:${v.name}`;
+                    const details = volumeDetailsByName[v.name];
+                    const refCount = details?.refCount;
+                    const refLabel = typeof refCount === "number" && refCount >= 0 ? String(refCount) : "-";
+                    const sizeBytes = details?.sizeBytes;
+                    const usageLabel = typeof sizeBytes === "number" && sizeBytes >= 0 ? formatBytes(sizeBytes) : "n/a";
+                    return (
+                      <div key={v.name} className={`docker-container ${isActive ? "active" : ""}`}>
+                        <div className="docker-container-row" onClick={() => onSelectVolume(v.name)}>
+                          <span className="dot dot-none" />
+                          <div className="docker-container-info">
+                            <div className="docker-container-title">
+                              <span className="docker-container-name">{v.name}</span>
+                            </div>
+                            <div className="docker-container-image">
+                              Driver: {v.driver ?? "-"} • Scope: {v.scope ?? "-"} • Refs: {refLabel} • Usage: {usageLabel}
+                            </div>
+                          </div>
+                          <div className="docker-container-actions">
+                            <button
+                              className="btn btn-ghost"
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onVolumeFiles(v.name);
+                              }}
+                            >
+                              Files
+                            </button>
+                            <div className="docker-menu-wrap">
+                              <button
+                                className="btn btn-ghost"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenMenuId((cur) => (cur === menuId ? null : menuId));
+                                }}
+                              >
+                                …
+                              </button>
+                              {openMenuId === menuId ? (
+                                <div className="docker-menu">
+                                  <button className="danger" type="button" onClick={() => { setOpenMenuId(null); onVolumeRemove(v.name); }}>
+                                    Remove
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {view === "networks" && (networksError || networks.length > 0) ? (
+        <div className="docker-sidebar-section docker-sidebar-list">
+          <div className="docker-section-title">
+            <span>Networks</span>
           </div>
+          {networksError ? <div className="error">{networksError}</div> : null}
+          {networks.length > 0 ? (
+            networks.map((n) => {
+              const isActive = activeNetworkId === n.id;
+              const isSystem = isSystemNetwork(n.name);
+              const menuId = `n:${n.id}`;
+              return (
+                <div key={n.id} className={`docker-container ${isActive ? "active" : ""}`}>
+                  <div className="docker-container-row" onClick={() => onSelectNetwork(n.id)}>
+                    <div className="docker-container-info">
+                      <div className="docker-container-title">
+                        <span className="docker-container-name">{n.name}</span>
+                        {isSystem ? <span className="docker-system-badge">system</span> : null}
+                      </div>
+                      <div className="docker-container-image">
+                        Driver: {n.driver ?? "-"} • Scope: {n.scope ?? "-"}
+                      </div>
+                    </div>
+                    <div className="docker-container-actions">
+                      <button
+                        className="btn btn-ghost"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onNetworkInspect(n.id);
+                        }}
+                      >
+                        Inspect
+                      </button>
+                      {!isSystem ? (
+                        <div className="docker-menu-wrap">
+                          <button
+                            className="btn btn-ghost"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId((cur) => (cur === menuId ? null : menuId));
+                            }}
+                          >
+                            …
+                          </button>
+                          {openMenuId === menuId ? (
+                            <div className="docker-menu">
+                              <button className="danger" type="button" onClick={() => { setOpenMenuId(null); onNetworkRemove(n.id); }}>
+                                Remove
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : null}
         </div>
       ) : null}
 
@@ -539,4 +826,24 @@ function formatImageDate(img: DockerImageDTO): { short: string; full: string } {
     };
   }
   return { short: raw, full: raw };
+}
+
+function isSystemNetwork(name: string | undefined | null): boolean {
+  const normalized = String(name ?? "").toLowerCase();
+  return normalized === "bridge" || normalized === "host" || normalized === "none";
+}
+
+function formatBytes(n: number): string {
+  if (!Number.isFinite(n)) return "-";
+  const abs = Math.abs(n);
+  if (abs < 1024) return `${n} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = abs;
+  let i = -1;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  const sign = n < 0 ? "-" : "";
+  return `${sign}${v.toFixed(v >= 10 ? 0 : 1)} ${units[i]}`;
 }

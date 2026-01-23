@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"daimon/internal/sshkeys"
 	pkgsftp "github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
@@ -136,29 +137,46 @@ func (m *Manager) ListDir(sessionId string, dir string) ([]FileEntryDTO, error) 
 	if err != nil {
 		return nil, err
 	}
-	dir = Clean(dir)
-	entries, err := s.SFTP.ReadDir(dir)
+	reqDir := Clean(dir)
+	entries, err := s.SFTP.ReadDir(reqDir)
 	if err != nil {
 		return nil, err
+	}
+
+	// Resolve directory to absolute when possible, to avoid returning relative entry paths.
+	base := reqDir
+	if base == "" || base == "." || !strings.HasPrefix(base, "/") {
+		if rp, rerr := s.SFTP.RealPath(reqDir); rerr == nil && strings.TrimSpace(rp) != "" {
+			base = Clean(rp)
+		}
 	}
 
 	out := make([]FileEntryDTO, 0, len(entries))
 	for _, fi := range entries {
 		name := fi.Name()
-		full := path.Join(dir, name)
+		full := path.Join(base, name)
 		isDir := fi.IsDir()
+		isSymlink := fi.Mode()&os.ModeSymlink != 0
+		linkTarget := ""
+		if isSymlink {
+			if target, err := s.SFTP.ReadLink(full); err == nil {
+				linkTarget = target
+			}
+		}
 		// Treat symlink-to-dir as a directory so UI can enter it.
-		if fi.Mode()&os.ModeSymlink != 0 {
+		if isSymlink {
 			if st, err := s.SFTP.Stat(full); err == nil {
 				isDir = st.IsDir()
 			}
 		}
 		out = append(out, FileEntryDTO{
-			Name:    name,
-			Path:    full,
-			IsDir:   isDir,
-			Size:    fi.Size(),
-			MTimeMs: fi.ModTime().UnixMilli(),
+			Name:       name,
+			Path:       full,
+			IsDir:      isDir,
+			Size:       fi.Size(),
+			MTimeMs:    fi.ModTime().UnixMilli(),
+			IsSymlink:  isSymlink,
+			LinkTarget: linkTarget,
 		})
 	}
 
@@ -184,11 +202,13 @@ func (m *Manager) Stat(sessionId string, p string) (FileEntryDTO, error) {
 	name := path.Base(p)
 	isDir := fi.IsDir()
 	return FileEntryDTO{
-		Name:    name,
-		Path:    p,
-		IsDir:   isDir,
-		Size:    fi.Size(),
-		MTimeMs: fi.ModTime().UnixMilli(),
+		Name:       name,
+		Path:       p,
+		IsDir:      isDir,
+		Size:       fi.Size(),
+		MTimeMs:    fi.ModTime().UnixMilli(),
+		IsSymlink:  false,
+		LinkTarget: "",
 	}, nil
 }
 
@@ -274,13 +294,7 @@ func buildAuth(cfg SSHConfig) ([]ssh.AuthMethod, error) {
 		} else {
 			return nil, errors.New("private key PEM is required")
 		}
-		var signer ssh.Signer
-		var err error
-		if cfg.Passphrase != "" {
-			signer, err = ssh.ParsePrivateKeyWithPassphrase(pem, []byte(cfg.Passphrase))
-		} else {
-			signer, err = ssh.ParsePrivateKey(pem)
-		}
+		signer, err := sshkeys.ParseSigner(pem, cfg.Passphrase)
 		if err != nil {
 			return nil, fmt.Errorf("parse private key: %w", err)
 		}

@@ -56,7 +56,8 @@ export const DEFAULT_REMOTE = "/var/www/app";
 
 export function listLocal(path: string): FileEntry[] {
   const node = findLocalNode(path) ?? localRoot;
-  const entries = (node.children ?? []).map((n) => ({
+  const children = Array.isArray(node.children) ? node.children : [];
+  const entries = children.map((n) => ({
     name: n.name,
     path: joinLocal(path === "C:\\" ? "C:\\" : path, n.name),
     isDir: n.isDir,
@@ -67,7 +68,8 @@ export function listLocal(path: string): FileEntry[] {
 
 export function listRemote(path: string): FileEntry[] {
   const node = findRemoteNode(path) ?? remoteRoot;
-  const entries = (node.children ?? []).map((n) => ({
+  const children = Array.isArray(node.children) ? node.children : [];
+  const entries = children.map((n) => ({
     name: n.name,
     path: joinRemote(path, n.name),
     isDir: n.isDir,

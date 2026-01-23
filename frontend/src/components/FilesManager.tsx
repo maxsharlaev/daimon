@@ -44,6 +44,8 @@ type FileEntry = {
   isDir: boolean;
   size: number;
   mtimeMs: number;
+  isSymlink?: boolean;
+  linkTarget?: string;
 };
 
 type TransferStatus = {
@@ -137,10 +139,12 @@ export function FilesManager({
         setLocalPath(home);
       }
       try {
-        if (initialRemotePath && initialRemotePath.trim()) {
+        const initRemote = (initialRemotePath ?? "").trim();
+        // Treat "." as "unknown initial path" and ask server for real absolute cwd.
+        if (initRemote && initRemote !== ".") {
           if (!remotePathLockedRef.current) {
-            setRemotePath(initialRemotePath);
-            setRemotePathInput(initialRemotePath);
+            setRemotePath(initRemote);
+            setRemotePathInput(initRemote);
           }
         } else {
           const wd = await SFTPGetwd(sessionId);
@@ -707,8 +711,15 @@ export function FilesManager({
                   if (e.isDir) void goLocal(e.path);
                 }}
               >
-                <span className={`name ${e.isDir ? "dir" : ""}`}>{e.name}</span>
-                <span className="meta">{e.isDir ? "" : fmtSize(e.size)}</span>
+                <span className={`name ${e.isSymlink ? "link" : e.isDir ? "dir" : ""}`}>
+                  {e.isDir ? "📁 " : ""}
+                  {e.isSymlink && e.linkTarget ? `${e.name} -> ${e.linkTarget}` : e.name}
+                </span>
+                <span className="meta">
+                  {e.name === ".."
+                    ? ""
+                    : `${e.isDir ? "" : fmtSize(e.size)}${e.mtimeMs ? `${e.isDir ? "" : " • "}${fmtDate(e.mtimeMs)}` : ""}`}
+                </span>
               </div>
             ))}
           </div>
@@ -761,8 +772,15 @@ export function FilesManager({
                   if (e.isDir) void goRemote(e.path);
                 }}
               >
-                <span className={`name ${e.isDir ? "dir" : ""}`}>{e.name}</span>
-                <span className="meta">{e.isDir ? "" : fmtSize(e.size)}</span>
+                <span className={`name ${e.isSymlink ? "link" : e.isDir ? "dir" : ""}`}>
+                  {e.isDir ? "📁 " : ""}
+                  {e.isSymlink && e.linkTarget ? `${e.name} -> ${e.linkTarget}` : e.name}
+                </span>
+                <span className="meta">
+                  {e.name === ".."
+                    ? ""
+                    : `${e.isDir ? "" : fmtSize(e.size)}${e.mtimeMs ? `${e.isDir ? "" : " • "}${fmtDate(e.mtimeMs)}` : ""}`}
+                </span>
               </div>
             ))}
           </div>

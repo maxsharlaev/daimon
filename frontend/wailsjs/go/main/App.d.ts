@@ -13,6 +13,8 @@ export function DeleteProfileGroup(arg1:string):Promise<void>;
 
 export function DemoRunTask(arg1:string,arg2:number):Promise<void>;
 
+export function DockerLocalCleanupTempContainers(arg1:string):Promise<void>;
+
 export function DockerLocalContainerRemove(arg1:string):Promise<void>;
 
 export function DockerLocalContainerRestart(arg1:string):Promise<void>;
@@ -22,6 +24,8 @@ export function DockerLocalContainerStart(arg1:string):Promise<void>;
 export function DockerLocalContainerStop(arg1:string):Promise<void>;
 
 export function DockerLocalCreateTempContainer(arg1:string):Promise<string>;
+
+export function DockerLocalCreateVolumeTempContainer(arg1:string):Promise<string>;
 
 export function DockerLocalDanglingPreview():Promise<main.DockerDanglingPreviewDTO>;
 
@@ -45,9 +49,17 @@ export function DockerLocalListDir(arg1:string,arg2:string):Promise<Array<main.D
 
 export function DockerLocalListImages():Promise<Array<main.DockerImageDTO>>;
 
+export function DockerLocalListNetworks():Promise<Array<main.DockerNetworkDTO>>;
+
+export function DockerLocalListVolumes():Promise<Array<main.DockerVolumeDTO>>;
+
 export function DockerLocalLogsStart(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function DockerLocalMkdir(arg1:string,arg2:string):Promise<void>;
+
+export function DockerLocalNetworkInspect(arg1:string):Promise<main.DockerNetworkDetailsDTO>;
+
+export function DockerLocalNetworkRemove(arg1:string):Promise<void>;
 
 export function DockerLocalPruneDangling():Promise<main.DockerDanglingPreviewDTO>;
 
@@ -61,6 +73,12 @@ export function DockerLocalSystemInfo():Promise<main.DockerSystemDTO>;
 
 export function DockerLocalUpload(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function DockerLocalVolumeInspect(arg1:string):Promise<main.DockerVolumeDetailsDTO>;
+
+export function DockerLocalVolumeRemove(arg1:string):Promise<void>;
+
+export function DockerRemoteCleanupTempContainers(arg1:string,arg2:string):Promise<void>;
+
 export function DockerRemoteConnectProfile(arg1:string):Promise<string>;
 
 export function DockerRemoteContainerRemove(arg1:string,arg2:string):Promise<void>;
@@ -72,6 +90,8 @@ export function DockerRemoteContainerStart(arg1:string,arg2:string):Promise<void
 export function DockerRemoteContainerStop(arg1:string,arg2:string):Promise<void>;
 
 export function DockerRemoteCreateTempContainer(arg1:string,arg2:string):Promise<string>;
+
+export function DockerRemoteCreateVolumeTempContainer(arg1:string,arg2:string):Promise<string>;
 
 export function DockerRemoteDanglingPreview(arg1:string):Promise<main.DockerDanglingPreviewDTO>;
 
@@ -97,9 +117,17 @@ export function DockerRemoteListDir(arg1:string,arg2:string,arg3:string):Promise
 
 export function DockerRemoteListImages(arg1:string):Promise<Array<main.DockerImageDTO>>;
 
+export function DockerRemoteListNetworks(arg1:string):Promise<Array<main.DockerNetworkDTO>>;
+
+export function DockerRemoteListVolumes(arg1:string):Promise<Array<main.DockerVolumeDTO>>;
+
 export function DockerRemoteLogsStart(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
 
 export function DockerRemoteMkdir(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function DockerRemoteNetworkInspect(arg1:string,arg2:string):Promise<main.DockerNetworkDetailsDTO>;
+
+export function DockerRemoteNetworkRemove(arg1:string,arg2:string):Promise<void>;
 
 export function DockerRemotePruneDangling(arg1:string):Promise<main.DockerDanglingPreviewDTO>;
 
@@ -112,6 +140,10 @@ export function DockerRemoteStatus(arg1:string):Promise<main.DockerStatusDTO>;
 export function DockerRemoteSystemInfo(arg1:string):Promise<main.DockerSystemDTO>;
 
 export function DockerRemoteUpload(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
+export function DockerRemoteVolumeInspect(arg1:string,arg2:string):Promise<main.DockerVolumeDetailsDTO>;
+
+export function DockerRemoteVolumeRemove(arg1:string,arg2:string):Promise<void>;
 
 export function DockerStreamResize(arg1:string,arg2:number,arg3:number):Promise<void>;
 

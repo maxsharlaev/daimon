@@ -1,11 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
-import type { ProfileDTO } from "../../types/models";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MacroDTO, PlaceDTO, ProfileDTO } from "../../types/models";
 import { SplitView } from "../SplitView";
 import { DockerSidebar } from "./DockerSidebar";
 import { DockerLogsPanel } from "./DockerLogsPanel";
 import { DockerShellPanel } from "./DockerShellPanel";
 import { DockerFilesPanel } from "./DockerFilesPanel";
-import type { DockerContainerDTO, DockerImageDTO, DockerStatusDTO, DockerSystemDTO } from "../../types/docker";
+import { PlacesPanel } from "../PlacesPanel";
+import { MacrosPanel } from "../MacrosPanel";
+import { MacroEditorModal } from "../MacroEditorModal";
+import { MacroRunModal } from "../MacroRunModal";
+import type {
+  DockerContainerDTO,
+  DockerImageDTO,
+  DockerStatusDTO,
+  DockerSystemDTO,
+  DockerVolumeDTO,
+  DockerVolumeDetailsDTO,
+  DockerNetworkDTO,
+  DockerNetworkDetailsDTO,
+} from "../../types/docker";
 import {
   DockerLocalStatus,
   DockerLocalListContainers,
@@ -20,6 +33,14 @@ import {
   DockerLocalCreateTempContainer,
   DockerLocalRemoveImages,
   DockerLocalSystemInfo,
+  DockerLocalListVolumes,
+  DockerLocalVolumeInspect,
+  DockerLocalVolumeRemove,
+  DockerLocalCreateVolumeTempContainer,
+  DockerLocalCleanupTempContainers,
+  DockerLocalListNetworks,
+  DockerLocalNetworkInspect,
+  DockerLocalNetworkRemove,
   DockerRemoteConnectProfile,
   DockerRemoteDisconnect,
   DockerRemoteListContainers,
@@ -34,7 +55,18 @@ import {
   DockerRemoteCreateTempContainer,
   DockerRemoteRemoveImages,
   DockerRemoteSystemInfo,
+  DockerRemoteListVolumes,
+  DockerRemoteVolumeInspect,
+  DockerRemoteVolumeRemove,
+  DockerRemoteCreateVolumeTempContainer,
+  DockerRemoteCleanupTempContainers,
+  DockerRemoteListNetworks,
+  DockerRemoteNetworkInspect,
+  DockerRemoteNetworkRemove,
   DockerRemoteStatus,
+  DockerStreamSend,
+  UpsertMacro,
+  UpsertPlace,
 } from "../../../wailsjs/go/main/App";
 import { onSSHState, startSSHEventBridge } from "../../ssh/events";
 
@@ -42,7 +74,7 @@ type Props = {
   profiles: ProfileDTO[];
 };
 
-type View = "containers" | "images" | "system";
+type View = "containers" | "images" | "volumes" | "networks" | "system";
 type Scope = "local" | "remote";
 
 type RemoteSessionState = {
@@ -62,7 +94,25 @@ type DockerTab = {
   containerName: string;
   scope: Scope;
   sessionId?: string | null;
+  initialPath?: string;
+  profileId?: string | null;
+  profileName?: string | null;
 };
+
+type DockerLeftMode = "sidebar" | "places" | "macros";
+
+type DockerLeftContext = {
+  tabId: string;
+  containerId: string;
+  containerName: string;
+  profileId: string;
+  profileName: string;
+};
+
+function shellQuote(p: string) {
+  const s = String(p ?? "");
+  return `'${s.replace(/'/g, `'\"'\"'`)}'`;
+}
 
 export function DockerMode({ profiles }: Props) {
   const [view, setView] = useState<View>("containers");
@@ -89,6 +139,21 @@ export function DockerMode({ profiles }: Props) {
   const [systemInfo, setSystemInfo] = useState<DockerSystemDTO | null>(null);
   const [systemError, setSystemError] = useState<string | null>(null);
   const [systemBusy, setSystemBusy] = useState(false);
+  const [volumes, setVolumes] = useState<DockerVolumeDTO[]>([]);
+  const [volumesError, setVolumesError] = useState<string | null>(null);
+  const [volumesBusy, setVolumesBusy] = useState(false);
+  const [activeVolumeName, setActiveVolumeName] = useState<string | null>(null);
+  const [volumeDetails, setVolumeDetails] = useState<DockerVolumeDetailsDTO | null>(null);
+  const [volumeMode, setVolumeMode] = useState<"details" | "files">("details");
+  const [volumeDetailsByName, setVolumeDetailsByName] = useState<Record<string, DockerVolumeDetailsDTO>>({});
+  const [volumeDetailsBusy, setVolumeDetailsBusy] = useState(false);
+  const [volumeFilesContainerId, setVolumeFilesContainerId] = useState<string | null>(null);
+  const [volumeFilesVolumeName, setVolumeFilesVolumeName] = useState<string | null>(null);
+  const [volumeFilesError, setVolumeFilesError] = useState<string | null>(null);
+  const [networks, setNetworks] = useState<DockerNetworkDTO[]>([]);
+  const [networksError, setNetworksError] = useState<string | null>(null);
+  const [activeNetworkId, setActiveNetworkId] = useState<string | null>(null);
+  const [networkDetails, setNetworkDetails] = useState<DockerNetworkDetailsDTO | null>(null);
   const [danglingModalOpen, setDanglingModalOpen] = useState(false);
   const [danglingPreview, setDanglingPreview] = useState<{ count: number; sizeBytes: number } | null>(null);
   const [danglingBusy, setDanglingBusy] = useState(false);
@@ -103,6 +168,22 @@ export function DockerMode({ profiles }: Props) {
   const [dockerTabs, setDockerTabs] = useState<DockerTab[]>([]);
   const [activeDockerTabId, setActiveDockerTabId] = useState<string | null>(null);
   const [lastTabByContainer, setLastTabByContainer] = useState<Record<string, string>>({});
+  const [leftMode, setLeftMode] = useState<DockerLeftMode>("sidebar");
+  const [leftContext, setLeftContext] = useState<DockerLeftContext | null>(null);
+  const [shellStreamByTab, setShellStreamByTab] = useState<Record<string, string | null>>({});
+  const [placesRefreshToken, setPlacesRefreshToken] = useState(0);
+  const [macrosRefreshToken, setMacrosRefreshToken] = useState(0);
+  const [placeModal, setPlaceModal] = useState<{ open: boolean; id?: string; profileId: string; name: string; remotePath: string }>({
+    open: false,
+    profileId: "",
+    name: "",
+    remotePath: "",
+  });
+  const [macroEditorOpen, setMacroEditorOpen] = useState(false);
+  const [macroEditorMacro, setMacroEditorMacro] = useState<MacroDTO | null>(null);
+  const [macroRunOpen, setMacroRunOpen] = useState(false);
+  const [macroRunMacro, setMacroRunMacro] = useState<MacroDTO | null>(null);
+  const activeRemoteSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     void DockerLocalStatus()
@@ -133,15 +214,56 @@ export function DockerMode({ profiles }: Props) {
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    void DockerLocalCleanupTempContainers("");
+    return () => {
+      void DockerLocalCleanupTempContainers("");
+      const sessionId = activeRemoteSessionIdRef.current;
+      if (sessionId) void DockerRemoteCleanupTempContainers(sessionId, "");
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const activeRemoteSession = useMemo(() => {
     if (!activeRemoteProfileId) return null;
     return remoteByProfile[activeRemoteProfileId] ?? null;
   }, [activeRemoteProfileId, remoteByProfile]);
 
+  useEffect(() => {
+    activeRemoteSessionIdRef.current = activeRemoteSession?.sessionId ?? null;
+  }, [activeRemoteSession?.sessionId]);
+
   const activeDockerTab = useMemo(() => {
     if (!activeDockerTabId) return null;
     return dockerTabs.find((t) => t.id === activeDockerTabId) ?? null;
   }, [activeDockerTabId, dockerTabs]);
+
+  const leftProfileShim = useMemo<ProfileDTO[]>(
+    () =>
+      leftContext
+        ? [
+            {
+              id: leftContext.profileId,
+              groupId: "docker",
+              name: leftContext.profileName,
+              host: "",
+              port: 0,
+              username: "",
+              sshOptionsJson: "",
+              createdAt: "",
+              updatedAt: "",
+            },
+          ]
+        : [],
+    [leftContext]
+  );
+
+  const openLeftPanel = useCallback((mode: DockerLeftMode, tab: DockerTab) => {
+    const profileId = tab.profileId ?? `docker:${tab.scope}:unknown:${tab.containerId}`;
+    const profileName = tab.profileName ?? trimContainerName(tab.containerName);
+    setLeftContext({ tabId: tab.id, containerId: tab.containerId, containerName: tab.containerName, profileId, profileName });
+    setLeftMode(mode);
+  }, []);
 
   const tabsByContainerKind = useMemo(() => {
     const out: Record<string, Set<DockerTabKind>> = {};
@@ -152,11 +274,36 @@ export function DockerMode({ profiles }: Props) {
     return out;
   }, [dockerTabs]);
 
+  const volumesInUse = useMemo(() => {
+    return volumes.filter((v) => {
+      const details = volumeDetailsByName[v.name];
+      if (Array.isArray(details?.usedBy) && details!.usedBy!.length > 0) return true;
+      const ref = details?.refCount;
+      return typeof ref === "number" && ref > 0;
+    });
+  }, [volumes, volumeDetailsByName]);
+
+  const volumesNotInUse = useMemo(() => {
+    return volumes.filter((v) => {
+      const details = volumeDetailsByName[v.name];
+      if (Array.isArray(details?.usedBy) && details!.usedBy!.length > 0) return false;
+      const ref = details?.refCount;
+      if (typeof ref !== "number") return true;
+      return ref <= 0;
+    });
+  }, [volumes, volumeDetailsByName]);
+
   useEffect(() => {
     if (!activeDockerTab) return;
     setActiveContainerId(activeDockerTab.containerId);
     setLastTabByContainer((prev) => ({ ...prev, [activeDockerTab.containerId]: activeDockerTab.id }));
   }, [activeDockerTab]);
+
+  useEffect(() => {
+    if (view !== "containers" && leftMode !== "sidebar") {
+      setLeftMode("sidebar");
+    }
+  }, [leftMode, view]);
 
   const refreshContainers = async () => {
     setContainersBusy(true);
@@ -236,6 +383,26 @@ export function DockerMode({ profiles }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, scope, activeRemoteSession?.sessionId]);
 
+  useEffect(() => {
+    if (view !== "volumes") return;
+    void refreshVolumes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, scope, activeRemoteSession?.sessionId]);
+
+  useEffect(() => {
+    if (view !== "networks") return;
+    void refreshNetworks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, scope, activeRemoteSession?.sessionId]);
+
+  useEffect(() => {
+    if (view === "volumes") return;
+    if (volumeFilesContainerId) {
+      void closeVolumeFiles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, scope]);
+
   const refreshLocalStatusAndView = async () => {
     try {
       const st = await DockerLocalStatus();
@@ -245,6 +412,8 @@ export function DockerMode({ profiles }: Props) {
     }
     if (view === "containers") await refreshContainers();
     if (view === "images") await refreshImages();
+    if (view === "volumes") await refreshVolumes();
+    if (view === "networks") await refreshNetworks();
     if (view === "system") await refreshSystem();
   };
 
@@ -278,7 +447,8 @@ export function DockerMode({ profiles }: Props) {
   const selectImage = (id: string, source: "normal" | "dangling") => {
     setActiveImageId(id);
     setActiveImageSource(source);
-    setImageInspectOpen(false);
+    setImageInspectOpen(true);
+    void loadImageInspect(id);
   };
 
   const loadImageInspect = async (id: string) => {
@@ -446,6 +616,156 @@ export function DockerMode({ profiles }: Props) {
     }
   };
 
+  const refreshVolumes = async () => {
+    setVolumesBusy(true);
+    setVolumesError(null);
+    try {
+      let list: DockerVolumeDTO[] = [];
+      if (scope === "local") {
+        list = await DockerLocalListVolumes();
+      } else {
+        const sessionId = activeRemoteSession?.sessionId;
+        if (!sessionId) {
+          list = [];
+        } else {
+          list = await DockerRemoteListVolumes(sessionId);
+        }
+      }
+      setVolumes(list);
+      const entries = await Promise.all(
+        list.map(async (v) => {
+          try {
+            if (scope === "local") {
+              return [v.name, await DockerLocalVolumeInspect(v.name)] as const;
+            }
+            const sessionId = activeRemoteSession?.sessionId;
+            if (!sessionId) return null;
+            return [v.name, await DockerRemoteVolumeInspect(sessionId, v.name)] as const;
+          } catch {
+            return null;
+          }
+        })
+      );
+      const map: Record<string, DockerVolumeDetailsDTO> = {};
+      entries.forEach((entry) => {
+        if (!entry) return;
+        map[entry[0]] = entry[1];
+      });
+      setVolumeDetailsByName(map);
+    } catch (e: any) {
+      setVolumesError(e?.message ?? String(e));
+      setVolumes([]);
+      setVolumeDetailsByName({});
+    } finally {
+      setVolumesBusy(false);
+    }
+  };
+
+  const refreshNetworks = async () => {
+    setNetworksError(null);
+    try {
+      if (scope === "local") {
+        setNetworks(await DockerLocalListNetworks());
+      } else {
+        const sessionId = activeRemoteSession?.sessionId;
+        if (!sessionId) {
+          setNetworks([]);
+        } else {
+          setNetworks(await DockerRemoteListNetworks(sessionId));
+        }
+      }
+    } catch (e: any) {
+      setNetworksError(e?.message ?? String(e));
+      setNetworks([]);
+    }
+  };
+
+  const loadVolumeDetails = async (name: string, mode: "details" = "details") => {
+    if (volumeFilesContainerId && volumeFilesVolumeName && volumeFilesVolumeName !== name) {
+      await closeVolumeFiles();
+    }
+    setActiveVolumeName(name);
+    setVolumeMode(mode);
+    setVolumesError(null);
+    setVolumeDetailsBusy(true);
+    try {
+      if (scope === "local") {
+        const details = await DockerLocalVolumeInspect(name);
+        setVolumeDetails(details);
+        setVolumeDetailsByName((prev) => ({ ...prev, [name]: details }));
+      } else {
+        const sessionId = activeRemoteSession?.sessionId;
+        if (!sessionId) throw new Error("Remote session not connected");
+        const details = await DockerRemoteVolumeInspect(sessionId, name);
+        setVolumeDetails(details);
+        setVolumeDetailsByName((prev) => ({ ...prev, [name]: details }));
+      }
+    } catch (e: any) {
+      setVolumesError(e?.message ?? String(e));
+      setVolumeDetails(null);
+    } finally {
+      setVolumeDetailsBusy(false);
+    }
+  };
+
+  const loadNetworkDetails = async (id: string) => {
+    setActiveNetworkId(id);
+    setNetworksError(null);
+    try {
+      if (scope === "local") {
+        setNetworkDetails(await DockerLocalNetworkInspect(id));
+      } else {
+        const sessionId = activeRemoteSession?.sessionId;
+        if (!sessionId) throw new Error("Remote session not connected");
+        setNetworkDetails(await DockerRemoteNetworkInspect(sessionId, id));
+      }
+    } catch (e: any) {
+      setNetworksError(e?.message ?? String(e));
+      setNetworkDetails(null);
+    }
+  };
+
+  const closeVolumeFiles = async () => {
+    if (!volumeFilesContainerId) return;
+    try {
+      if (scope === "local") {
+        await DockerLocalContainerRemove(volumeFilesContainerId);
+      } else {
+        const sessionId = activeRemoteSession?.sessionId;
+        if (sessionId) await DockerRemoteContainerRemove(sessionId, volumeFilesContainerId);
+      }
+    } catch {
+      // ignore cleanup errors
+    } finally {
+      setVolumeFilesContainerId(null);
+      setVolumeFilesVolumeName(null);
+    }
+  };
+
+  const openVolumeFiles = async (name: string) => {
+    setActiveVolumeName(name);
+    setVolumeMode("files");
+    setVolumeFilesError(null);
+    if (volumeFilesContainerId && volumeFilesVolumeName === name) return;
+    if (volumeFilesContainerId) await closeVolumeFiles();
+    try {
+      if (scope === "local") {
+        const id = await DockerLocalCreateVolumeTempContainer(name);
+        setVolumeFilesContainerId(id);
+      } else {
+        const sessionId = activeRemoteSession?.sessionId;
+        if (!sessionId) throw new Error("Remote session not connected");
+        const id = await DockerRemoteCreateVolumeTempContainer(sessionId, name);
+        setVolumeFilesContainerId(id);
+      }
+      setVolumeFilesVolumeName(name);
+    } catch (e: any) {
+      setVolumeFilesError(e?.message ?? String(e));
+      setVolumeFilesContainerId(null);
+      setVolumeFilesVolumeName(null);
+    }
+  };
+
   useEffect(() => {
     if (view !== "system") return;
     void refreshSystem();
@@ -473,7 +793,7 @@ export function DockerMode({ profiles }: Props) {
     }
   };
 
-  const openDockerTab = (kind: DockerTabKind, containerId: string, containerName: string) => {
+  const openDockerTab = (kind: DockerTabKind, containerId: string, containerName: string, initialPath?: string) => {
     const sessionId = scope === "remote" ? activeRemoteSession?.sessionId ?? null : null;
     if (scope === "remote" && !sessionId) {
       setContainersError("Remote session not connected");
@@ -483,16 +803,35 @@ export function DockerMode({ profiles }: Props) {
     setActiveContainerId(containerId);
     const existing = dockerTabs.find((t) => t.containerId === containerId && t.kind === kind && t.scope === scope);
     if (existing) {
-      if (activeDockerTabId === existing.id) {
+      if (activeDockerTabId === existing.id && !initialPath) {
         closeDockerTab(existing.id);
         return;
+      }
+      if (initialPath && existing.kind === "files") {
+        setDockerTabs((prev) => prev.map((t) => (t.id === existing.id ? { ...t, initialPath } : t)));
       }
       setActiveDockerTabId(existing.id);
       setLastTabByContainer((prev) => ({ ...prev, [containerId]: existing.id }));
       return;
     }
+    const remoteProfileName = scope === "remote" ? profiles.find((p) => p.id === activeRemoteProfileId)?.name ?? activeRemoteProfileId ?? "remote" : null;
+    const dockerProfileId = `docker:${scope}:${activeRemoteProfileId ?? "local"}:${containerId}`;
+    const dockerProfileName =
+      scope === "local"
+        ? `Docker local · ${trimContainerName(containerName)}`
+        : `Docker ${remoteProfileName} · ${trimContainerName(containerName)}`;
     const id = `docker-${kind}-${containerId}-${Math.random().toString(36).slice(2)}`;
-    const tab: DockerTab = { id, kind, containerId, containerName, scope, sessionId };
+    const tab: DockerTab = {
+      id,
+      kind,
+      containerId,
+      containerName,
+      scope,
+      sessionId,
+      initialPath,
+      profileId: dockerProfileId,
+      profileName: dockerProfileName,
+    };
     setDockerTabs((prev) => [...prev, tab]);
     setActiveDockerTabId(id);
     setLastTabByContainer((prev) => ({ ...prev, [containerId]: id }));
@@ -522,6 +861,16 @@ export function DockerMode({ profiles }: Props) {
       });
       return next;
     });
+    setShellStreamByTab((prev) => {
+      if (!prev[tabId]) return prev;
+      const next = { ...prev };
+      delete next[tabId];
+      return next;
+    });
+    if (leftContext?.tabId === tabId) {
+      setLeftMode("sidebar");
+      setLeftContext(null);
+    }
   };
 
   const connectRemote = async (profileId: string) => {
@@ -563,6 +912,11 @@ export function DockerMode({ profiles }: Props) {
   const disconnectRemote = async (profileId: string) => {
     const cur = remoteByProfile[profileId];
     if (!cur?.sessionId) return;
+    try {
+      await DockerRemoteCleanupTempContainers(cur.sessionId, "");
+    } catch {
+      // ignore cleanup errors
+    }
     await DockerRemoteDisconnect(cur.sessionId);
     setRemoteByProfile((prev) => ({
       ...prev,
@@ -570,7 +924,7 @@ export function DockerMode({ profiles }: Props) {
     }));
   };
 
-  const left = (
+  const left = leftMode === "sidebar" ? (
     <DockerSidebar
       view={view}
       scope={scope}
@@ -587,6 +941,15 @@ export function DockerMode({ profiles }: Props) {
       images={filterImages(images, imageQuery)}
       danglingImages={filterImages(danglingImages, imageQuery)}
       notInUseImages={filterImages(notInUseImages, imageQuery)}
+      volumesInUse={volumesInUse}
+      volumesNotInUse={volumesNotInUse}
+      volumesError={volumesError}
+      volumesBusy={volumesBusy}
+      activeVolumeName={activeVolumeName}
+      volumeDetailsByName={volumeDetailsByName}
+      networks={networks}
+      networksError={networksError}
+      activeNetworkId={activeNetworkId}
       imagesBusy={imagesBusy}
       imagesError={imagesError}
       activeImageId={activeImageId}
@@ -609,6 +972,38 @@ export function DockerMode({ profiles }: Props) {
       onSelectImage={(id, source) => selectImage(id, source)}
       onOpenDanglingModal={() => void openDanglingModal()}
       onOpenNotInUseModal={openNotInUseModal}
+      onSelectVolume={(name) => loadVolumeDetails(name, "details")}
+      onVolumeFiles={(name) => void openVolumeFiles(name)}
+      onVolumeRemove={async (name) => {
+        try {
+          if (scope === "local") {
+            await DockerLocalVolumeRemove(name);
+          } else {
+            const sessionId = activeRemoteSession?.sessionId;
+            if (!sessionId) throw new Error("Remote session not connected");
+            await DockerRemoteVolumeRemove(sessionId, name);
+          }
+          await refreshVolumes();
+        } catch (e: any) {
+          setVolumesError(e?.message ?? String(e));
+        }
+      }}
+      onSelectNetwork={(id) => loadNetworkDetails(id)}
+      onNetworkInspect={(id) => loadNetworkDetails(id)}
+      onNetworkRemove={async (id) => {
+        try {
+          if (scope === "local") {
+            await DockerLocalNetworkRemove(id);
+          } else {
+            const sessionId = activeRemoteSession?.sessionId;
+            if (!sessionId) throw new Error("Remote session not connected");
+            await DockerRemoteNetworkRemove(sessionId, id);
+          }
+          await refreshNetworks();
+        } catch (e: any) {
+          setNetworksError(e?.message ?? String(e));
+        }
+      }}
       onRefreshSystem={() => void refreshSystem()}
       onOpenLogs={(containerId, containerName) => openDockerTab("logs", containerId, containerName)}
       onOpenShell={(containerId, containerName) => openDockerTab("shell", containerId, containerName)}
@@ -616,11 +1011,69 @@ export function DockerMode({ profiles }: Props) {
       onRefreshLocalStatus={refreshLocalStatusAndView}
       localStatus={localStatus}
     />
+  ) : leftMode === "places" && leftContext ? (
+    <PlacesPanel
+      profileId={leftContext.profileId}
+      profiles={leftProfileShim}
+      refreshToken={placesRefreshToken}
+      onBack={() => setLeftMode("sidebar")}
+      onAddNew={() => setPlaceModal({ open: true, profileId: leftContext.profileId, name: "", remotePath: "" })}
+      onEdit={(p: PlaceDTO) => setPlaceModal({ open: true, id: p.id, profileId: p.profileId, name: p.name ?? "", remotePath: p.remotePath })}
+      onGoTerminal={async (remotePath) => {
+        const streamId = shellStreamByTab[leftContext.tabId];
+        if (!streamId) throw new Error("Shell not connected");
+        await DockerStreamSend(streamId, `cd ${shellQuote(remotePath)}\n`);
+      }}
+      onGoFiles={(remotePath) => {
+        openDockerTab("files", leftContext.containerId, leftContext.containerName, remotePath);
+      }}
+    />
+  ) : leftMode === "macros" && leftContext ? (
+    <MacrosPanel
+      profileId={leftContext.profileId}
+      refreshToken={macrosRefreshToken}
+      onBack={() => setLeftMode("sidebar")}
+      onCreate={() => {
+        setMacroEditorMacro(null);
+        setMacroEditorOpen(true);
+      }}
+      onEdit={(m) => {
+        setMacroEditorMacro(m);
+        setMacroEditorOpen(true);
+      }}
+      onRun={(m) => {
+        setMacroRunMacro(m);
+        setMacroRunOpen(true);
+      }}
+    />
+  ) : (
+    <div className="panel">
+      <div className="panel-titlebar">
+        <div className="panel-title">Docker</div>
+        <div className="panel-meta">no active container</div>
+      </div>
+    </div>
   );
 
   const right = (
     <div className="docker-main">
-      {view === "containers" ? (
+      {scope === "remote" && (!activeRemoteSession?.sessionId || activeRemoteSession?.status?.available !== true) ? (
+        <div className="panel">
+          <div className="panel-titlebar">
+            <div className="panel-title">Docker</div>
+            <div className="panel-meta">
+              {!activeRemoteSession?.sessionId ? "Remote disconnected" : "Docker unavailable"}
+            </div>
+          </div>
+          <div className="panel-body">
+            <div className="muted">
+              {!activeRemoteSession?.sessionId
+                ? "Connect to a remote profile to view Docker resources."
+                : activeRemoteSession?.status?.message ?? "Docker unavailable on remote host."}
+            </div>
+          </div>
+        </div>
+      ) : view === "containers" ? (
         <div className="panel">
           <div className="docker-tabs-bar">
             {dockerTabs.length === 0 ? (
@@ -665,30 +1118,46 @@ export function DockerMode({ profiles }: Props) {
             </div>
           </div>
           <div className="panel-body">
-            {activeDockerTab ? (
-              activeDockerTab.kind === "logs" ? (
-                <DockerLogsPanel
-                  scope={activeDockerTab.scope}
-                  sessionId={activeDockerTab.sessionId ?? null}
-                  containerId={activeDockerTab.containerId}
-                  onClose={() => closeDockerTab(activeDockerTab.id)}
-                />
-              ) : activeDockerTab.kind === "shell" ? (
-                <DockerShellPanel
-                  scope={activeDockerTab.scope}
-                  sessionId={activeDockerTab.sessionId ?? null}
-                  containerId={activeDockerTab.containerId}
-                  onClose={() => closeDockerTab(activeDockerTab.id)}
-                />
-              ) : (
-                <DockerFilesPanel
-                  scope={activeDockerTab.scope}
-                  sessionId={activeDockerTab.sessionId ?? null}
-                  containerId={activeDockerTab.containerId}
-                />
-              )
-            ) : (
+            {dockerTabs.length === 0 ? (
               <div className="empty">Pick a container and open Logs, Shell, or Files.</div>
+            ) : (
+              <div className="docker-tabpanes">
+                {dockerTabs.map((t) => (
+                  <div key={t.id} className={`docker-tabpane ${t.id === activeDockerTabId ? "active" : ""}`}>
+                    {t.kind === "logs" ? (
+                      <DockerLogsPanel
+                        scope={t.scope}
+                        sessionId={t.sessionId ?? null}
+                        containerId={t.containerId}
+                        onClose={() => closeDockerTab(t.id)}
+                      />
+                    ) : t.kind === "shell" ? (
+                      <DockerShellPanel
+                        scope={t.scope}
+                        sessionId={t.sessionId ?? null}
+                        containerId={t.containerId}
+                        profileName={t.profileName ?? trimContainerName(t.containerName)}
+                        onOpenFiles={(remotePath) => openDockerTab("files", t.containerId, t.containerName, remotePath)}
+                        onAddLocation={(remotePath) => {
+                          openLeftPanel("places", t);
+                          setPlaceModal({ open: true, profileId: t.profileId ?? `docker:${t.scope}:unknown:${t.containerId}`, name: "", remotePath });
+                        }}
+                        onOpenPlaces={() => openLeftPanel("places", t)}
+                        onOpenMacros={() => openLeftPanel("macros", t)}
+                        onStreamId={(streamId) => setShellStreamByTab((prev) => ({ ...prev, [t.id]: streamId }))}
+                        onClose={() => closeDockerTab(t.id)}
+                      />
+                    ) : (
+                      <DockerFilesPanel
+                        scope={t.scope}
+                        sessionId={t.sessionId ?? null}
+                        containerId={t.containerId}
+                        initialPath={t.initialPath ?? "/"}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -711,76 +1180,277 @@ export function DockerMode({ profiles }: Props) {
                   img = danglingImages.find((i) => i.id === activeImageId) ?? null;
                 }
                 if (!img) return <div className="empty">Image not found.</div>;
-                const { short, full } = formatImageDate(img);
-                const related = containers.filter((c) => matchImageToContainer(img, c));
+                const image = img;
+                const { short, full } = formatImageDate(image);
+                const related = containers.filter((c) => matchImageToContainer(image, c));
                 return (
                   <div>
-                    <div className="mono">{img.repository}:{img.tag}</div>
-                    <div className="muted">Image ID: {img.id}</div>
-                    <div className="muted" title={`Created: ${full}`}>Created: {short}</div>
-                    <div className="muted">Size: {img.size ?? "-"}</div>
-                    {imageFilesError ? <div className="error">{imageFilesError}</div> : null}
-                    <div className="docker-actions" style={{ marginTop: 10 }}>
-                      <button className="btn" type="button" onClick={() => void openImageFiles(img)} disabled={!!imageFilesContainerId}>
-                        Files
-                      </button>
+                    <div className="docker-widgets">
+                      <div className="docker-widget">
+                        <div className="docker-widget-title">General</div>
+                        <div className="docker-widget-body">
+                          <div className="mono">{image.repository}:{image.tag}</div>
+                          <div className="muted">Image ID: {image.id}</div>
+                          <div className="muted" title={`Created: ${full}`}>Created: {short}</div>
+                          <div className="muted">Size: {image.size ?? "-"}</div>
+                        </div>
+                      </div>
+                      <div className="docker-widget">
+                        <div className="docker-widget-title">Used by</div>
+                        <div className="docker-widget-body">
+                          {related.length > 0 ? (
+                            <div className="docker-usedby-list">
+                              {related.map((c) => (
+                                <button
+                                  key={c.id}
+                                  className="docker-usedby-item"
+                                  type="button"
+                                  onClick={() => {
+                                    setView("containers");
+                                    setActiveContainerId(c.id);
+                                  }}
+                                >
+                                  <span className="docker-usedby-name">{c.name || c.id.slice(0, 12)}</span>
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="muted">No containers reference this image.</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {imageFilesError ? <div className="error" style={{ marginTop: 10 }}>{imageFilesError}</div> : null}
+                    <div className="docker-actions" style={{ marginTop: 12 }}>
                       <button
                         className="btn btn-ghost"
                         type="button"
                         onClick={() => {
-                          setImageInspectOpen((v) => !v);
-                          if (!imageInspectById[img.id]) void loadImageInspect(img.id);
+                          if (imageInspectOpen) {
+                            setImageInspectOpen(false);
+                          } else {
+                            setImageInspectOpen(true);
+                            void loadImageInspect(image.id);
+                            if (imageFilesContainerId) void closeImageFiles();
+                          }
                         }}
                       >
-                        {imageInspectOpen ? "Hide inspect" : "Show inspect"}
+                        {imageInspectOpen ? "Hide inspect" : "Inspect"}
                       </button>
-                      {imageFilesContainerId ? (
-                        <button className="btn btn-ghost" type="button" onClick={() => void closeImageFiles()}>
-                          Close files
-                        </button>
-                      ) : null}
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={() => {
+                          if (imageFilesContainerId) {
+                            void closeImageFiles();
+                          } else {
+                            void openImageFiles(image);
+                            setImageInspectOpen(false);
+                          }
+                        }}
+                      >
+                        {imageFilesContainerId ? "Hide files" : "Files"}
+                      </button>
                     </div>
-                    {related.length > 0 ? (
-                      <div style={{ marginTop: 12 }}>
-                        <div className="muted">Used by containers:</div>
-                        <div className="docker-actions" style={{ marginTop: 6 }}>
-                          {related.map((c) => (
-                            <button
-                              key={c.id}
-                              className="btn btn-ghost"
-                              type="button"
-                              onClick={() => {
-                                setView("containers");
-                                setActiveContainerId(c.id);
-                              }}
-                            >
-                              {c.name || c.id.slice(0, 12)}
-                            </button>
-                          ))}
-                        </div>
+                    {(imageInspectOpen || (imageFilesContainerId && imageFilesImageId === image.id)) ? (
+                      <div className="docker-widgets" style={{ marginTop: 12 }}>
+                        {imageInspectOpen && imageInspectById[image.id] ? (
+                          <div className="docker-widget docker-widget-general">
+                            <div className="docker-widget-title">Inspect</div>
+                            <div className="docker-widget-body">
+                              <pre className="mono docker-widget-pre">{imageInspectById[image.id]}</pre>
+                            </div>
+                          </div>
+                        ) : null}
+                        {imageFilesContainerId && imageFilesImageId === image.id ? (
+                          <div className="docker-widget docker-widget-general">
+                            <div className="docker-widget-title">Files</div>
+                            <div className="docker-widget-body docker-widget-files">
+                              <DockerFilesPanel
+                                scope={scope}
+                                sessionId={activeRemoteSession?.sessionId ?? null}
+                                containerId={imageFilesContainerId}
+                              />
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
-                    ) : (
-                      <div className="muted" style={{ marginTop: 12 }}>
-                        No containers reference this image.
-                      </div>
-                    )}
-                    {imageFilesContainerId && imageFilesImageId === img.id ? (
-                      <div style={{ marginTop: 12, height: 360 }}>
-                        <DockerFilesPanel
-                          scope={scope}
-                          sessionId={activeRemoteSession?.sessionId ?? null}
-                          containerId={imageFilesContainerId}
-                        />
-                      </div>
-                    ) : null}
-                    {imageInspectOpen && imageInspectById[img.id] ? (
-                      <pre className="mono" style={{ whiteSpace: "pre-wrap", marginTop: 10 }}>
-                        {imageInspectById[img.id]}
-                      </pre>
                     ) : null}
                   </div>
                 );
               })()
+            )}
+          </div>
+        </div>
+      ) : view === "volumes" ? (
+        <div className="panel">
+          <div className="panel-titlebar">
+            <div className="panel-title">Volume</div>
+            <div className="panel-meta">{activeVolumeName ?? "Select a volume"}</div>
+          </div>
+          <div className="panel-body">
+            {volumesError ? <div className="error">{volumesError}</div> : null}
+            {volumeFilesError ? <div className="error">{volumeFilesError}</div> : null}
+            {activeVolumeName && volumeMode === "files" ? (
+              <div>
+                <div className="docker-actions" style={{ marginBottom: 10 }}>
+                  <button className="btn btn-ghost" type="button" onClick={() => void closeVolumeFiles()}>
+                    Close files
+                  </button>
+                </div>
+                {volumeFilesContainerId ? (
+                  <div style={{ height: 360 }}>
+                    <DockerFilesPanel
+                      scope={scope}
+                      sessionId={activeRemoteSession?.sessionId ?? null}
+                      containerId={volumeFilesContainerId}
+                      initialPath="/mnt"
+                    />
+                  </div>
+                ) : (
+                  <div className="muted">Loading volume files...</div>
+                )}
+              </div>
+            ) : activeVolumeName && volumeDetails ? (
+              <div className="docker-widgets">
+                <div className="docker-widget docker-widget-general">
+                  <div className="docker-widget-title">General</div>
+                  <div className="docker-widget-body">
+                    <div className="mono">{volumeDetails.name}</div>
+                    <div className="muted">Driver: {volumeDetails.driver ?? "-"}</div>
+                    <div className="muted">Scope: {volumeDetails.scope ?? "-"}</div>
+                    <div className="muted">
+                      Mountpoint: <span className="docker-widget-value">{volumeDetails.mountpoint ?? "-"}</span>
+                    </div>
+                    <div className="muted">Created: {volumeDetails.createdAt ?? "-"}</div>
+                  </div>
+                </div>
+                <div className="docker-widget">
+                  <div className="docker-widget-title">Usage</div>
+                  <div className="docker-widget-body">
+                    <div className="muted">
+                      RefCount:{" "}
+                      {typeof volumeDetails.refCount === "number" && volumeDetails.refCount >= 0 ? volumeDetails.refCount : "-"}
+                    </div>
+                    <div className="muted">
+                      Size:{" "}
+                      {typeof volumeDetails.sizeBytes === "number" && volumeDetails.sizeBytes >= 0
+                        ? formatBytes(volumeDetails.sizeBytes)
+                        : "n/a"}
+                    </div>
+                  </div>
+                </div>
+                <div className="docker-widget">
+                  <div className="docker-widget-title">In use by</div>
+                  <div className="docker-widget-body">
+                    {Array.isArray(volumeDetails.usedBy) && volumeDetails.usedBy.length > 0 ? (
+                      <div className="docker-usedby-list">
+                        {volumeDetails.usedBy.map((entry) => {
+                          const idx = entry.indexOf(":");
+                          const name = idx >= 0 ? entry.slice(0, idx) : entry;
+                          const mountPath = idx >= 0 ? entry.slice(idx + 1) : "";
+                          const isTemp = name.startsWith("daimon_temp_");
+                          const container = containers.find((c) => c.name === name) ?? null;
+                          return (
+                            <button
+                              key={entry}
+                              className={`docker-usedby-item ${isTemp ? "temp" : ""}`}
+                              type="button"
+                              disabled={!container}
+                              onClick={() => {
+                                if (container) {
+                                  setView("containers");
+                                  openDockerTab("logs", container.id, container.name);
+                                }
+                              }}
+                              title={container ? "Open logs" : "Container not in list"}
+                            >
+                              <span className="docker-usedby-name">{name}</span>
+                              {mountPath ? <span className="docker-usedby-path">{mountPath}</span> : null}
+                              {isTemp ? <span className="docker-usedby-tag">temp</span> : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="muted">-</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : activeVolumeName && volumeDetailsBusy ? (
+              <div className="muted">Loading volume details...</div>
+            ) : (
+              <div className="empty">Pick a volume on the left.</div>
+            )}
+          </div>
+        </div>
+      ) : view === "networks" ? (
+        <div className="panel">
+          <div className="panel-titlebar">
+            <div className="panel-title">Network</div>
+            <div className="panel-meta">{activeNetworkId ?? "Select a network"}</div>
+          </div>
+          <div className="panel-body">
+            {networksError ? <div className="error">{networksError}</div> : null}
+            {activeNetworkId && networkDetails ? (
+              <div className="docker-widgets">
+                <div className="docker-widget">
+                  <div className="docker-widget-title">General</div>
+                  <div className="docker-widget-body">
+                    <div className="mono">{networkDetails.name}</div>
+                    <div className="muted">ID: {networkDetails.id}</div>
+                    <div className="muted">Driver: {networkDetails.driver ?? "-"}</div>
+                    <div className="muted">Scope: {networkDetails.scope ?? "-"}</div>
+                    <div className="muted">Internal: {networkDetails.internal ? "yes" : "no"}</div>
+                    <div className="muted">Attachable: {networkDetails.attachable ? "yes" : "no"}</div>
+                    <div className="muted">Ingress: {networkDetails.ingress ? "yes" : "no"}</div>
+                  </div>
+                </div>
+                <div className="docker-widget">
+                  <div className="docker-widget-title">Containers</div>
+                  <div className="docker-widget-body">
+                    {networkDetails.containers?.length ? (
+                      <div className="docker-usedby-list">
+                        {networkDetails.containers.map((n) => {
+                          const needle = String(n ?? "");
+                          const normalized = needle.replace(/^\//, "");
+                          const container =
+                            containers.find((c) => {
+                              const cName = String(c.name ?? "").replace(/^\//, "");
+                              const cId = String(c.id ?? "").replace(/^sha256:/, "");
+                              return cName === normalized || cName === needle || cId === needle || cId.startsWith(needle) || needle.startsWith(cId);
+                            }) ?? null;
+                          return (
+                            <button
+                              key={n}
+                              className="docker-usedby-item"
+                              type="button"
+                              onClick={() => {
+                                setView("containers");
+                                if (container) {
+                                  setActiveContainerId(container.id);
+                                  openDockerTab("logs", container.id, container.name);
+                                } else {
+                                  setActiveContainerId(null);
+                                  setContainerQuery(needle);
+                                }
+                              }}
+                              title={container ? "Open logs" : "Show in containers"}
+                            >
+                              <span className="docker-usedby-name">{n}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="muted">-</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="empty">Pick a network on the left.</div>
             )}
           </div>
         </div>
@@ -880,7 +1550,75 @@ export function DockerMode({ profiles }: Props) {
     </div>
   );
 
-  return <SplitView left={left} right={right} initialLeftPct={30} minLeftPx={320} minRightPx={520} />;
+  const leftStreamId = leftContext ? shellStreamByTab[leftContext.tabId] ?? null : null;
+
+  return (
+    <>
+      <SplitView left={left} right={right} initialLeftPct={30} minLeftPx={320} minRightPx={520} />
+      {placeModal.open ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal">
+            <div className="modal-title">{placeModal.id ? "Edit Place" : "Save Location"}</div>
+            <div className="modal-body">
+              <div className="form-grid">
+                <label>Name</label>
+                <input value={placeModal.name} onChange={(e) => setPlaceModal((p) => ({ ...p, name: e.target.value }))} />
+                <label>Path</label>
+                <input
+                  className="mono"
+                  value={placeModal.remotePath}
+                  onChange={(e) => setPlaceModal((p) => ({ ...p, remotePath: e.target.value }))}
+                />
+              </div>
+              <div className="modal-actions">
+                <button
+                  className="btn btn-ghost"
+                  type="button"
+                  onClick={() => setPlaceModal({ open: false, profileId: "", name: "", remotePath: "" })}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={async () => {
+                    const targetProfileId = placeModal.profileId;
+                    const remotePath = (placeModal.remotePath || "").trim();
+                    if (!targetProfileId || !remotePath) return;
+                    await UpsertPlace({ id: placeModal.id, profileId: targetProfileId, name: placeModal.name ?? "", remotePath, order: 0 } as any);
+                    setPlaceModal({ open: false, profileId: "", name: "", remotePath: "" });
+                    setPlacesRefreshToken((n) => n + 1);
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <MacroEditorModal
+        open={macroEditorOpen}
+        macro={macroEditorMacro}
+        onCancel={() => setMacroEditorOpen(false)}
+        onSave={async (next) => {
+          await UpsertMacro(next as any);
+          setMacroEditorOpen(false);
+          setMacrosRefreshToken((n) => n + 1);
+        }}
+      />
+      <MacroRunModal
+        open={macroRunOpen}
+        macro={macroRunMacro}
+        onCancel={() => setMacroRunOpen(false)}
+        onRun={async (script) => {
+          if (!leftStreamId) return;
+          await DockerStreamSend(leftStreamId, script + "\n");
+          setMacroRunOpen(false);
+        }}
+      />
+    </>
+  );
 }
 
 function formatBytes(n: number) {

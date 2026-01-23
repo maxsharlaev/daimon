@@ -90,6 +90,13 @@ func (r *Router) GetSecretValue(profileID string, kind Kind) (SecretValue, Stora
 	case StorageExternal:
 		// external refs resolved by caller (file path, agent, etc.)
 		if kind == KindPrivateKey {
+			// Optional: store passphrase in keyring (without storing key material).
+			// This allows encrypted OpenSSH/PPK keys to work while keeping the key on disk.
+			if secret, err := r.keyring.Get(profileID, kind); err == nil && secret != "" {
+				if v, _, derr := decodeSecretValue(secret); derr == nil {
+					return SecretValue{PrivateKeyPEM: "", Passphrase: v.Passphrase}, mode, nil
+				}
+			}
 			return SecretValue{PrivateKeyPEM: "", Passphrase: ""}, mode, nil
 		}
 		return SecretValue{}, mode, nil
@@ -129,7 +136,22 @@ func (r *Router) PutSecretValue(profileID string, kind Kind, storageMode Storage
 		return r.SetSecretRef(profileID, kind, storageMode, "vault:"+profileID+":"+string(kind), metaJSON)
 	case StorageExternal:
 		// just store reference (e.g. key path or "ssh-agent")
-		_ = r.keyring.Delete(profileID, kind)
+		// For private key external path, we optionally keep passphrase in keyring.
+		if kind == KindPrivateKey {
+			if val.Passphrase != "" {
+				payload, err := encodeSecretValue(SecretValue{Passphrase: val.Passphrase})
+				if err != nil {
+					return err
+				}
+				if err := r.keyring.Set(profileID, kind, payload); err != nil {
+					return err
+				}
+			} else {
+				_ = r.keyring.Delete(profileID, kind)
+			}
+		} else {
+			_ = r.keyring.Delete(profileID, kind)
+		}
 		_ = r.vault.Delete(profileID, kind)
 		return r.SetSecretRef(profileID, kind, storageMode, ref, metaJSON)
 	default:

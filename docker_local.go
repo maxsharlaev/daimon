@@ -16,6 +16,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 )
@@ -137,11 +138,59 @@ func (a *App) DockerLocalCreateTempContainer(imageRef string) (string, error) {
 	}
 	defer cli.Close()
 	ctx := context.Background()
+	_ = cleanupLocalTempContainersByLabels(ctx, cli, []string{
+		"daimon.temp=true",
+		fmt.Sprintf("daimon.temp.image=%s", imageRef),
+	})
+	name := tempContainerName(imageRef)
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image: imageRef,
 		Cmd:   []string{"sh", "-lc", "sleep 3600"},
 		Tty:   false,
-	}, nil, nil, nil, "")
+		Labels: map[string]string{
+			"daimon.temp":      "true",
+			"daimon.temp.kind": "image",
+			"daimon.temp.image": imageRef,
+		},
+	}, nil, nil, nil, name)
+	if err != nil {
+		return "", err
+	}
+	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		_ = cli.ContainerRemove(ctx, resp.ID, container.RemoveOptions{Force: true})
+		return "", err
+	}
+	return resp.ID, nil
+}
+
+func (a *App) DockerLocalCreateVolumeTempContainer(volumeName string) (string, error) {
+	cli, err := dockerClient()
+	if err != nil {
+		return "", err
+	}
+	defer cli.Close()
+	ctx := context.Background()
+	_ = cleanupLocalTempContainers(ctx, cli, volumeName)
+	imageRef := "alpine"
+	if _, _, err := cli.ImageInspectWithRaw(ctx, imageRef); err != nil {
+		rc, err := cli.ImagePull(ctx, imageRef, image.PullOptions{})
+		if err != nil {
+			return "", err
+		}
+		_, _ = io.Copy(io.Discard, rc)
+		_ = rc.Close()
+	}
+	name := tempContainerName(volumeName)
+	resp, err := cli.ContainerCreate(ctx, &container.Config{
+		Image: imageRef,
+		Cmd:   []string{"sh", "-lc", "sleep 3600"},
+		Tty:   false,
+		Labels: tempContainerLabels(volumeName),
+	}, &container.HostConfig{
+		Mounts: []mount.Mount{
+			{Type: mount.TypeVolume, Source: volumeName, Target: "/mnt"},
+		},
+	}, nil, nil, name)
 	if err != nil {
 		return "", err
 	}
@@ -376,9 +425,18 @@ func (a *App) DockerLocalExecStart(containerId string, cols int, rows int) (stri
 func (a *App) DockerLocalListDir(containerId string, path string) ([]DockerFileEntryDTO, error) {
 	out, err := a.dockerLocalExecOutput(containerId, fmt.Sprintf("cd %s && ls -la --time-style=+%%s", shellQuote(path)))
 	if err != nil {
+		if strings.Contains(err.Error(), "unrecognized option") || strings.Contains(err.Error(), "Usage: ls") {
+			out, err = a.dockerLocalExecOutput(containerId, fmt.Sprintf("cd %s && ls -la", shellQuote(path)))
+		}
+	}
+	if err != nil {
 		return nil, err
 	}
-	return parseLsOutput(out, path), nil
+	entries := parseLsOutput(out, path)
+	entries = resolveSymlinkDirs(entries, func(cmd string) (string, error) {
+		return a.dockerLocalExecOutput(containerId, cmd)
+	})
+	return entries, nil
 }
 
 func (a *App) DockerLocalFileDelete(containerId string, path string) error {
