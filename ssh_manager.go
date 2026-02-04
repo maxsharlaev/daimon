@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"daimon/internal/sshkeys"
@@ -97,34 +98,75 @@ func NewSSHManager() *SSHManager {
 	}
 }
 
+func sshTimeout(cfg SSHConfig) time.Duration {
+	timeout := 10 * time.Second
+	if cfg.TimeoutMs > 0 {
+		timeout = time.Duration(cfg.TimeoutMs) * time.Millisecond
+	}
+	// Guard against accidental 0/negative or extremely small timeouts.
+	if timeout < 250*time.Millisecond {
+		timeout = 250 * time.Millisecond
+	}
+	return timeout
+}
+
 func (m *SSHManager) TestConnection(cfg SSHConfig) (string, error) {
+	timeout := sshTimeout(cfg)
 	client, err := dialSSH(cfg)
 	if err != nil {
 		return "", err
 	}
 	defer client.Close()
 
+	// Ensure we never hang forever on NewSession/CombinedOutput.
+	// If the timeout is hit, close the client to abort any in-flight SSH operations.
+	var timedOut int32
+	timer := time.AfterFunc(timeout, func() {
+		atomic.StoreInt32(&timedOut, 1)
+		_ = client.Close()
+	})
+	defer timer.Stop()
+
 	sess, err := client.NewSession()
 	if err != nil {
+		if atomic.LoadInt32(&timedOut) == 1 {
+			return "", fmt.Errorf("ssh test timed out after %s", timeout)
+		}
 		return "", err
 	}
 	defer sess.Close()
 
 	out, err := sess.CombinedOutput("echo daimon-ok")
 	if err != nil {
+		if atomic.LoadInt32(&timedOut) == 1 {
+			return "", fmt.Errorf("ssh test timed out after %s", timeout)
+		}
 		return "", fmt.Errorf("ssh test failed: %w", err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
 
 func (m *SSHManager) Connect(ctx context.Context, cfg SSHConfig) (string, error) {
+	timeout := sshTimeout(cfg)
 	client, err := dialSSH(cfg)
 	if err != nil {
 		return "", err
 	}
 
+	// Safety guard: don't leave the UI "busy" forever if session startup stalls.
+	var timedOut int32
+	timer := time.AfterFunc(timeout, func() {
+		atomic.StoreInt32(&timedOut, 1)
+		_ = client.Close()
+	})
+	defer timer.Stop()
+
 	sess, err := client.NewSession()
 	if err != nil {
+		if atomic.LoadInt32(&timedOut) == 1 {
+			client.Close()
+			return "", fmt.Errorf("ssh connect timed out after %s", timeout)
+		}
 		client.Close()
 		return "", err
 	}
@@ -165,12 +207,22 @@ func (m *SSHManager) Connect(ctx context.Context, cfg SSHConfig) (string, error)
 		ssh.TTY_OP_OSPEED: 14400,
 	}
 	if err := sess.RequestPty("xterm-256color", rows, cols, modes); err != nil {
+		if atomic.LoadInt32(&timedOut) == 1 {
+			sess.Close()
+			client.Close()
+			return "", fmt.Errorf("ssh connect timed out after %s", timeout)
+		}
 		sess.Close()
 		client.Close()
 		return "", fmt.Errorf("request pty: %w", err)
 	}
 
 	if err := sess.Shell(); err != nil {
+		if atomic.LoadInt32(&timedOut) == 1 {
+			sess.Close()
+			client.Close()
+			return "", fmt.Errorf("ssh connect timed out after %s", timeout)
+		}
 		sess.Close()
 		client.Close()
 		return "", fmt.Errorf("start shell: %w", err)
@@ -449,10 +501,7 @@ func dialSSH(cfg SSHConfig) (*ssh.Client, error) {
 		return nil, errors.New("no auth methods")
 	}
 
-	timeout := 10 * time.Second
-	if cfg.TimeoutMs > 0 {
-		timeout = time.Duration(cfg.TimeoutMs) * time.Millisecond
-	}
+	timeout := sshTimeout(cfg)
 
 	hostKeyCallback, err := buildHostKeyCallback(cfg)
 	if err != nil {
@@ -463,11 +512,29 @@ func dialSSH(cfg SSHConfig) (*ssh.Client, error) {
 		User:            cfg.Username,
 		Auth:            authMethods,
 		HostKeyCallback: hostKeyCallback,
-		Timeout:         timeout,
+		// Keep this for ssh internals that still consult it.
+		Timeout: timeout,
 	}
 
 	addr := net.JoinHostPort(cfg.Host, fmt.Sprintf("%d", cfg.Port))
-	return ssh.Dial("tcp", addr, clientConfig)
+
+	// NOTE: We avoid ssh.Dial() here to have deterministic timeout behavior.
+	// The goal is: never hang forever on unreachable hosts or half-open handshakes.
+	d := &net.Dialer{Timeout: timeout}
+	conn, err := d.Dial("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Bound the SSH handshake with a deadline, then clear it for long-lived sessions.
+	_ = conn.SetDeadline(time.Now().Add(timeout))
+	cconn, chans, reqs, err := ssh.NewClientConn(conn, addr, clientConfig)
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	_ = conn.SetDeadline(time.Time{})
+	return ssh.NewClient(cconn, chans, reqs), nil
 }
 
 func buildHostKeyCallback(cfg SSHConfig) (ssh.HostKeyCallback, error) {

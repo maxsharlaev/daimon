@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MacroDTO, PlaceDTO, ProfileDTO } from "../../types/models";
+import type { MacroDTO, PlaceDTO, ProfileDTO, ProfileGroupDTO } from "../../types/models";
 import { SplitView } from "../SplitView";
 import { DockerSidebar } from "./DockerSidebar";
 import { DockerLogsPanel } from "./DockerLogsPanel";
@@ -72,6 +72,7 @@ import { onSSHState, startSSHEventBridge } from "../../ssh/events";
 
 type Props = {
   profiles: ProfileDTO[];
+  groups: ProfileGroupDTO[];
 };
 
 type View = "containers" | "images" | "volumes" | "networks" | "system";
@@ -114,7 +115,7 @@ function shellQuote(p: string) {
   return `'${s.replace(/'/g, `'\"'\"'`)}'`;
 }
 
-export function DockerMode({ profiles }: Props) {
+export function DockerMode({ profiles, groups }: Props) {
   const [view, setView] = useState<View>("containers");
   const [scope, setScope] = useState<Scope>("local");
   const [localStatus, setLocalStatus] = useState<DockerStatusDTO | null>(null);
@@ -929,6 +930,7 @@ export function DockerMode({ profiles }: Props) {
       view={view}
       scope={scope}
       profiles={profiles}
+      groups={groups}
       remoteByProfile={remoteByProfile}
       activeRemoteProfileId={activeRemoteProfileId}
       containers={filterContainers(containers, containerQuery)}

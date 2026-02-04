@@ -26,6 +26,7 @@ import { MacroEditorModal } from "./components/MacroEditorModal";
 import { MacroRunModal } from "./components/MacroRunModal";
 import { DashboardTabs } from "./components/DashboardTabs";
 import { DockerMode } from "./components/docker/DockerMode";
+import { WindowControls } from "./components/WindowControls";
 
 type FilesLastPathsByProfile = Record<string, { localPath: string; remotePath: string }>;
 
@@ -49,6 +50,8 @@ function App() {
   const [groups, setGroups] = useState<ProfileGroupDTO[]>([]);
   const [profiles, setProfiles] = useState<ProfileDTO[]>([]);
   const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>([]);
+  const hasPersistedExpandedGroupsRef = useRef(false);
+  const didAutoExpandGroupsRef = useRef(false);
 
   const [sessions, setSessions] = useState<TerminalSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -101,17 +104,22 @@ function App() {
     const r = await fetchProfilesAndGroups();
     setGroups(r.groups);
     setProfiles(r.profiles);
-    // expand all by default once
-    if (expandedGroupIds.length === 0 && r.groups.length > 0) {
-      setExpandedGroupIds(r.groups.map((g) => g.id));
-    }
-  }, [expandedGroupIds.length]);
+    // Expand all by default once ONLY when there's no persisted preference.
+    // Important: do NOT re-expand just because the user collapsed all groups.
+    setExpandedGroupIds((prev) => {
+      if (prev.length > 0) return prev;
+      if (hasPersistedExpandedGroupsRef.current) return prev;
+      if (didAutoExpandGroupsRef.current) return prev;
+      if (r.groups.length === 0) return prev;
+      didAutoExpandGroupsRef.current = true;
+      return r.groups.map((g) => g.id);
+    });
+  }, []);
 
   useEffect(() => {
     startSSHEventBridge();
     startSFTPEventBridge();
-    void refresh();
-  }, [refresh]);
+  }, []);
 
   // layout persistence (MVP): expanded groups + last active tab
   useEffect(() => {
@@ -123,7 +131,10 @@ function App() {
         if (nextMode === "connections" || nextMode === "docker") {
           setAppMode(nextMode);
         }
-        if (Array.isArray(v?.expandedGroupIds)) setExpandedGroupIds(v.expandedGroupIds);
+        if (Array.isArray(v?.expandedGroupIds)) {
+          hasPersistedExpandedGroupsRef.current = true;
+          setExpandedGroupIds(v.expandedGroupIds);
+        }
         if (v?.filesLastPathsByProfile && typeof v.filesLastPathsByProfile === "object") {
           setFilesLastPathsByProfile(v.filesLastPathsByProfile as FilesLastPathsByProfile);
         }
@@ -131,8 +142,11 @@ function App() {
         // ignore
       }
     };
-    void load();
-  }, []);
+    void load().finally(() => {
+      // First fetch after we tried to load persisted UI state.
+      void refresh();
+    });
+  }, [refresh]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -502,7 +516,7 @@ function App() {
     <SplitView left={sidebar} right={rightPane} initialLeftPct={34} minLeftPx={340} minRightPx={420} />
   );
 
-  const dockerContent = <DockerMode profiles={profiles} />;
+  const dockerContent = <DockerMode profiles={profiles} groups={groups} />;
 
   return (
     <div className="app-shell">
@@ -530,7 +544,9 @@ function App() {
             </button>
           </div>
         </div>
-        <div className="topbar-actions" />
+        <div className="topbar-actions">
+          <WindowControls />
+        </div>
       </div>
 
       <div className="content">

@@ -1,5 +1,5 @@
-import type { ProfileDTO } from "../../types/models";
-import { useEffect, useState } from "react";
+import type { ProfileDTO, ProfileGroupDTO } from "../../types/models";
+import { useEffect, useMemo, useState } from "react";
 import type {
   DockerContainerDTO,
   DockerImageDTO,
@@ -22,10 +22,11 @@ type RemoteSessionState = {
   connecting?: boolean;
 };
 
-type Props = {
+type DockerSidebarProps = {
   view: View;
   scope: Scope;
   profiles: ProfileDTO[];
+  groups: ProfileGroupDTO[];
   remoteByProfile: Record<string, RemoteSessionState>;
   activeRemoteProfileId: string | null;
   containers: DockerContainerDTO[];
@@ -87,6 +88,7 @@ export function DockerSidebar({
   view,
   scope,
   profiles,
+  groups,
   remoteByProfile,
   activeRemoteProfileId,
   containers,
@@ -142,19 +144,35 @@ export function DockerSidebar({
   onNetworkInspect,
   onNetworkRemove,
   onRefreshSystem,
-}: Props) {
+}: DockerSidebarProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [danglingOpen, setDanglingOpen] = useState(false);
   const [notInUseOpen, setNotInUseOpen] = useState(false);
   const [volumesNotInUseOpen, setVolumesNotInUseOpen] = useState(false);
   const [remoteListOpen, setRemoteListOpen] = useState(true);
+  const [remoteGroupFilter, setRemoteGroupFilter] = useState<string>("all");
+  const [remoteSearch, setRemoteSearch] = useState<string>("");
   const activeRemote = activeRemoteProfileId ? remoteByProfile[activeRemoteProfileId] ?? null : null;
   const remoteConnected = !!activeRemote?.sessionId;
   const remoteReady = remoteConnected && activeRemote?.status?.available === true;
   const hideRemoteViews = scope === "remote" && (!remoteConnected || activeRemote?.status?.available !== true);
-  const visibleRemoteProfiles = remoteListOpen || !activeRemoteProfileId
-    ? profiles
-    : profiles.filter((p) => p.id === activeRemoteProfileId);
+  const groupNameById = useMemo(() => new Map(groups.map((g) => [g.id, g.name])), [groups]);
+
+  const visibleRemoteProfiles = useMemo(() => {
+    // When a concrete profile is selected, we show ONLY it (and hide filters anyway).
+    if (!remoteListOpen && activeRemoteProfileId) {
+      return profiles.filter((p) => p.id === activeRemoteProfileId);
+    }
+
+    // Otherwise we are in "list" mode: apply group + search filters.
+    const q = remoteSearch.trim().toLowerCase();
+    return profiles.filter((p) => {
+      if (remoteGroupFilter !== "all" && p.groupId !== remoteGroupFilter) return false;
+      if (!q) return true;
+      const hay = `${p.name ?? ""} ${p.host ?? ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [activeRemoteProfileId, profiles, remoteGroupFilter, remoteListOpen, remoteSearch]);
   useEffect(() => {
     const handler = (ev: MouseEvent) => {
       const target = ev.target as HTMLElement | null;
@@ -265,6 +283,33 @@ export function DockerSidebar({
         </div>
       ) : (
         <div className="docker-sidebar-section">
+          {remoteListOpen ? (
+            <div className="docker-remote-filters">
+              <select
+                className="docker-select"
+                value={remoteGroupFilter}
+                onChange={(e) => setRemoteGroupFilter(e.target.value)}
+                aria-label="Group filter"
+              >
+                <option value="all">All groups</option>
+                {groups
+                  .slice()
+                  .sort((a, b) => a.order - b.order)
+                  .map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+              </select>
+              <input
+                className="docker-search"
+                placeholder="Search name or host"
+                value={remoteSearch}
+                onChange={(e) => setRemoteSearch(e.target.value)}
+              />
+            </div>
+          ) : null}
+
           {visibleRemoteProfiles.map((p) => {
             const st = remoteByProfile[p.id];
             const active = activeRemoteProfileId === p.id;
@@ -282,6 +327,11 @@ export function DockerSidebar({
                 <div>
                   <div className="docker-profile-name">{p.name || `${p.username}@${p.host}`}</div>
                   <div className="docker-profile-meta">
+                    {remoteListOpen ? (
+                      <span className="docker-profile-group">
+                        {groupNameById.get(p.groupId) ?? "Group"} •{" "}
+                      </span>
+                    ) : null}
                     {st?.connecting
                       ? "Connecting..."
                       : connected
@@ -309,6 +359,7 @@ export function DockerSidebar({
             );
           })}
           {profiles.length === 0 ? <div className="muted">No SSH profiles.</div> : null}
+          {profiles.length > 0 && visibleRemoteProfiles.length === 0 ? <div className="muted">No matches.</div> : null}
         </div>
       )}
 

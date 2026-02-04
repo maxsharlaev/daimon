@@ -10,9 +10,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
+  padding: 0 8px 0 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
+  /* Wails frameless drag region */
+  --wails-draggable: drag;
+  user-select: none;
+}
+
+.topbar button,
+.topbar a {
+  --wails-draggable: no-drag;
 }
 
 .brand {
@@ -63,6 +71,46 @@
 .topbar-actions {
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.window-btn {
+  width: 44px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  padding: 0;
+}
+
+.window-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.window-btn:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.window-btn.close:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: rgba(255, 255, 255, 0.98);
+}
+
+.window-btn.close:active {
+  background: rgba(239, 68, 68, 0.35);
 }
 
 .content {

@@ -59,6 +59,32 @@
   min-width: 160px;
 }
 
+.docker-select {
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.92);
+  padding: 0 10px;
+  font-size: 12px;
+  min-width: 140px;
+}
+
+.docker-remote-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.docker-remote-filters .docker-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.docker-profile-group {
+  color: rgba(255, 255, 255, 0.5);
+}
+
 .docker-sidebar-section {
   padding: 0 10px 10px 10px;
   display: flex;

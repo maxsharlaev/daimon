@@ -20,6 +20,8 @@ func main() {
 		Title:  "daimon",
 		Width:  1024,
 		Height: 768,
+		// We render our own draggable titlebar in the frontend.
+		Frameless: true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
