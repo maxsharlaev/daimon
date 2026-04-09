@@ -1,3 +1,4 @@
+import type { MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -8,22 +9,26 @@ import { onDockerOutput, onDockerState, startDockerEventBridge } from "../../doc
 
 type Props = {
   streamId: string | null;
+  /** When set, used for output/state matching so early events aren't missed (parent sets this sync when stream starts). */
+  streamIdRef?: MutableRefObject<string | null>;
   inputEnabled?: boolean;
   convertEol?: boolean;
   onDisconnected?: (id: string, error?: string | null) => void;
 };
 
-export function DockerTerminal({ streamId, inputEnabled = false, convertEol = false, onDisconnected }: Props) {
+export function DockerTerminal({ streamId, streamIdRef: externalStreamIdRef, inputEnabled = false, convertEol = false, onDisconnected }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const roRef = useRef<ResizeObserver | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
-  const streamIdRef = useRef<string | null>(streamId);
+  const internalStreamIdRef = useRef<string | null>(streamId);
   useEffect(() => {
-    streamIdRef.current = streamId;
+    internalStreamIdRef.current = streamId;
   }, [streamId]);
+
+  const streamIdRef = externalStreamIdRef ?? internalStreamIdRef;
 
   useEffect(() => {
     startDockerEventBridge();
@@ -100,10 +105,13 @@ export function DockerTerminal({ streamId, inputEnabled = false, convertEol = fa
     }
   }, [inputEnabled]);
 
+  const prevStreamIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!termRef.current) return;
-    const term = termRef.current;
-    term.clear();
+    if (prevStreamIdRef.current != null && prevStreamIdRef.current !== streamId) {
+      termRef.current.clear();
+    }
+    prevStreamIdRef.current = streamId;
   }, [streamId]);
 
   useEffect(() => {

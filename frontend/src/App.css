@@ -122,6 +122,12 @@
 .app-grid {
   height: 100%;
   width: 100%;
+  position: relative;
+}
+
+.app-mode-pane {
+  height: 100%;
+  width: 100%;
 }
 
 .rightstack {

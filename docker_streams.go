@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -35,11 +36,20 @@ func (m *DockerStreamManager) Start(ctx context.Context, stdin io.WriteCloser, s
 
 	runtime.EventsEmit(ctx, "docker:state", DockerStateEvent{ID: id, State: "connected"})
 
+	// Start pumps after a short delay so the frontend can set its streamId ref before any
+	// docker:output events arrive (avoids "every other tab" missing logs when many tabs open at once).
+	const pumpDelay = 80 * time.Millisecond
 	if stdout != nil {
-		go m.pump(ctx, id, stdout, false)
+		go func() {
+			time.Sleep(pumpDelay)
+			m.pump(ctx, id, stdout, false)
+		}()
 	}
 	if stderr != nil {
-		go m.pump(ctx, id, stderr, true)
+		go func() {
+			time.Sleep(pumpDelay)
+			m.pump(ctx, id, stderr, true)
+		}()
 	}
 
 	if waitFn != nil {

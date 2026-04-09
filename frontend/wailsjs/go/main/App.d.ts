@@ -3,6 +3,8 @@
 import {main} from '../models';
 import {sftp} from '../models';
 
+export function CopySecretToClipboard(arg1:string,arg2:string):Promise<void>;
+
 export function DeleteMacro(arg1:string):Promise<void>;
 
 export function DeletePlace(arg1:string):Promise<void>;
@@ -10,6 +12,8 @@ export function DeletePlace(arg1:string):Promise<void>;
 export function DeleteProfile(arg1:string):Promise<void>;
 
 export function DeleteProfileGroup(arg1:string):Promise<void>;
+
+export function DeleteSecret(arg1:string,arg2:string):Promise<void>;
 
 export function DemoRunTask(arg1:string,arg2:number):Promise<void>;
 
@@ -175,6 +179,8 @@ export function ListProfileGroups():Promise<Array<main.ProfileGroupDTO>>;
 
 export function ListProfiles():Promise<Array<main.ProfileDTO>>;
 
+export function ListSecrets(arg1:string):Promise<Array<main.SecretItemDTO>>;
+
 export function LoadUILayout(arg1:string):Promise<string>;
 
 export function LocalDelete(arg1:string):Promise<void>;
@@ -262,6 +268,8 @@ export function UpsertPlace(arg1:main.UpsertPlaceRequest):Promise<main.PlaceDTO>
 export function UpsertProfile(arg1:main.UpsertProfileRequest):Promise<main.ProfileDTO>;
 
 export function UpsertProfileGroup(arg1:main.UpsertProfileGroupRequest):Promise<main.ProfileGroupDTO>;
+
+export function UpsertSecret(arg1:main.UpsertSecretRequest):Promise<void>;
 
 export function VaultLock():Promise<void>;
 

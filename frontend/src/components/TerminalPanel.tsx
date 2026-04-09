@@ -16,9 +16,18 @@ type Props = {
   onAddLocation?: () => void;
   onOpenPlaces?: () => void;
   onOpenMacros?: () => void;
+  onOpenSecrets?: () => void;
 };
 
-export function TerminalPanel({ connectionId, onDisconnected, onShowPwd, onAddLocation, onOpenPlaces, onOpenMacros }: Props) {
+export function TerminalPanel({
+  connectionId,
+  onDisconnected,
+  onShowPwd,
+  onAddLocation,
+  onOpenPlaces,
+  onOpenMacros,
+  onOpenSecrets,
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -189,6 +198,11 @@ export function TerminalPanel({ connectionId, onDisconnected, onShowPwd, onAddLo
           {onOpenMacros ? (
             <button className="btn btn-ghost" type="button" onClick={onOpenMacros} title="Open Macros">
               🧰 Macros
+            </button>
+          ) : null}
+          {onOpenSecrets ? (
+            <button className="btn btn-ghost" type="button" onClick={onOpenSecrets} title="Open Secrets">
+              🔐 Secrets
             </button>
           ) : null}
           <button

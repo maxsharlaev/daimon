@@ -293,6 +293,17 @@
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.files .modal-actions .btn-danger {
+  background: rgba(220, 80, 80, 0.25);
+  border-color: rgba(220, 80, 80, 0.5);
+  color: rgba(255, 200, 200, 0.95);
+}
+
+.files .modal-actions .btn-danger:hover:not(:disabled) {
+  background: rgba(220, 80, 80, 0.35);
+  border-color: rgba(220, 80, 80, 0.7);
+}
+
 .list {
   overflow: auto;
   padding: 6px;

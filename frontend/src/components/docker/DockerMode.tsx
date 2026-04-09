@@ -73,6 +73,7 @@ import { onSSHState, startSSHEventBridge } from "../../ssh/events";
 type Props = {
   profiles: ProfileDTO[];
   groups: ProfileGroupDTO[];
+  onOpenSecrets?: (profileId: string) => void;
 };
 
 type View = "containers" | "images" | "volumes" | "networks" | "system";
@@ -115,7 +116,7 @@ function shellQuote(p: string) {
   return `'${s.replace(/'/g, `'\"'\"'`)}'`;
 }
 
-export function DockerMode({ profiles, groups }: Props) {
+export function DockerMode({ profiles, groups, onOpenSecrets }: Props) {
   const [view, setView] = useState<View>("containers");
   const [scope, setScope] = useState<Scope>("local");
   const [localStatus, setLocalStatus] = useState<DockerStatusDTO | null>(null);
@@ -184,6 +185,7 @@ export function DockerMode({ profiles, groups }: Props) {
   const [macroEditorMacro, setMacroEditorMacro] = useState<MacroDTO | null>(null);
   const [macroRunOpen, setMacroRunOpen] = useState(false);
   const [macroRunMacro, setMacroRunMacro] = useState<MacroDTO | null>(null);
+  const [, setSessionInvalidationCounter] = useState(0);
   const activeRemoteSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -238,6 +240,18 @@ export function DockerMode({ profiles, groups }: Props) {
     if (!activeDockerTabId) return null;
     return dockerTabs.find((t) => t.id === activeDockerTabId) ?? null;
   }, [activeDockerTabId, dockerTabs]);
+
+  const resolvedSessionIdByTabRef = useRef<Record<string, string>>({});
+
+  const resolveTabSessionId = (t: DockerTab): string | null => {
+    if (t.scope !== "remote" || !t.profileId) return t.sessionId ?? null;
+    const parts = t.profileId.split(":");
+    const profileId = parts[2];
+    const current =
+      (profileId && remoteByProfile[profileId]?.sessionId) ?? t.sessionId ?? null;
+    if (current) resolvedSessionIdByTabRef.current[t.id] = current;
+    return resolvedSessionIdByTabRef.current[t.id] ?? current;
+  };
 
   const leftProfileShim = useMemo<ProfileDTO[]>(
     () =>
@@ -850,6 +864,7 @@ export function DockerMode({ profiles, groups }: Props) {
   };
 
   const closeDockerTab = (tabId: string) => {
+    delete resolvedSessionIdByTabRef.current[tabId];
     setDockerTabs((prev) => {
       const next = prev.filter((t) => t.id !== tabId);
       setActiveDockerTabId((cur) => (cur === tabId ? (next.length > 0 ? next[next.length - 1].id : null) : cur));
@@ -923,6 +938,39 @@ export function DockerMode({ profiles, groups }: Props) {
       ...prev,
       [profileId]: { profileId, sessionId: null, connecting: false, lastError: null, status: null },
     }));
+    const prefix = `docker:remote:${profileId}:`;
+    setDockerTabs((prev) => {
+      const next = prev.filter((t) => t.scope !== "remote" || !t.profileId || !t.profileId.startsWith(prefix));
+      return next;
+    });
+    setActiveDockerTabId((curId) => {
+      const remaining = dockerTabs.filter((t) => t.scope !== "remote" || !t.profileId || !t.profileId.startsWith(prefix));
+      const stillExists = remaining.some((t) => t.id === curId);
+      if (stillExists) return curId;
+      return remaining.length > 0 ? remaining[remaining.length - 1].id : null;
+    });
+    setLastTabByContainer((prev) => {
+      const idsToRemove = new Set(dockerTabs.filter((t) => t.scope === "remote" && t.profileId?.startsWith(prefix)).map((t) => t.id));
+      const next = { ...prev };
+      Object.keys(next).forEach((k) => {
+        if (idsToRemove.has(next[k])) delete next[k];
+      });
+      return next;
+    });
+    setShellStreamByTab((prev) => {
+      const idsToRemove = new Set(dockerTabs.filter((t) => t.scope === "remote" && t.profileId?.startsWith(prefix)).map((t) => t.id));
+      const next = { ...prev };
+      idsToRemove.forEach((id) => delete next[id]);
+      return next;
+    });
+    dockerTabs.forEach((t) => {
+      if (t.scope === "remote" && t.profileId?.startsWith(prefix)) delete resolvedSessionIdByTabRef.current[t.id];
+    });
+    setLeftContext((ctx) => {
+      if (!ctx) return null;
+      if (ctx.profileId?.startsWith(prefix)) return null;
+      return ctx;
+    });
   };
 
   const left = leftMode === "sidebar" ? (
@@ -1129,14 +1177,22 @@ export function DockerMode({ profiles, groups }: Props) {
                     {t.kind === "logs" ? (
                       <DockerLogsPanel
                         scope={t.scope}
-                        sessionId={t.sessionId ?? null}
+                        sessionId={resolveTabSessionId(t)}
                         containerId={t.containerId}
                         onClose={() => closeDockerTab(t.id)}
+                        onSessionInvalid={
+                          t.scope === "remote"
+                            ? () => {
+                                delete resolvedSessionIdByTabRef.current[t.id];
+                                setSessionInvalidationCounter((c) => c + 1);
+                              }
+                            : undefined
+                        }
                       />
                     ) : t.kind === "shell" ? (
                       <DockerShellPanel
                         scope={t.scope}
-                        sessionId={t.sessionId ?? null}
+                        sessionId={resolveTabSessionId(t)}
                         containerId={t.containerId}
                         profileName={t.profileName ?? trimContainerName(t.containerName)}
                         onOpenFiles={(remotePath) => openDockerTab("files", t.containerId, t.containerName, remotePath)}
@@ -1146,13 +1202,16 @@ export function DockerMode({ profiles, groups }: Props) {
                         }}
                         onOpenPlaces={() => openLeftPanel("places", t)}
                         onOpenMacros={() => openLeftPanel("macros", t)}
+                        onOpenSecrets={
+                          t.profileId ? () => onOpenSecrets?.(t.profileId as string) : undefined
+                        }
                         onStreamId={(streamId) => setShellStreamByTab((prev) => ({ ...prev, [t.id]: streamId }))}
                         onClose={() => closeDockerTab(t.id)}
                       />
                     ) : (
                       <DockerFilesPanel
                         scope={t.scope}
-                        sessionId={t.sessionId ?? null}
+                        sessionId={resolveTabSessionId(t)}
                         containerId={t.containerId}
                         initialPath={t.initialPath ?? "/"}
                       />

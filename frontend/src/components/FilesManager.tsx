@@ -102,6 +102,8 @@ export function FilesManager({
   const [remoteGoOpen, setRemoteGoOpen] = useState(false);
   const [remotePathInput, setRemotePathInput] = useState<string>("");
   const [conflict, setConflict] = useState<ConflictInfo>({ open: false, remotePath: "", localPath: "" });
+  const [uploadConfirm, setUploadConfirm] = useState<{ localPath: string; fileName: string; size: number } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ path: string; name: string; isLocal: boolean } | null>(null);
   const remotePathLockedRef = useRef(false);
 
   const localDisplayEntries = useMemo(() => {
@@ -527,11 +529,8 @@ export function FilesManager({
     }
   };
 
-  const upload = async () => {
-    const localFile = await PickLocalFile();
-    if (!localFile) return;
+  const doUploadFromPath = async (localFile: string) => {
     const baseName = extractName(localFile);
-    // naive: upload into current remote dir
     const remoteTarget = joinRemote(remotePath, baseName);
     try {
       const start: any = await SFTPUploadStart(sessionId, localFile, remoteTarget);
@@ -544,6 +543,29 @@ export function FilesManager({
     } catch (e: any) {
       setError(e?.message ?? String(e));
     }
+  };
+
+  const upload = async () => {
+    if (selLocal) {
+      const ent = localDisplayEntries.find((e) => e.path === selLocal);
+      if (!ent) return;
+      if (ent.isDir) {
+        setError("Select a file in the Local pane, not a folder");
+        return;
+      }
+      setUploadConfirm({ localPath: ent.path, fileName: ent.name, size: ent.size });
+      return;
+    }
+    const localFile = await PickLocalFile();
+    if (!localFile) return;
+    await doUploadFromPath(localFile);
+  };
+
+  const confirmUpload = async () => {
+    if (!uploadConfirm) return;
+    const { localPath: path } = uploadConfirm;
+    setUploadConfirm(null);
+    await doUploadFromPath(path);
   };
 
   const pickLocalDir = async () => {
@@ -591,20 +613,26 @@ export function FilesManager({
     }
   };
 
-  const del = async () => {
+  const del = () => {
     const sel = activePane === "local" ? selLocal : selRemote;
     if (!sel) return;
-    if (!confirm(`Delete ${extractName(sel)}?`)) return;
+    setDeleteConfirm({ path: sel, name: extractName(sel), isLocal: activePane === "local" });
+  };
+
+  const doDelete = async () => {
+    if (!deleteConfirm) return;
+    const { path, isLocal } = deleteConfirm;
+    setDeleteConfirm(null);
     setBusy(true);
     setError(null);
     try {
-      if (activePane === "local") {
-        await LocalDelete(sel);
+      if (isLocal) {
+        await LocalDelete(path);
+        setSelLocal(null);
       } else {
-        await SFTPDelete(sessionId, sel);
+        await SFTPDelete(sessionId, path);
+        setSelRemote(null);
       }
-      if (activePane === "local") setSelLocal(null);
-      else setSelRemote(null);
       await refresh();
     } catch (e: any) {
       setError(e?.message ?? String(e));
@@ -859,6 +887,48 @@ export function FilesManager({
         </div>
       ) : null}
 
+      {uploadConfirm ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal">
+            <div className="modal-title">Upload file</div>
+            <div className="modal-body">
+              <div className="muted">Upload to current remote folder?</div>
+              <div className="mono" style={{ marginTop: 8 }}>{uploadConfirm.fileName}</div>
+              <div className="muted" style={{ marginTop: 4 }}>{fmtSize(uploadConfirm.size)}</div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" type="button" onClick={() => setUploadConfirm(null)}>
+                Cancel
+              </button>
+              <button className="btn" type="button" onClick={() => void confirmUpload()}>
+                Upload
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteConfirm ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal">
+            <div className="modal-title">Delete</div>
+            <div className="modal-body">
+              <div className="muted">Delete this item? This cannot be undone.</div>
+              <div className="mono" style={{ marginTop: 8 }}>{deleteConfirm.name}</div>
+              <div className="muted" style={{ marginTop: 4 }}>{deleteConfirm.isLocal ? "Local" : "Remote"}</div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" type="button" onClick={() => setDeleteConfirm(null)}>
+                Cancel
+              </button>
+              <button className="btn btn-danger" type="button" onClick={() => void doDelete()} disabled={busy}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {remoteGoOpen
         ? createPortal(
             <div className="modal-overlay" role="dialog" aria-modal="true">
@@ -901,7 +971,8 @@ export function FilesManager({
 }
 
 function extractName(p: string) {
-  const parts = p.replace(/\\\\/g, "/").split("/");
+  const normalized = p.replace(/\\/g, "/");
+  const parts = normalized.split("/");
   return parts[parts.length - 1] || "file";
 }
 

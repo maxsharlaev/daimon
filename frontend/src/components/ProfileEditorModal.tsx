@@ -11,6 +11,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import type { ProfileDTO, ProfileGroupDTO } from "../types/models";
+import { Tooltip } from "./Tooltip";
 import "./profile_editor.scss";
 
 type SecretStorage = "none" | "keyring" | "internal" | "external";
@@ -49,6 +50,7 @@ export function ProfileEditorModal({
   const [passwordStorage, setPasswordStorage] = useState<Exclude<SecretStorage, "external">>("none");
   const [password, setPassword] = useState("");
   const [initialPasswordStorage, setInitialPasswordStorage] = useState<Exclude<SecretStorage, "external">>("none");
+  const [savePasswordToSecrets, setSavePasswordToSecrets] = useState(false);
 
   // key secret
   const [keyStorage, setKeyStorage] = useState<SecretStorage>("external");
@@ -92,6 +94,7 @@ export function ProfileEditorModal({
     setPasswordStorage("none");
     setInitialPasswordStorage("none");
     setPassword("");
+    setSavePasswordToSecrets(false);
     setKeyStorage("none");
     setInitialKeyStorage("none");
     setKeyPath("");
@@ -125,6 +128,7 @@ export function ProfileEditorModal({
           const st = (pwRef.storage as Exclude<SecretStorage, "external">) ?? "none";
           setPasswordStorage(st);
           setInitialPasswordStorage(st);
+          setSavePasswordToSecrets(st !== "none");
         }
 
         if (keyRef) {
@@ -473,10 +477,46 @@ export function ProfileEditorModal({
             {authKind === "password" ? (
               <div className="subsection">
                 <div className="subsection-title">Password storage</div>
+                <div className="row">
+                  <label className="label-inline">
+                    Save to secrets
+                    <Tooltip content="Store password securely in keyring or internal vault.">
+                      <span className="help-icon" aria-label="Save to secrets help">
+                        ?
+                      </span>
+                    </Tooltip>
+                  </label>
+                  <label className="checkbox">
+                    <input
+                      type="checkbox"
+                      checked={savePasswordToSecrets}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setSavePasswordToSecrets(next);
+                        if (next && passwordStorage === "none") {
+                          setPasswordStorage("keyring");
+                        }
+                        if (!next) {
+                          setPasswordStorage("none");
+                        }
+                      }}
+                      disabled={busy}
+                    />
+                    Save password to Secrets
+                  </label>
+                </div>
                 <div className="row two">
                   <div className="row">
                     <label>Storage</label>
-                    <select value={passwordStorage} onChange={(e) => setPasswordStorage(e.target.value as any)} disabled={busy}>
+                    <select
+                      value={passwordStorage}
+                      onChange={(e) => {
+                        const next = e.target.value as any;
+                        setPasswordStorage(next);
+                        setSavePasswordToSecrets(next !== "none");
+                      }}
+                      disabled={busy || !savePasswordToSecrets}
+                    >
                       <option value="none">none (ask each time)</option>
                       <option value="keyring">keyring (OS)</option>
                       <option value="internal">internal vault</option>
@@ -488,7 +528,7 @@ export function ProfileEditorModal({
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      disabled={busy || passwordStorage === "none"}
+                      disabled={busy}
                     />
                   </div>
                 </div>

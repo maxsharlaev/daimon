@@ -642,6 +642,26 @@ export namespace main {
 	        this.timeoutMs = source["timeoutMs"];
 	    }
 	}
+	export class SecretItemDTO {
+	    profileId: string;
+	    key: string;
+	    storage: string;
+	    metaJson: string;
+	    updatedAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SecretItemDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profileId = source["profileId"];
+	        this.key = source["key"];
+	        this.storage = source["storage"];
+	        this.metaJson = source["metaJson"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 	export class SecretRefDTO {
 	    profileId: string;
 	    kind: string;
@@ -788,6 +808,26 @@ export namespace main {
 	        this.port = source["port"];
 	        this.username = source["username"];
 	        this.sshOptionsJson = source["sshOptionsJson"];
+	    }
+	}
+	export class UpsertSecretRequest {
+	    profileId: string;
+	    key: string;
+	    storage: string;
+	    value: string;
+	    metaJson?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpsertSecretRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profileId = source["profileId"];
+	        this.key = source["key"];
+	        this.storage = source["storage"];
+	        this.value = source["value"];
+	        this.metaJson = source["metaJson"];
 	    }
 	}
 	export class VaultStatusDTO {

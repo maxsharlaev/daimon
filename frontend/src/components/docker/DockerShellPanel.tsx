@@ -15,6 +15,7 @@ type Props = {
   onAddLocation?: (remotePath: string) => void;
   onOpenPlaces?: () => void;
   onOpenMacros?: () => void;
+  onOpenSecrets?: () => void;
   onStreamId?: (streamId: string | null) => void;
   onClose: () => void;
 };
@@ -28,20 +29,25 @@ export function DockerShellPanel({
   onAddLocation,
   onOpenPlaces,
   onOpenMacros,
+  onOpenSecrets,
   onStreamId,
   onClose,
 }: Props) {
   const [streamId, setStreamId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const streamIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    setError(null);
+    streamIdRef.current = null;
     let activeId: string | null = null;
     const start = async () => {
       try {
         if (scope === "local") {
           const id = await DockerLocalExecStart(containerId, 80, 24);
           activeId = id;
+          streamIdRef.current = id;
           setStreamId(id);
         } else {
           if (!sessionId) {
@@ -50,6 +56,7 @@ export function DockerShellPanel({
           }
           const id = await DockerRemoteExecStart(sessionId, containerId, 80, 24);
           activeId = id;
+          streamIdRef.current = id;
           setStreamId(id);
         }
       } catch (e: any) {
@@ -61,7 +68,7 @@ export function DockerShellPanel({
       if (activeId) void DockerStreamStop(activeId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerId, scope, sessionId]);
+  }, [containerId, scope, sessionId, retryKey]);
 
   useEffect(() => {
     streamIdRef.current = streamId;
@@ -112,6 +119,11 @@ export function DockerShellPanel({
           <div className="panel-title">Shell</div>
           <div className="panel-meta error">{error}</div>
         </div>
+        <div className="panel-body" style={{ padding: "10px 12px" }}>
+          <button className="btn" type="button" onClick={() => setRetryKey((k) => k + 1)}>
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -154,6 +166,11 @@ export function DockerShellPanel({
           <button className="btn btn-ghost" type="button" onClick={onOpenMacros} title="Open Macros">
             🧰 Macros
           </button>
+          {onOpenSecrets ? (
+            <button className="btn btn-ghost" type="button" onClick={onOpenSecrets} title="Open Secrets">
+              🔐 Secrets
+            </button>
+          ) : null}
           <button
             className="btn btn-ghost"
             type="button"
@@ -168,7 +185,12 @@ export function DockerShellPanel({
         </div>
       </div>
       <div className="terminal-body docker-terminal-wrap">
-        <DockerTerminal streamId={streamId} inputEnabled onDisconnected={() => onClose()} />
+        <DockerTerminal
+          streamId={streamId}
+          streamIdRef={streamIdRef}
+          inputEnabled
+          onDisconnected={() => onClose()}
+        />
       </div>
     </div>
   );

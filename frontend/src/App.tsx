@@ -27,6 +27,7 @@ import { MacroRunModal } from "./components/MacroRunModal";
 import { DashboardTabs } from "./components/DashboardTabs";
 import { DockerMode } from "./components/docker/DockerMode";
 import { WindowControls } from "./components/WindowControls";
+import { SecretsModal } from "./components/SecretsModal";
 
 type FilesLastPathsByProfile = Record<string, { localPath: string; remotePath: string }>;
 
@@ -81,6 +82,7 @@ function App() {
   const [macroEditorMacro, setMacroEditorMacro] = useState<MacroDTO | null>(null);
   const [macroRunOpen, setMacroRunOpen] = useState(false);
   const [macroRunMacro, setMacroRunMacro] = useState<MacroDTO | null>(null);
+  const [secretsModal, setSecretsModal] = useState<{ open: boolean; profileId: string | null }>({ open: false, profileId: null });
 
   const [navToRemoteBySessionId, setNavToRemoteBySessionId] = useState<Record<string, { path: string; token: number }>>({});
 
@@ -98,6 +100,11 @@ function App() {
     if (!profileId) return;
     setMacrosProfileId(profileId);
     setLeftMode("macros");
+  }, []);
+
+  const openSecretsForProfile = useCallback((profileId: string) => {
+    if (!profileId) return;
+    setSecretsModal({ open: true, profileId });
   }, []);
 
   const refresh = useCallback(async () => {
@@ -450,6 +457,7 @@ function App() {
           }}
           onOpenPlaces={(profileId) => openPlacesForProfile(profileId)}
           onOpenMacros={(profileId) => openMacrosForProfile(profileId)}
+          onOpenSecrets={(profileId) => openSecretsForProfile(profileId)}
           onAddLocation={async (sshSessionId, profileId) => {
             const pwd = await queryPwdFromTerminal(sshSessionId);
             const remotePath = (pwd || ".").trim() || ".";
@@ -516,7 +524,7 @@ function App() {
     <SplitView left={sidebar} right={rightPane} initialLeftPct={34} minLeftPx={340} minRightPx={420} />
   );
 
-  const dockerContent = <DockerMode profiles={profiles} groups={groups} />;
+  const dockerContent = <DockerMode profiles={profiles} groups={groups} onOpenSecrets={openSecretsForProfile} />;
 
   return (
     <div className="app-shell">
@@ -551,7 +559,18 @@ function App() {
 
       <div className="content">
         <div className="app-grid">
-          {appMode === "connections" ? connectionsContent : dockerContent}
+          <div
+            className="app-mode-pane"
+            style={{ display: appMode === "connections" ? undefined : "none" }}
+          >
+            {connectionsContent}
+          </div>
+          <div
+            className="app-mode-pane"
+            style={{ display: appMode === "docker" ? undefined : "none" }}
+          >
+            {dockerContent}
+          </div>
         </div>
       </div>
 
@@ -613,6 +632,13 @@ function App() {
           await SSHSend(sid, script + "\n");
           setMacroRunOpen(false);
         }}
+      />
+
+      <SecretsModal
+        open={secretsModal.open}
+        profileId={secretsModal.profileId}
+        profiles={profiles}
+        onClose={() => setSecretsModal({ open: false, profileId: null })}
       />
     </div>
   );
