@@ -7,6 +7,13 @@
 - Source code: **MPL-2.0** (see `LICENSE`)
 - Trademarks (name/logo usage): see `TRADEMARKS.md`
 
+## Security and Privacy
+
+- Security policy and vulnerability reporting: `SECURITY.md`
+- Privacy and local data handling: `PRIVACY.md`
+- Threat model: `docs/security/THREAT_MODEL.md`
+- Hardening plan: `docs/security/HARDENING_ROADMAP.md`
+
 ## Features
 
 - **Split layout**: two panels with a draggable divider.

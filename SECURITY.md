@@ -1,0 +1,58 @@
+# Security Policy
+
+## Scope
+
+This project handles infrastructure connection data (SSH profiles, credentials, key
+material, command output, remote file paths). Security reports are welcome and
+appreciated.
+
+## Reporting a Vulnerability
+
+Please do **not** open a public issue for unpatched security problems.
+
+Preferred channels:
+
+- GitHub: use the repository **Security Advisory / Report a vulnerability** flow
+- Private contact: reach out to the maintainer (**Maksim Sharlaev**)
+
+When possible, include:
+
+- affected version/commit
+- reproduction steps and impact
+- proof of concept (minimal)
+- suggested fix (optional)
+
+## Response Targets
+
+Best-effort targets (not an SLA):
+
+- initial acknowledgement: within **72 hours**
+- triage status: within **7 days**
+- fix timeline: depends on severity and complexity
+
+## Disclosure Process
+
+1. Report received privately
+2. Triage and impact assessment
+3. Patch prepared and validated
+4. Coordinated release
+5. Public advisory/changelog entry after fix is available
+
+## Supported Versions
+
+Current development branch and latest release are supported on a best-effort basis.
+Older releases may require upgrade before a patch can be applied.
+
+## Current Security Notes (Important)
+
+The project is under active development. Current known security limitations include:
+
+- SSH host key verification is not yet secure-by-default in all connection paths
+- SFTP host key verification is currently MVP-level and needs hardening
+- threat model and hardening roadmap are documented in `docs/security/`
+
+See:
+
+- `PRIVACY.md`
+- `docs/security/THREAT_MODEL.md`
+- `docs/security/HARDENING_ROADMAP.md`
