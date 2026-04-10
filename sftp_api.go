@@ -186,6 +186,23 @@ func (a *App) SFTPStat(sessionId string, p string) (SFTPFileEntryDTO, error) {
 	return out, e
 }
 
+// SFTPReadFileTail reads the last maxBytes of a file using the existing SFTP session (no extra SSH connection).
+func (a *App) SFTPReadFileTail(sessionId string, path string, maxBytes int64) (string, error) {
+	m, err := a.ensureSFTP()
+	if err != nil {
+		return "", err
+	}
+	b, e := m.ReadFileTail(sessionId, path, maxBytes)
+	if e != nil && isSFTPDisconnectErr(e) {
+		_ = m.Disconnect(sessionId)
+		a.emitSFTPState(sessionId, "disconnected", e)
+	}
+	if e != nil {
+		return "", e
+	}
+	return string(b), nil
+}
+
 func (a *App) SFTPMkdir(sessionId string, dir string) error {
 	m, err := a.ensureSFTP()
 	if err != nil {

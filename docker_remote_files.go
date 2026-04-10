@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"al.essio.dev/pkg/shellescape"
@@ -27,6 +28,16 @@ func (a *App) DockerRemoteListDir(sessionId string, containerId string, path str
 		return a.dockerRemoteExecInContainer(sessionId, containerId, cmd)
 	})
 	return entries, nil
+}
+
+// DockerRemoteReadFileTail reads the last maxBytes of a file in the remote container using the existing SSH session.
+func (a *App) DockerRemoteReadFileTail(sessionId string, containerId string, path string, maxBytes int64) (string, error) {
+	if maxBytes <= 0 {
+		maxBytes = 256 * 1024
+	}
+	q := shellQuote(path)
+	n := strconv.FormatInt(maxBytes, 10)
+	return a.dockerRemoteExecInContainer(sessionId, containerId, fmt.Sprintf(`if [ ! -f %s ]; then exit 1; fi; tail -c %s %s`, q, n, q))
 }
 
 func (a *App) DockerRemoteFileDelete(sessionId string, containerId string, path string) error {

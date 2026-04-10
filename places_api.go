@@ -58,6 +58,29 @@ func (a *App) ListPlaces(profileId string) ([]PlaceDTO, error) {
 	return out, nil
 }
 
+func (a *App) ListAllPlaces() ([]PlaceDTO, error) {
+	if a.db == nil || a.db.DB == nil {
+		return nil, errors.New("app not ready")
+	}
+	var rows []storage.Place
+	if err := a.db.DB.Order("updated_at DESC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]PlaceDTO, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, PlaceDTO{
+			ID:         r.ID,
+			ProfileID:  r.ProfileID,
+			Name:       r.Name,
+			RemotePath: r.RemotePath,
+			Order:      r.Order,
+			CreatedAt:  r.CreatedAt.Format(time.RFC3339Nano),
+			UpdatedAt:  r.UpdatedAt.Format(time.RFC3339Nano),
+		})
+	}
+	return out, nil
+}
+
 func (a *App) UpsertPlace(req UpsertPlaceRequest) (PlaceDTO, error) {
 	if a.db == nil || a.db.DB == nil {
 		return PlaceDTO{}, errors.New("app not ready")

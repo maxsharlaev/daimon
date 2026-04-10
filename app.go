@@ -45,6 +45,7 @@ func (a *App) startup(ctx context.Context) {
 	a.sftp = sftp.NewManager()
 
 	_, _ = a.EnsureDefaultGroup()
+	_ = seedDefaultLogFormats(store.DB)
 }
 
 func (a *App) shutdown(ctx context.Context) {

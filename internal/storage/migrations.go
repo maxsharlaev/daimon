@@ -56,8 +56,30 @@ func (s *Store) Migrate() error {
 				return nil
 			},
 		},
+		{
+			ID: "2026-04-10-0004-logs",
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(
+					&LogFormat{},
+					&LogSource{},
+					&LogEntry{},
+				)
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return nil
+			},
+		},
+		{
+			ID: "2026-04-11-0005-place-profile-id-length",
+			Migrate: func(tx *gorm.DB) error {
+				// Widen profile_id so Docker composite Place keys are not truncated.
+				return tx.AutoMigrate(&Place{})
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return nil
+			},
+		},
 	})
 
 	return m.Migrate()
 }
-

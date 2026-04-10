@@ -1,0 +1,873 @@
+.logs-workspace {
+  min-height: 0;
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.logs-workspace .logs-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+/* Toolbar columns align with .logs-main-split — Log viewer / Sources start at right column edge */
+.logs-workspace .logs-toolbar-bar {
+  display: grid;
+  grid-template-columns: minmax(280px, 34%) minmax(0, 1fr);
+  align-items: center;
+  gap: 0;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+.logs-workspace .logs-toolbar-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  padding-left: 14px;
+  padding-right: 10px;
+}
+
+.logs-workspace .logs-toolbar-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  padding-left: 14px;
+  padding-right: 14px;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.logs-workspace .logs-toolbar-right-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Connections column: light thumb on dark track (same idea as Connections list) */
+.logs-workspace .logs-connections-master {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) rgba(255, 255, 255, 0.08);
+}
+
+.logs-workspace .logs-connections-master::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.logs-workspace .logs-connections-master::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
+.logs-workspace .logs-connections-master::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0);
+  background-clip: padding-box;
+}
+
+.logs-workspace .logs-connections-master::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.logs-workspace .logs-connections-master::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.48);
+}
+
+/* Platform default scrollbars for sources + log table */
+.logs-workspace .logs-sources-master,
+.logs-workspace .logs-table-wrap {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+
+.logs-workspace .logs-sources-master::-webkit-scrollbar,
+.logs-workspace .logs-table-wrap::-webkit-scrollbar {
+  width: revert;
+  height: revert;
+}
+
+.logs-workspace .logs-sources-master::-webkit-scrollbar-thumb,
+.logs-workspace .logs-table-wrap::-webkit-scrollbar-thumb,
+.logs-workspace .logs-sources-master::-webkit-scrollbar-track,
+.logs-workspace .logs-table-wrap::-webkit-scrollbar-track {
+  all: revert;
+}
+
+.logs-workspace .modal .modal-body::-webkit-scrollbar {
+  width: revert;
+  height: revert;
+}
+
+.logs-workspace .modal .modal-body::-webkit-scrollbar-thumb,
+.logs-workspace .modal .modal-body::-webkit-scrollbar-track {
+  all: revert;
+}
+
+.logs-workspace .modal .modal-body {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+
+.logs-workspace .logs-toolbar-filters-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+
+.logs-workspace .logs-toolbar-filters-btn[aria-pressed="true"] {
+  border-color: rgba(110, 231, 255, 0.4);
+  background: rgba(110, 231, 255, 0.1);
+}
+
+.logs-workspace .logs-toolbar-filters-icon {
+  display: block;
+  opacity: 0.9;
+}
+
+.logs-workspace .logs-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.logs-workspace .logs-sync-spinner {
+  flex-shrink: 0;
+  animation: logs-sync-spin 0.75s linear infinite;
+}
+
+@keyframes logs-sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.logs-workspace .logs-main-split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 34%) minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.logs-workspace .logs-column {
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  overflow-x: hidden;
+}
+
+.logs-workspace .logs-column--connections {
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.logs-workspace .logs-column--right {
+  background: rgba(0, 0, 0, 0.06);
+  gap: 0;
+  padding-top: 12px;
+}
+
+.logs-workspace .logs-column-head {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.52);
+}
+
+.logs-workspace .logs-column-scroll {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+  overflow-x: hidden;
+  padding-right: 2px;
+}
+
+.logs-workspace .logs-connections-field {
+  flex-shrink: 0;
+}
+
+/* Master list fills column (override Settings max-height) */
+.logs-workspace .logs-connections-master.settings-master {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.logs-workspace .logs-connections-master .settings-master-item {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.logs-workspace .logs-connections-master .settings-master-item.logs-conn-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.logs-workspace .logs-conn-item-title {
+  font-weight: 800;
+  font-size: 14px;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.logs-workspace .logs-conn-item-sub {
+  display: block;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.logs-workspace .logs-right-tab-panels {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.logs-workspace .logs-right-tab-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+  padding-top: 0;
+}
+
+.logs-workspace .logs-right-tab-panel--sources {
+  gap: 10px;
+}
+
+.logs-workspace .logs-sources-intro {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.logs-workspace .logs-sources-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.logs-workspace .logs-sources-toolbar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.logs-workspace .logs-sources-master.settings-master {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.logs-workspace .logs-source-master-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin-bottom: 4px;
+  list-style: none;
+}
+
+.logs-workspace .logs-source-master-row .logs-source-master-select {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+  text-align: left;
+}
+
+.logs-workspace .logs-source-master-path {
+  display: block;
+  word-break: break-all;
+  font-size: 12px;
+}
+
+.logs-workspace .logs-source-master-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.logs-workspace .logs-empty-hint {
+  font-size: 12px;
+  padding: 8px 4px;
+  line-height: 1.4;
+}
+
+/* Selects: same shell as Settings → Logs inputs */
+.logs-workspace .settings-logs-general select.settings-field-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(11, 18, 32, 0.55);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.55) 50%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.55) 50%, transparent 50%);
+  background-position: calc(100% - 16px) calc(50% - 3px), calc(100% - 11px) calc(50% - 3px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.logs-workspace .settings-logs-general select.settings-field-input:focus {
+  border-color: rgba(110, 231, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.12);
+}
+
+.logs-workspace .logs-viewer-filters-anim {
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.logs-workspace .logs-viewer-filters-anim-inner {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.28s ease, opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.logs-workspace .logs-viewer-filters-anim.is-open .logs-viewer-filters-anim-inner {
+  max-height: 420px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.logs-workspace .logs-viewer-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.logs-workspace .logs-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+  gap: 12px;
+  align-items: end;
+  min-width: 0;
+}
+
+.logs-workspace .logs-filter-grid .settings-field {
+  min-width: 0;
+}
+
+.logs-workspace .logs-table-wrap {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(11, 18, 32, 0.35);
+}
+
+.logs-workspace .logs-table {
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.logs-workspace .logs-col-ts {
+  width: 10.5rem;
+}
+
+.logs-workspace .logs-col-type {
+  width: 5.25rem;
+}
+
+.logs-workspace .logs-col-source {
+  width: 28%;
+  min-width: 10rem;
+}
+
+.logs-workspace .logs-col-msg {
+  width: auto;
+  min-width: 0;
+}
+
+.logs-workspace .logs-th-type,
+.logs-workspace .logs-td-type {
+  white-space: nowrap;
+}
+
+.logs-workspace .logs-td-type .log-pill {
+  vertical-align: middle;
+}
+
+.logs-workspace .logs-td-msg {
+  min-width: 0;
+}
+
+.logs-workspace .logs-table th,
+.logs-workspace .logs-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: top;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.logs-workspace .logs-table td.mono {
+  word-break: break-all;
+}
+
+.logs-workspace .logs-th-timestamp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.logs-workspace .logs-th-timestamp-label {
+  font-weight: inherit;
+}
+
+.logs-workspace .logs-sort-dir-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(110, 231, 255, 0.95);
+  cursor: pointer;
+  font: inherit;
+  flex-shrink: 0;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.logs-workspace .logs-sort-dir-btn:hover {
+  border-color: rgba(110, 231, 255, 0.45);
+  background: rgba(110, 231, 255, 0.12);
+}
+
+.logs-workspace .logs-sort-dir-icon {
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.logs-workspace .logs-table tbody tr {
+  cursor: pointer;
+}
+
+.logs-workspace .logs-expanded td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.logs-workspace .logs-raw {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+.logs-workspace .log-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 12px;
+}
+
+.logs-workspace .log-pill-error {
+  background: rgba(255, 90, 90, 0.16);
+  border-color: rgba(255, 90, 90, 0.4);
+  color: rgba(255, 190, 190, 0.98);
+}
+
+.logs-workspace .log-pill-warn {
+  background: rgba(255, 170, 70, 0.16);
+  border-color: rgba(255, 170, 70, 0.4);
+  color: rgba(255, 220, 170, 0.98);
+}
+
+.logs-workspace .log-pill-info {
+  background: rgba(95, 140, 255, 0.16);
+  border-color: rgba(95, 140, 255, 0.4);
+  color: rgba(195, 215, 255, 0.98);
+}
+
+.logs-workspace .log-pill-success {
+  background: rgba(90, 200, 120, 0.16);
+  border-color: rgba(90, 200, 120, 0.4);
+  color: rgba(195, 255, 210, 0.98);
+}
+
+.logs-workspace .log-pill-unknown {
+  background: rgba(180, 180, 180, 0.12);
+  border-color: rgba(180, 180, 180, 0.3);
+  color: rgba(220, 220, 220, 0.95);
+}
+
+.logs-workspace .log-level-error td:first-child,
+.logs-workspace .log-level-error td:last-child {
+  color: rgba(255, 180, 180, 0.98);
+}
+
+.logs-workspace .log-level-warn td:first-child,
+.logs-workspace .log-level-warn td:last-child {
+  color: rgba(255, 220, 170, 0.98);
+}
+
+.logs-workspace .log-level-info td:first-child,
+.logs-workspace .log-level-info td:last-child {
+  color: rgba(195, 215, 255, 0.98);
+}
+
+.logs-workspace .log-level-success td:first-child,
+.logs-workspace .log-level-success td:last-child {
+  color: rgba(195, 255, 210, 0.98);
+}
+
+@media (max-width: 900px) {
+  .logs-workspace .logs-toolbar-bar {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 8px 14px;
+  }
+
+  .logs-workspace .logs-toolbar-left {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .logs-workspace .logs-toolbar-right {
+    padding-left: 0;
+    padding-right: 0;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 10px;
+  }
+
+  .logs-workspace .logs-main-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(200px, 38vh) minmax(0, 1fr);
+    overflow: auto;
+  }
+
+  .logs-workspace .logs-column--connections {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .logs-workspace .log-source-modal-body {
+    grid-template-columns: 1fr;
+    max-height: none;
+  }
+}
+
+/* Log source editor modal (Add/Edit log file) */
+.logs-workspace .modal.modal--log-source {
+  width: min(960px, 96vw);
+  max-width: 96vw;
+  max-height: min(86vh, 920px);
+  display: flex;
+  flex-direction: column;
+}
+
+.logs-workspace .modal.modal--log-source .modal-title {
+  margin-bottom: 12px;
+}
+
+.logs-workspace .log-source-modal-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(280px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 16px;
+  padding: 4px 16px 12px;
+  min-height: 300px;
+  height: min(58vh, 560px);
+  max-height: min(58vh, 560px);
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.logs-workspace .log-source-modal-col {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.logs-workspace .log-source-modal-col--form {
+  overflow-y: auto;
+}
+
+.logs-workspace .log-source-modal-col--browse {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  min-height: 0;
+  flex: 1;
+}
+
+.logs-workspace .log-source-browse-stack {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  gap: 4px;
+}
+
+.logs-workspace .log-source-path-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.logs-workspace .log-source-path-row .settings-field-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  box-sizing: border-box;
+}
+
+.logs-workspace .log-source-default-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.88);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.logs-workspace .log-source-default-btn:hover {
+  border-color: rgba(110, 231, 255, 0.35);
+  background: rgba(110, 231, 255, 0.08);
+  color: #fff;
+}
+
+.logs-workspace .log-source-default-icon {
+  display: block;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.logs-workspace .log-source-browse-head {
+  font-size: 11px;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.logs-workspace .log-source-browse-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
+}
+
+.logs-workspace .log-source-browse-list::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.logs-workspace .log-source-browse-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.logs-workspace .log-source-browse-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0);
+  background-clip: padding-box;
+}
+
+.logs-workspace .log-source-browse-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.logs-workspace .log-source-browse-list::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.logs-workspace .log-source-browse-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.logs-workspace .log-source-browse-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.logs-workspace .log-source-browse-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.logs-workspace .log-source-test-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.logs-workspace .log-source-test-table-wrap {
+  overflow: auto;
+  max-height: min(54vh, 420px);
+  flex: 1;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
+}
+
+.logs-workspace .log-source-test-table-wrap::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.logs-workspace .log-source-test-table-wrap::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 999px;
+}
+
+.logs-workspace .log-source-test-table-wrap::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  border: 2px solid rgba(0, 0, 0, 0);
+  background-clip: padding-box;
+}
+
+.logs-workspace .log-source-test-table-wrap::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.logs-workspace .log-source-test-table-wrap::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.logs-workspace .log-source-test-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.logs-workspace .log-source-test-table th,
+.logs-workspace .log-source-test-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+  vertical-align: top;
+}
+
+.logs-workspace .log-source-test-msg {
+  max-width: 240px;
+  word-break: break-word;
+}
+
+.logs-workspace .log-source-test-hint {
+  margin: 0;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 10px;
+  line-height: 1.2;
+  max-width: 100%;
+}
+
+.logs-workspace .log-source-test-err {
+  margin-top: 6px;
+}
+
+.logs-workspace .log-source-modal-actions {
+  justify-content: flex-end;
+}
+
+.logs-workspace .log-source-modal-actions .log-source-btn-test {
+  margin-right: auto;
+}

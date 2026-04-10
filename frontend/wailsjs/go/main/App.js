@@ -6,6 +6,14 @@ export function CopySecretToClipboard(arg1, arg2) {
   return window['go']['main']['App']['CopySecretToClipboard'](arg1, arg2);
 }
 
+export function DeleteLogFormat(arg1) {
+  return window['go']['main']['App']['DeleteLogFormat'](arg1);
+}
+
+export function DeleteLogSource(arg1) {
+  return window['go']['main']['App']['DeleteLogSource'](arg1);
+}
+
 export function DeleteMacro(arg1) {
   return window['go']['main']['App']['DeleteMacro'](arg1);
 }
@@ -128,6 +136,10 @@ export function DockerLocalNetworkRemove(arg1) {
 
 export function DockerLocalPruneDangling() {
   return window['go']['main']['App']['DockerLocalPruneDangling']();
+}
+
+export function DockerLocalReadFileTail(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DockerLocalReadFileTail'](arg1, arg2, arg3);
 }
 
 export function DockerLocalRemoveImages(arg1) {
@@ -266,6 +278,10 @@ export function DockerRemotePruneDangling(arg1) {
   return window['go']['main']['App']['DockerRemotePruneDangling'](arg1);
 }
 
+export function DockerRemoteReadFileTail(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DockerRemoteReadFileTail'](arg1, arg2, arg3, arg4);
+}
+
 export function DockerRemoteRemoveImages(arg1, arg2) {
   return window['go']['main']['App']['DockerRemoteRemoveImages'](arg1, arg2);
 }
@@ -322,6 +338,10 @@ export function ExportProfileEncryptedPreview(arg1) {
   return window['go']['main']['App']['ExportProfileEncryptedPreview'](arg1);
 }
 
+export function GetLogsSettings() {
+  return window['go']['main']['App']['GetLogsSettings']();
+}
+
 export function GetSecretRef(arg1, arg2) {
   return window['go']['main']['App']['GetSecretRef'](arg1, arg2);
 }
@@ -334,6 +354,22 @@ export function ImportProfileEncrypted(arg1, arg2, arg3) {
   return window['go']['main']['App']['ImportProfileEncrypted'](arg1, arg2, arg3);
 }
 
+export function ListAllPlaces() {
+  return window['go']['main']['App']['ListAllPlaces']();
+}
+
+export function ListDockerRemoteLogTargets(arg1) {
+  return window['go']['main']['App']['ListDockerRemoteLogTargets'](arg1);
+}
+
+export function ListLogFormats() {
+  return window['go']['main']['App']['ListLogFormats']();
+}
+
+export function ListLogSources(arg1) {
+  return window['go']['main']['App']['ListLogSources'](arg1);
+}
+
 export function ListMacroBindings(arg1) {
   return window['go']['main']['App']['ListMacroBindings'](arg1);
 }
@@ -344,6 +380,18 @@ export function ListMacros() {
 
 export function ListPlaces(arg1) {
   return window['go']['main']['App']['ListPlaces'](arg1);
+}
+
+export function ListPrivacyDockerLocalLogBuckets() {
+  return window['go']['main']['App']['ListPrivacyDockerLocalLogBuckets']();
+}
+
+export function ListPrivacyDockerRemoteLogBuckets(arg1) {
+  return window['go']['main']['App']['ListPrivacyDockerRemoteLogBuckets'](arg1);
+}
+
+export function ListPrivacyDockerRemoteOrphanLogBuckets() {
+  return window['go']['main']['App']['ListPrivacyDockerRemoteOrphanLogBuckets']();
 }
 
 export function ListProfileGroups() {
@@ -390,6 +438,18 @@ export function LocalStat(arg1) {
   return window['go']['main']['App']['LocalStat'](arg1);
 }
 
+export function LogsPurge(arg1) {
+  return window['go']['main']['App']['LogsPurge'](arg1);
+}
+
+export function LogsQuery(arg1) {
+  return window['go']['main']['App']['LogsQuery'](arg1);
+}
+
+export function LogsSyncSource(arg1) {
+  return window['go']['main']['App']['LogsSyncSource'](arg1);
+}
+
 export function PickLocalFile() {
   return window['go']['main']['App']['PickLocalFile']();
 }
@@ -404,6 +464,42 @@ export function PickPrivateKeyFile() {
 
 export function PickSaveFile(arg1) {
   return window['go']['main']['App']['PickSaveFile'](arg1);
+}
+
+export function PreviewLogParse(arg1, arg2) {
+  return window['go']['main']['App']['PreviewLogParse'](arg1, arg2);
+}
+
+export function PreviewLogParseDraft(arg1) {
+  return window['go']['main']['App']['PreviewLogParseDraft'](arg1);
+}
+
+export function PrivacyClearAuthPassword(arg1) {
+  return window['go']['main']['App']['PrivacyClearAuthPassword'](arg1);
+}
+
+export function PrivacyClearAuthPrivateKey(arg1) {
+  return window['go']['main']['App']['PrivacyClearAuthPrivateKey'](arg1);
+}
+
+export function PrivacyDeleteAllCustomSecrets(arg1) {
+  return window['go']['main']['App']['PrivacyDeleteAllCustomSecrets'](arg1);
+}
+
+export function PrivacyPurgeAllSecrets() {
+  return window['go']['main']['App']['PrivacyPurgeAllSecrets']();
+}
+
+export function PrivacyPurgeDockerLocalLogs(arg1) {
+  return window['go']['main']['App']['PrivacyPurgeDockerLocalLogs'](arg1);
+}
+
+export function PrivacyPurgeDockerRemoteLogs(arg1, arg2) {
+  return window['go']['main']['App']['PrivacyPurgeDockerRemoteLogs'](arg1, arg2);
+}
+
+export function PrivacyPurgeProfileLogs(arg1) {
+  return window['go']['main']['App']['PrivacyPurgeProfileLogs'](arg1);
 }
 
 export function SFTPConnectProfile(arg1) {
@@ -436,6 +532,10 @@ export function SFTPListDir(arg1, arg2) {
 
 export function SFTPMkdir(arg1, arg2) {
   return window['go']['main']['App']['SFTPMkdir'](arg1, arg2);
+}
+
+export function SFTPReadFileTail(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SFTPReadFileTail'](arg1, arg2, arg3);
 }
 
 export function SFTPRename(arg1, arg2, arg3) {
@@ -506,6 +606,10 @@ export function SSHTestConnection(arg1) {
   return window['go']['main']['App']['SSHTestConnection'](arg1);
 }
 
+export function SaveLogsSettings(arg1) {
+  return window['go']['main']['App']['SaveLogsSettings'](arg1);
+}
+
 export function SaveUILayout(arg1, arg2) {
   return window['go']['main']['App']['SaveUILayout'](arg1, arg2);
 }
@@ -516,6 +620,26 @@ export function SetMacroFavorite(arg1, arg2, arg3) {
 
 export function SetSecret(arg1) {
   return window['go']['main']['App']['SetSecret'](arg1);
+}
+
+export function SettingsClearUILayout() {
+  return window['go']['main']['App']['SettingsClearUILayout']();
+}
+
+export function SettingsPrivacyProfileDetail(arg1) {
+  return window['go']['main']['App']['SettingsPrivacyProfileDetail'](arg1);
+}
+
+export function SettingsPrivacyReport() {
+  return window['go']['main']['App']['SettingsPrivacyReport']();
+}
+
+export function UpsertLogFormat(arg1) {
+  return window['go']['main']['App']['UpsertLogFormat'](arg1);
+}
+
+export function UpsertLogSource(arg1) {
+  return window['go']['main']['App']['UpsertLogSource'](arg1);
 }
 
 export function UpsertMacro(arg1) {

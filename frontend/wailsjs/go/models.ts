@@ -420,6 +420,354 @@ export namespace main {
 	        this.keyStorage = source["keyStorage"];
 	    }
 	}
+	export class ListLogSourcesRequest {
+	    kind: string;
+	    profileId: string;
+	    containerName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ListLogSourcesRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.profileId = source["profileId"];
+	        this.containerName = source["containerName"];
+	    }
+	}
+	export class LogEntryDTO {
+	    id: string;
+	    sourceId: string;
+	    kind: string;
+	    profileId: string;
+	    containerName: string;
+	    sourcePath: string;
+	    timestampUnixMs: number;
+	    ingestedUnixMs: number;
+	    timestampSource: string;
+	    level: string;
+	    levelSource: string;
+	    message: string;
+	    rawText: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogEntryDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.sourceId = source["sourceId"];
+	        this.kind = source["kind"];
+	        this.profileId = source["profileId"];
+	        this.containerName = source["containerName"];
+	        this.sourcePath = source["sourcePath"];
+	        this.timestampUnixMs = source["timestampUnixMs"];
+	        this.ingestedUnixMs = source["ingestedUnixMs"];
+	        this.timestampSource = source["timestampSource"];
+	        this.level = source["level"];
+	        this.levelSource = source["levelSource"];
+	        this.message = source["message"];
+	        this.rawText = source["rawText"];
+	    }
+	}
+	export class LogFormatDTO {
+	    id: string;
+	    name: string;
+	    description: string;
+	    builtinKey: string;
+	    parserType: string;
+	    pattern: string;
+	    timeLayout: string;
+	    captureGroupsJson: string;
+	    levelMappingJson: string;
+	    isSystem: boolean;
+	    enabled: boolean;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogFormatDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.builtinKey = source["builtinKey"];
+	        this.parserType = source["parserType"];
+	        this.pattern = source["pattern"];
+	        this.timeLayout = source["timeLayout"];
+	        this.captureGroupsJson = source["captureGroupsJson"];
+	        this.levelMappingJson = source["levelMappingJson"];
+	        this.isSystem = source["isSystem"];
+	        this.enabled = source["enabled"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class LogParseDraftDTO {
+	    pattern: string;
+	    timeLayout: string;
+	    captureGroupsJson: string;
+	    levelMappingJson: string;
+	    raw: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogParseDraftDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pattern = source["pattern"];
+	        this.timeLayout = source["timeLayout"];
+	        this.captureGroupsJson = source["captureGroupsJson"];
+	        this.levelMappingJson = source["levelMappingJson"];
+	        this.raw = source["raw"];
+	    }
+	}
+	export class LogParsePreviewRecordDTO {
+	    matched: boolean;
+	    route: string;
+	    timestampUnixMs: number;
+	    timestampSource: string;
+	    level: string;
+	    levelSource: string;
+	    message: string;
+	    rawText: string;
+	    metaJson: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogParsePreviewRecordDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.matched = source["matched"];
+	        this.route = source["route"];
+	        this.timestampUnixMs = source["timestampUnixMs"];
+	        this.timestampSource = source["timestampSource"];
+	        this.level = source["level"];
+	        this.levelSource = source["levelSource"];
+	        this.message = source["message"];
+	        this.rawText = source["rawText"];
+	        this.metaJson = source["metaJson"];
+	    }
+	}
+	export class LogParsePreviewResultDTO {
+	    compileError?: string;
+	    records: LogParsePreviewRecordDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new LogParsePreviewResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.compileError = source["compileError"];
+	        this.records = this.convertValues(source["records"], LogParsePreviewRecordDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class LogSourceDTO {
+	    id: string;
+	    kind: string;
+	    profileId: string;
+	    containerName: string;
+	    path: string;
+	    formatId: string;
+	    displayName: string;
+	    optionsJson: string;
+	    lastError: string;
+	    lastSyncedAt?: string;
+	    enabled: boolean;
+	    order: number;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogSourceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.profileId = source["profileId"];
+	        this.containerName = source["containerName"];
+	        this.path = source["path"];
+	        this.formatId = source["formatId"];
+	        this.displayName = source["displayName"];
+	        this.optionsJson = source["optionsJson"];
+	        this.lastError = source["lastError"];
+	        this.lastSyncedAt = source["lastSyncedAt"];
+	        this.enabled = source["enabled"];
+	        this.order = source["order"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class LogsPurgeRequest {
+	    kind: string;
+	    profileId: string;
+	    containerName: string;
+	    sourceId: string;
+	    beforeUnixMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogsPurgeRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.profileId = source["profileId"];
+	        this.containerName = source["containerName"];
+	        this.sourceId = source["sourceId"];
+	        this.beforeUnixMs = source["beforeUnixMs"];
+	    }
+	}
+	export class LogsQueryRequest {
+	    kind: string;
+	    profileId: string;
+	    containerName: string;
+	    sourceId: string;
+	    search: string;
+	    levels: string[];
+	    fromUnixMs: number;
+	    toUnixMs: number;
+	    ascending: boolean;
+	    limit: number;
+	    offset: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogsQueryRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.profileId = source["profileId"];
+	        this.containerName = source["containerName"];
+	        this.sourceId = source["sourceId"];
+	        this.search = source["search"];
+	        this.levels = source["levels"];
+	        this.fromUnixMs = source["fromUnixMs"];
+	        this.toUnixMs = source["toUnixMs"];
+	        this.ascending = source["ascending"];
+	        this.limit = source["limit"];
+	        this.offset = source["offset"];
+	    }
+	}
+	export class LogsQueryResultDTO {
+	    entries: LogEntryDTO[];
+	    total: number;
+	    levels: string[];
+	    sourcePaths: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new LogsQueryResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entries = this.convertValues(source["entries"], LogEntryDTO);
+	        this.total = source["total"];
+	        this.levels = source["levels"];
+	        this.sourcePaths = source["sourcePaths"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class LogsSettingsDTO {
+	    maxFileBytes: number;
+	    defaultRetentionDays: number;
+	    redactionPatterns: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new LogsSettingsDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.maxFileBytes = source["maxFileBytes"];
+	        this.defaultRetentionDays = source["defaultRetentionDays"];
+	        this.redactionPatterns = source["redactionPatterns"];
+	    }
+	}
+	export class LogsSyncRequest {
+	    sourceId: string;
+	    forceLarge: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogsSyncRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sourceId = source["sourceId"];
+	        this.forceLarge = source["forceLarge"];
+	    }
+	}
+	export class LogsSyncResultDTO {
+	    sourceId: string;
+	    importedCount: number;
+	    skippedCount: number;
+	    bytesRead: number;
+	    largeFile: boolean;
+	    needsConfirm: boolean;
+	    warning?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogsSyncResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sourceId = source["sourceId"];
+	        this.importedCount = source["importedCount"];
+	        this.skippedCount = source["skippedCount"];
+	        this.bytesRead = source["bytesRead"];
+	        this.largeFile = source["largeFile"];
+	        this.needsConfirm = source["needsConfirm"];
+	        this.warning = source["warning"];
+	    }
+	}
 	export class MacroBindingDTO {
 	    id: string;
 	    profileId: string;
@@ -546,6 +894,46 @@ export namespace main {
 	        this.order = source["order"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class PrivacyDockerLogBucketDTO {
+	    containerName: string;
+	    sourceCount: number;
+	    entryCount: number;
+	    lastSyncedUnixMs: number;
+	    orphaned: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PrivacyDockerLogBucketDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.containerName = source["containerName"];
+	        this.sourceCount = source["sourceCount"];
+	        this.entryCount = source["entryCount"];
+	        this.lastSyncedUnixMs = source["lastSyncedUnixMs"];
+	        this.orphaned = source["orphaned"];
+	    }
+	}
+	export class PrivacyDockerRemoteOrphanBucketDTO {
+	    profileId: string;
+	    containerName: string;
+	    sourceCount: number;
+	    entryCount: number;
+	    lastSyncedUnixMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PrivacyDockerRemoteOrphanBucketDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profileId = source["profileId"];
+	        this.containerName = source["containerName"];
+	        this.sourceCount = source["sourceCount"];
+	        this.entryCount = source["entryCount"];
+	        this.lastSyncedUnixMs = source["lastSyncedUnixMs"];
 	    }
 	}
 	export class ProfileDTO {
@@ -706,6 +1094,140 @@ export namespace main {
 	        this.password = source["password"];
 	        this.privateKeyPem = source["privateKeyPem"];
 	        this.passphrase = source["passphrase"];
+	    }
+	}
+	export class SettingsPrivacyProfileDetailDTO {
+	    profileId: string;
+	    passwordStorage: string;
+	    passwordSet: boolean;
+	    privateKeyStorage: string;
+	    privateKeySet: boolean;
+	    customSecrets: SecretItemDTO[];
+	    vaultItemCount: number;
+	    logProfileSourceCount: number;
+	    logEntryCount: number;
+	    logLastSyncedUnixMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SettingsPrivacyProfileDetailDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profileId = source["profileId"];
+	        this.passwordStorage = source["passwordStorage"];
+	        this.passwordSet = source["passwordSet"];
+	        this.privateKeyStorage = source["privateKeyStorage"];
+	        this.privateKeySet = source["privateKeySet"];
+	        this.customSecrets = this.convertValues(source["customSecrets"], SecretItemDTO);
+	        this.vaultItemCount = source["vaultItemCount"];
+	        this.logProfileSourceCount = source["logProfileSourceCount"];
+	        this.logEntryCount = source["logEntryCount"];
+	        this.logLastSyncedUnixMs = source["logLastSyncedUnixMs"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SettingsPrivacyReportDTO {
+	    dbPath: string;
+	    profileCount: number;
+	    placeCount: number;
+	    macroCount: number;
+	    secretRefCount: number;
+	    vaultItemCount: number;
+	    logSourceCount: number;
+	    logEntryCount: number;
+	    logFormatCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SettingsPrivacyReportDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dbPath = source["dbPath"];
+	        this.profileCount = source["profileCount"];
+	        this.placeCount = source["placeCount"];
+	        this.macroCount = source["macroCount"];
+	        this.secretRefCount = source["secretRefCount"];
+	        this.vaultItemCount = source["vaultItemCount"];
+	        this.logSourceCount = source["logSourceCount"];
+	        this.logEntryCount = source["logEntryCount"];
+	        this.logFormatCount = source["logFormatCount"];
+	    }
+	}
+	export class UpsertLogFormatRequest {
+	    id?: string;
+	    name: string;
+	    description: string;
+	    parserType: string;
+	    pattern: string;
+	    timeLayout: string;
+	    captureGroupsJson: string;
+	    levelMappingJson: string;
+	    enabled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpsertLogFormatRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.parserType = source["parserType"];
+	        this.pattern = source["pattern"];
+	        this.timeLayout = source["timeLayout"];
+	        this.captureGroupsJson = source["captureGroupsJson"];
+	        this.levelMappingJson = source["levelMappingJson"];
+	        this.enabled = source["enabled"];
+	    }
+	}
+	export class UpsertLogSourceRequest {
+	    id?: string;
+	    kind: string;
+	    profileId: string;
+	    containerName: string;
+	    path: string;
+	    formatId: string;
+	    displayName: string;
+	    optionsJson: string;
+	    enabled: boolean;
+	    order: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpsertLogSourceRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.profileId = source["profileId"];
+	        this.containerName = source["containerName"];
+	        this.path = source["path"];
+	        this.formatId = source["formatId"];
+	        this.displayName = source["displayName"];
+	        this.optionsJson = source["optionsJson"];
+	        this.enabled = source["enabled"];
+	        this.order = source["order"];
 	    }
 	}
 	export class UpsertMacroRequest {

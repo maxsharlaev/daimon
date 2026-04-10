@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -437,6 +438,16 @@ func (a *App) DockerLocalListDir(containerId string, path string) ([]DockerFileE
 		return a.dockerLocalExecOutput(containerId, cmd)
 	})
 	return entries, nil
+}
+
+// DockerLocalReadFileTail reads the last maxBytes of a file inside the container via docker exec (no extra connection).
+func (a *App) DockerLocalReadFileTail(containerId string, path string, maxBytes int64) (string, error) {
+	if maxBytes <= 0 {
+		maxBytes = 256 * 1024
+	}
+	q := shellQuote(path)
+	n := strconv.FormatInt(maxBytes, 10)
+	return a.dockerLocalExecOutput(containerId, fmt.Sprintf(`if [ ! -f %s ]; then exit 1; fi; tail -c %s %s`, q, n, q))
 }
 
 func (a *App) DockerLocalFileDelete(containerId string, path string) error {

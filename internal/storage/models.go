@@ -88,12 +88,12 @@ type VaultItem struct {
 
 	Kind string `gorm:"index;size:40;not null"`
 
-	CipherB64   string `gorm:"not null"` // base64-encoded ciphertext
-	KDFJSON     string `gorm:"not null;default:'{}'"`
-	SaltB64     string `gorm:"not null;default:''"`
-	NonceB64    string `gorm:"not null;default:''"`
-	Hint        string `gorm:"not null;default:''"`
-	UpdatedAt   time.Time
+	CipherB64 string `gorm:"not null"` // base64-encoded ciphertext
+	KDFJSON   string `gorm:"not null;default:'{}'"`
+	SaltB64   string `gorm:"not null;default:''"`
+	NonceB64  string `gorm:"not null;default:''"`
+	Hint      string `gorm:"not null;default:''"`
+	UpdatedAt time.Time
 }
 
 func (m *VaultItem) BeforeCreate(tx *gorm.DB) error {
@@ -114,7 +114,8 @@ type AppSetting struct {
 // Used by the Places UI to quickly cd/open in terminal/files.
 type Place struct {
 	ID        string `gorm:"primaryKey;size:36"`
-	ProfileID string `gorm:"index;size:36;not null"`
+	// Composite docker keys exceed 36 chars (e.g. docker:remote:<uuid>:name:<container>).
+	ProfileID string `gorm:"index;size:512;not null"`
 
 	Name       string `gorm:"not null;default:''"` // optional label
 	RemotePath string `gorm:"not null"`
@@ -206,3 +207,91 @@ func (m *MacroBinding) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+type LogFormat struct {
+	ID string `gorm:"primaryKey;size:80"`
+
+	Name        string `gorm:"not null"`
+	Description string `gorm:"not null;default:''"`
+	BuiltinKey  string `gorm:"uniqueIndex;size:80;not null;default:''"`
+	ParserType  string `gorm:"index;size:24;not null;default:'regex'"`
+	Pattern     string `gorm:"not null;default:''"`
+	TimeLayout  string `gorm:"not null;default:''"`
+
+	CaptureGroupsJSON string `gorm:"not null;default:'{}'"`
+	LevelMappingJSON  string `gorm:"not null;default:'{}'"`
+
+	IsSystem bool `gorm:"not null;default:false"`
+	Enabled  bool `gorm:"not null;default:true"`
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (m *LogFormat) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	return nil
+}
+
+type LogSource struct {
+	ID string `gorm:"primaryKey;size:80"`
+
+	Kind string `gorm:"index;size:32;not null"` // profile | docker_local | docker_remote
+
+	ProfileID     string `gorm:"index;size:36;not null;default:''"`
+	ContainerName string `gorm:"index;size:160;not null;default:''"`
+
+	Path     string `gorm:"not null"`
+	FormatID string `gorm:"index;size:80;not null"`
+
+	DisplayName  string `gorm:"not null;default:''"`
+	OptionsJSON  string `gorm:"not null;default:'{}'"`
+	LastError    string `gorm:"not null;default:''"`
+	LastSyncedAt *time.Time
+	Enabled      bool `gorm:"not null;default:true"`
+	Order        int  `gorm:"not null;default:0"`
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (m *LogSource) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	return nil
+}
+
+type LogEntry struct {
+	ID string `gorm:"primaryKey;size:80"`
+
+	SourceID string `gorm:"index;size:80;not null"`
+	Kind     string `gorm:"index;size:32;not null"`
+
+	ProfileID     string `gorm:"index;size:36;not null;default:''"`
+	ContainerName string `gorm:"index;size:160;not null;default:''"`
+	SourcePath    string `gorm:"not null;default:''"`
+
+	TimestampUnixMs int64  `gorm:"index;not null;default:0"`
+	IngestedUnixMs  int64  `gorm:"index;not null;default:0"`
+	TimestampSource string `gorm:"size:24;not null;default:'unknown'"` // parsed | ingest_time
+
+	Level       string `gorm:"index;size:24;not null;default:'unknown'"`
+	LevelSource string `gorm:"size:24;not null;default:'unknown'"` // parsed | guessed | unknown
+
+	Message string `gorm:"not null;default:''"`
+	RawText string `gorm:"not null;default:''"`
+
+	DedupeKey string `gorm:"uniqueIndex;size:120;not null"`
+	MetaJSON  string `gorm:"not null;default:'{}'"`
+
+	CreatedAt time.Time
+}
+
+func (m *LogEntry) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	return nil
+}

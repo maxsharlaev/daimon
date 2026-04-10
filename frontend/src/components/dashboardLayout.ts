@@ -6,7 +6,8 @@ export type WidgetMetric =
   | "top_cpu"
   | "top_mem"
   | "net_ifaces"
-  | "alerts";
+  | "alerts"
+  | "log_tail";
 
 export type WidgetView = "kpi" | "progress" | "list";
 
@@ -14,6 +15,9 @@ export type WidgetConfig = {
   id: string;
   metric: WidgetMetric;
   view: WidgetView;
+  logSourceId?: string;
+  maxLines?: number;
+  levelFilter?: string;
 };
 
 export type DashboardRow = {

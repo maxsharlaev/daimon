@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path"
@@ -239,6 +240,45 @@ func (m *Manager) Remove(sessionId string, p string) error {
 		return nil
 	}
 	return s.SFTP.RemoveDirectory(p)
+}
+
+// ReadFileTail returns up to maxBytes from the end of a regular file (follows symlinks via Stat/Open).
+// If maxBytes <= 0, defaults to 256 KiB.
+func (m *Manager) ReadFileTail(sessionId string, p string, maxBytes int64) ([]byte, error) {
+	if maxBytes <= 0 {
+		maxBytes = 256 * 1024
+	}
+	s, err := m.session(sessionId)
+	if err != nil {
+		return nil, err
+	}
+	p = Clean(p)
+	fi, err := s.SFTP.Stat(p)
+	if err != nil {
+		return nil, err
+	}
+	if fi.IsDir() {
+		return nil, errors.New("path is a directory")
+	}
+	size := fi.Size()
+	f, err := s.SFTP.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	toRead := size
+	if toRead > maxBytes {
+		toRead = maxBytes
+	}
+	start := int64(0)
+	if size > maxBytes {
+		start = size - maxBytes
+	}
+	if _, err := f.Seek(start, io.SeekStart); err != nil {
+		return nil, err
+	}
+	return io.ReadAll(io.LimitReader(f, toRead))
 }
 
 func dialSSH(cfg SSHConfig) (*ssh.Client, error) {

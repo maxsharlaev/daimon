@@ -74,6 +74,35 @@
   align-items: center;
 }
 
+.topbar-settings {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.88);
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.topbar-settings:hover {
+  border-color: rgba(110, 231, 255, 0.45);
+  background: rgba(110, 231, 255, 0.10);
+}
+
+.topbar-settings.active {
+  background: rgba(110, 231, 255, 0.12);
+  border-color: rgba(110, 231, 255, 0.4);
+  color: rgba(255, 255, 255, 0.98);
+}
+
+.topbar-settings-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
 .window-controls {
   display: flex;
   align-items: center;

@@ -70,3 +70,9 @@ func DefaultDBPath() (string, error) {
 	return filepath.Join(dir, "daimon", "daimon.db"), nil
 }
 
+func (s *Store) Path() string {
+	if s == nil {
+		return ""
+	}
+	return s.dbPath
+}

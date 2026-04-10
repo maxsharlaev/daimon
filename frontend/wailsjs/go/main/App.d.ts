@@ -5,6 +5,10 @@ import {sftp} from '../models';
 
 export function CopySecretToClipboard(arg1:string,arg2:string):Promise<void>;
 
+export function DeleteLogFormat(arg1:string):Promise<void>;
+
+export function DeleteLogSource(arg1:string):Promise<void>;
+
 export function DeleteMacro(arg1:string):Promise<void>;
 
 export function DeletePlace(arg1:string):Promise<void>;
@@ -66,6 +70,8 @@ export function DockerLocalNetworkInspect(arg1:string):Promise<main.DockerNetwor
 export function DockerLocalNetworkRemove(arg1:string):Promise<void>;
 
 export function DockerLocalPruneDangling():Promise<main.DockerDanglingPreviewDTO>;
+
+export function DockerLocalReadFileTail(arg1:string,arg2:string,arg3:number):Promise<string>;
 
 export function DockerLocalRemoveImages(arg1:Array<string>):Promise<void>;
 
@@ -135,6 +141,8 @@ export function DockerRemoteNetworkRemove(arg1:string,arg2:string):Promise<void>
 
 export function DockerRemotePruneDangling(arg1:string):Promise<main.DockerDanglingPreviewDTO>;
 
+export function DockerRemoteReadFileTail(arg1:string,arg2:string,arg3:string,arg4:number):Promise<string>;
+
 export function DockerRemoteRemoveImages(arg1:string,arg2:Array<string>):Promise<void>;
 
 export function DockerRemoteRename(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
@@ -163,17 +171,33 @@ export function ExportProfileEncrypted(arg1:string,arg2:string):Promise<string>;
 
 export function ExportProfileEncryptedPreview(arg1:string):Promise<string>;
 
+export function GetLogsSettings():Promise<main.LogsSettingsDTO>;
+
 export function GetSecretRef(arg1:string,arg2:string):Promise<main.SecretRefDTO>;
 
 export function Greet(arg1:string):Promise<string>;
 
 export function ImportProfileEncrypted(arg1:string,arg2:string,arg3:main.ImportOptions):Promise<main.ProfileDTO>;
 
+export function ListAllPlaces():Promise<Array<main.PlaceDTO>>;
+
+export function ListDockerRemoteLogTargets(arg1:string):Promise<Array<main.DockerContainerDTO>>;
+
+export function ListLogFormats():Promise<Array<main.LogFormatDTO>>;
+
+export function ListLogSources(arg1:main.ListLogSourcesRequest):Promise<Array<main.LogSourceDTO>>;
+
 export function ListMacroBindings(arg1:string):Promise<Array<main.MacroBindingDTO>>;
 
 export function ListMacros():Promise<Array<main.MacroDTO>>;
 
 export function ListPlaces(arg1:string):Promise<Array<main.PlaceDTO>>;
+
+export function ListPrivacyDockerLocalLogBuckets():Promise<Array<main.PrivacyDockerLogBucketDTO>>;
+
+export function ListPrivacyDockerRemoteLogBuckets(arg1:string):Promise<Array<main.PrivacyDockerLogBucketDTO>>;
+
+export function ListPrivacyDockerRemoteOrphanLogBuckets():Promise<Array<main.PrivacyDockerRemoteOrphanBucketDTO>>;
 
 export function ListProfileGroups():Promise<Array<main.ProfileGroupDTO>>;
 
@@ -197,6 +221,12 @@ export function LocalRename(arg1:string,arg2:string):Promise<void>;
 
 export function LocalStat(arg1:string):Promise<sftp.FileEntryDTO>;
 
+export function LogsPurge(arg1:main.LogsPurgeRequest):Promise<number>;
+
+export function LogsQuery(arg1:main.LogsQueryRequest):Promise<main.LogsQueryResultDTO>;
+
+export function LogsSyncSource(arg1:main.LogsSyncRequest):Promise<main.LogsSyncResultDTO>;
+
 export function PickLocalFile():Promise<string>;
 
 export function PickLocalFolder():Promise<string>;
@@ -204,6 +234,24 @@ export function PickLocalFolder():Promise<string>;
 export function PickPrivateKeyFile():Promise<string>;
 
 export function PickSaveFile(arg1:string):Promise<string>;
+
+export function PreviewLogParse(arg1:string,arg2:string):Promise<main.LogParsePreviewResultDTO>;
+
+export function PreviewLogParseDraft(arg1:main.LogParseDraftDTO):Promise<main.LogParsePreviewResultDTO>;
+
+export function PrivacyClearAuthPassword(arg1:string):Promise<void>;
+
+export function PrivacyClearAuthPrivateKey(arg1:string):Promise<void>;
+
+export function PrivacyDeleteAllCustomSecrets(arg1:string):Promise<void>;
+
+export function PrivacyPurgeAllSecrets():Promise<void>;
+
+export function PrivacyPurgeDockerLocalLogs(arg1:string):Promise<void>;
+
+export function PrivacyPurgeDockerRemoteLogs(arg1:string,arg2:string):Promise<void>;
+
+export function PrivacyPurgeProfileLogs(arg1:string):Promise<void>;
 
 export function SFTPConnectProfile(arg1:string):Promise<string>;
 
@@ -220,6 +268,8 @@ export function SFTPGetwd(arg1:string):Promise<string>;
 export function SFTPListDir(arg1:string,arg2:string):Promise<Array<sftp.FileEntryDTO>>;
 
 export function SFTPMkdir(arg1:string,arg2:string):Promise<void>;
+
+export function SFTPReadFileTail(arg1:string,arg2:string,arg3:number):Promise<string>;
 
 export function SFTPRename(arg1:string,arg2:string,arg3:string):Promise<void>;
 
@@ -255,11 +305,23 @@ export function SSHSend(arg1:string,arg2:string):Promise<void>;
 
 export function SSHTestConnection(arg1:main.SSHConfig):Promise<string>;
 
+export function SaveLogsSettings(arg1:main.LogsSettingsDTO):Promise<void>;
+
 export function SaveUILayout(arg1:string,arg2:string):Promise<void>;
 
 export function SetMacroFavorite(arg1:string,arg2:string,arg3:boolean):Promise<main.MacroBindingDTO>;
 
 export function SetSecret(arg1:main.SetSecretRequest):Promise<void>;
+
+export function SettingsClearUILayout():Promise<void>;
+
+export function SettingsPrivacyProfileDetail(arg1:string):Promise<main.SettingsPrivacyProfileDetailDTO>;
+
+export function SettingsPrivacyReport():Promise<main.SettingsPrivacyReportDTO>;
+
+export function UpsertLogFormat(arg1:main.UpsertLogFormatRequest):Promise<main.LogFormatDTO>;
+
+export function UpsertLogSource(arg1:main.UpsertLogSourceRequest):Promise<main.LogSourceDTO>;
 
 export function UpsertMacro(arg1:main.UpsertMacroRequest):Promise<main.MacroDTO>;
 

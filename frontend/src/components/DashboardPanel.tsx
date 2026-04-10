@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SSHDashboardSnapshot } from "../../wailsjs/go/main/App";
+import { LogsQuery, SSHDashboardSnapshot } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import "./dashboardpanel.css";
 import type { DashboardRow, DashboardTab, StoredLayoutV2, WidgetConfig, WidgetMetric, WidgetView } from "./dashboardLayout";
 import { uid } from "./dashboardLayout";
+import type { LogEntryDTO } from "../types/logs";
 
 type Props = {
   sessionId: string;
@@ -16,6 +17,7 @@ type Props = {
 
 export function DashboardPanel({ sessionId, profileId, profileName, layout, activeTabId, persistLayout }: Props) {
   const [snap, setSnap] = useState<main.DashboardSnapshotDTO | null>(null);
+  const [logTail, setLogTail] = useState<LogEntryDTO[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -57,10 +59,14 @@ export function DashboardPanel({ sessionId, profileId, profileName, layout, acti
     setBusy(true);
     setError(null);
     try {
-      const next = await SSHDashboardSnapshot(id);
+      const [next, logs] = await Promise.all([
+        SSHDashboardSnapshot(id),
+        hasLogTail(layout) ? LogsQuery({ kind: "profile", profileId, limit: 20, offset: 0, ascending: false } as any) : Promise.resolve({ entries: [] }),
+      ]);
       // Ignore stale responses from previous sessionId
       if (sessionIdRef.current !== id) return;
       setSnap(next as any);
+      setLogTail((((logs as any)?.entries ?? []) as LogEntryDTO[]).slice(0, 20));
     } catch (e: any) {
       if (sessionIdRef.current !== id) return;
       setError(e?.message ?? String(e));
@@ -280,6 +286,7 @@ export function DashboardPanel({ sessionId, profileId, profileName, layout, acti
     { id: "top_mem", label: "Top MEM processes", allowed: ["list"] },
     { id: "net_ifaces", label: "Network interfaces (rx/tx bytes)", allowed: ["list"] },
     { id: "alerts", label: "Alerts", allowed: ["list"] },
+    { id: "log_tail", label: "Recent logs", allowed: ["list"] },
   ];
 
   const allowedViews = metricOptions.find((m) => m.id === addMetric)?.allowed ?? ["kpi"];
@@ -378,6 +385,7 @@ export function DashboardPanel({ sessionId, profileId, profileName, layout, acti
                               w={slot}
                               snap={snap}
                               diskRoot={diskRoot}
+                              logTail={logTail}
                               onRemove={() => void removeWidgetFromSlot(activeTab.id, r.id, idx)}
                             />
                           ) : (
@@ -585,11 +593,13 @@ function Widget({
   w,
   snap,
   diskRoot,
+  logTail,
   onRemove,
 }: {
   w: WidgetConfig;
   snap: main.DashboardSnapshotDTO | null;
   diskRoot: main.DashboardDiskDTO | null;
+  logTail: LogEntryDTO[];
   onRemove: () => void;
 }) {
   const title =
@@ -607,7 +617,9 @@ function Widget({
                 ? "Top MEM"
                 : w.metric === "net_ifaces"
                   ? "Network"
-                  : "Alerts";
+                  : w.metric === "log_tail"
+                    ? "Recent logs"
+                    : "Alerts";
 
   return (
     <div className="widget">
@@ -619,7 +631,7 @@ function Widget({
           </button>
         </div>
       </div>
-      <WidgetBody w={w} snap={snap} diskRoot={diskRoot} />
+      <WidgetBody w={w} snap={snap} diskRoot={diskRoot} logTail={logTail} />
     </div>
   );
 }
@@ -628,10 +640,12 @@ function WidgetBody({
   w,
   snap,
   diskRoot,
+  logTail,
 }: {
   w: WidgetConfig;
   snap: main.DashboardSnapshotDTO | null;
   diskRoot: main.DashboardDiskDTO | null;
+  logTail: LogEntryDTO[];
 }) {
   if (!snap) {
     return <div className="kpi-sub" style={{ padding: 10 }}>No data yet…</div>;
@@ -646,6 +660,22 @@ function WidgetBody({
           <div key={a.id} className={`alert ${a.severity}`}>
             <div className="alert-title">{a.title}</div>
             <div className="alert-msg">{a.message}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (w.metric === "log_tail") {
+    if (!logTail.length) return <div className="kpi-sub" style={{ padding: 10 }}>No logs yet.</div>;
+    return (
+      <div className="list">
+        {logTail.slice(0, Math.max(1, Math.min(10, w.maxLines ?? 6))).map((entry) => (
+          <div key={entry.id} className="list-row">
+            <span className="mono">{new Date(entry.timestampUnixMs).toLocaleTimeString()}</span>
+            <span className="muted">
+              [{entry.level}] {entry.message}
+            </span>
           </div>
         ))}
       </div>
@@ -804,4 +834,8 @@ function fmtBytes(n: number) {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
   return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function hasLogTail(layout: StoredLayoutV2) {
+  return (layout.tabs ?? []).some((tab) => (tab.rows ?? []).some((row) => (row.slots ?? []).some((slot) => slot?.metric === "log_tail")));
 }

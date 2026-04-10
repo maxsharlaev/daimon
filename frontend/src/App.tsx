@@ -28,6 +28,8 @@ import { DashboardTabs } from "./components/DashboardTabs";
 import { DockerMode } from "./components/docker/DockerMode";
 import { WindowControls } from "./components/WindowControls";
 import { SecretsModal } from "./components/SecretsModal";
+import { SettingsPage } from "./components/SettingsPage";
+import { LogsWorkspace } from "./components/LogsWorkspace";
 
 type FilesLastPathsByProfile = Record<string, { localPath: string; remotePath: string }>;
 
@@ -47,7 +49,7 @@ function shellQuote(p: string) {
 }
 
 function App() {
-  const [appMode, setAppMode] = useState<"connections" | "docker">("connections");
+  const [appMode, setAppMode] = useState<"connections" | "docker" | "logs" | "settings">("connections");
   const [groups, setGroups] = useState<ProfileGroupDTO[]>([]);
   const [profiles, setProfiles] = useState<ProfileDTO[]>([]);
   const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>([]);
@@ -135,7 +137,7 @@ function App() {
       try {
         const v = JSON.parse(raw);
         const nextMode = v?.appMode;
-        if (nextMode === "connections" || nextMode === "docker") {
+        if (nextMode === "connections" || nextMode === "docker" || nextMode === "logs" || nextMode === "settings") {
           setAppMode(nextMode);
         }
         if (Array.isArray(v?.expandedGroupIds)) {
@@ -525,6 +527,21 @@ function App() {
   );
 
   const dockerContent = <DockerMode profiles={profiles} groups={groups} onOpenSecrets={openSecretsForProfile} />;
+  const logsContent = <LogsWorkspace profiles={profiles} />;
+  const settingsContent = (
+    <SettingsPage
+      profiles={profiles}
+      onCreateMacro={() => {
+        setMacroEditorMacro(null);
+        setMacroEditorOpen(true);
+      }}
+      onEditMacro={(m) => {
+        setMacroEditorMacro(m);
+        setMacroEditorOpen(true);
+      }}
+      onOpenLogsWorkspace={() => setAppMode("logs")}
+    />
+  );
 
   return (
     <div className="app-shell">
@@ -550,9 +567,24 @@ function App() {
             >
               Docker
             </button>
+            <button
+              className={`topbar-tab ${appMode === "logs" ? "active" : ""}`}
+              type="button"
+              role="tab"
+              aria-selected={appMode === "logs"}
+              onClick={() => setAppMode("logs")}
+            >
+              Logs
+            </button>
           </div>
         </div>
         <div className="topbar-actions">
+          <button className={`topbar-settings ${appMode === "settings" ? "active" : ""}`} type="button" onClick={() => setAppMode("settings")}>
+            <span className="topbar-settings-icon" aria-hidden="true">
+              ⚙
+            </span>
+            Settings
+          </button>
           <WindowControls />
         </div>
       </div>
@@ -570,6 +602,18 @@ function App() {
             style={{ display: appMode === "docker" ? undefined : "none" }}
           >
             {dockerContent}
+          </div>
+          <div
+            className="app-mode-pane"
+            style={{ display: appMode === "logs" ? undefined : "none" }}
+          >
+            {logsContent}
+          </div>
+          <div
+            className="app-mode-pane"
+            style={{ display: appMode === "settings" ? undefined : "none" }}
+          >
+            {settingsContent}
           </div>
         </div>
       </div>

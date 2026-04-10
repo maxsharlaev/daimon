@@ -19,6 +19,7 @@ import type {
   DockerNetworkDTO,
   DockerNetworkDetailsDTO,
 } from "../../types/docker";
+import { buildDockerPlaceProfileId } from "../../utils/dockerPlaceProfileId";
 import {
   DockerLocalStatus,
   DockerLocalListContainers,
@@ -273,12 +274,17 @@ export function DockerMode({ profiles, groups, onOpenSecrets }: Props) {
     [leftContext]
   );
 
-  const openLeftPanel = useCallback((mode: DockerLeftMode, tab: DockerTab) => {
-    const profileId = tab.profileId ?? `docker:${tab.scope}:unknown:${tab.containerId}`;
-    const profileName = tab.profileName ?? trimContainerName(tab.containerName);
-    setLeftContext({ tabId: tab.id, containerId: tab.containerId, containerName: tab.containerName, profileId, profileName });
-    setLeftMode(mode);
-  }, []);
+  const openLeftPanel = useCallback(
+    (mode: DockerLeftMode, tab: DockerTab) => {
+      const profileId =
+        tab.profileId ??
+        buildDockerPlaceProfileId(tab.scope, tab.scope === "remote" ? activeRemoteProfileId : null, tab.containerName, tab.containerId);
+      const profileName = tab.profileName ?? trimContainerName(tab.containerName);
+      setLeftContext({ tabId: tab.id, containerId: tab.containerId, containerName: tab.containerName, profileId, profileName });
+      setLeftMode(mode);
+    },
+    [activeRemoteProfileId]
+  );
 
   const tabsByContainerKind = useMemo(() => {
     const out: Record<string, Set<DockerTabKind>> = {};
@@ -830,7 +836,7 @@ export function DockerMode({ profiles, groups, onOpenSecrets }: Props) {
       return;
     }
     const remoteProfileName = scope === "remote" ? profiles.find((p) => p.id === activeRemoteProfileId)?.name ?? activeRemoteProfileId ?? "remote" : null;
-    const dockerProfileId = `docker:${scope}:${activeRemoteProfileId ?? "local"}:${containerId}`;
+    const dockerProfileId = buildDockerPlaceProfileId(scope, scope === "remote" ? activeRemoteProfileId : null, containerName, containerId);
     const dockerProfileName =
       scope === "local"
         ? `Docker local · ${trimContainerName(containerName)}`
@@ -1198,7 +1204,14 @@ export function DockerMode({ profiles, groups, onOpenSecrets }: Props) {
                         onOpenFiles={(remotePath) => openDockerTab("files", t.containerId, t.containerName, remotePath)}
                         onAddLocation={(remotePath) => {
                           openLeftPanel("places", t);
-                          setPlaceModal({ open: true, profileId: t.profileId ?? `docker:${t.scope}:unknown:${t.containerId}`, name: "", remotePath });
+                          setPlaceModal({
+                            open: true,
+                            profileId:
+                              t.profileId ??
+                              buildDockerPlaceProfileId(t.scope, t.scope === "remote" ? activeRemoteProfileId : null, t.containerName, t.containerId),
+                            name: "",
+                            remotePath,
+                          });
                         }}
                         onOpenPlaces={() => openLeftPanel("places", t)}
                         onOpenMacros={() => openLeftPanel("macros", t)}
