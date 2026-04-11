@@ -71,10 +71,14 @@ import {
 } from "../../../wailsjs/go/main/App";
 import { onSSHState, startSSHEventBridge } from "../../ssh/events";
 
+import type { AgentContext } from "../../types/agent";
+
 type Props = {
   profiles: ProfileDTO[];
   groups: ProfileGroupDTO[];
   onOpenSecrets?: (profileId: string) => void;
+  /** Report context for the AI Agent panel (active container / SSH session). */
+  onAgentContext?: (ctx: AgentContext) => void;
 };
 
 type View = "containers" | "images" | "volumes" | "networks" | "system";
@@ -117,7 +121,7 @@ function shellQuote(p: string) {
   return `'${s.replace(/'/g, `'\"'\"'`)}'`;
 }
 
-export function DockerMode({ profiles, groups, onOpenSecrets }: Props) {
+export function DockerMode({ profiles, groups, onOpenSecrets, onAgentContext }: Props) {
   const [view, setView] = useState<View>("containers");
   const [scope, setScope] = useState<Scope>("local");
   const [localStatus, setLocalStatus] = useState<DockerStatusDTO | null>(null);
@@ -253,6 +257,31 @@ export function DockerMode({ profiles, groups, onOpenSecrets }: Props) {
     if (current) resolvedSessionIdByTabRef.current[t.id] = current;
     return resolvedSessionIdByTabRef.current[t.id] ?? current;
   };
+
+  useEffect(() => {
+    if (!onAgentContext) return;
+    const tab = activeDockerTab;
+    if (tab) {
+      const sid = resolveTabSessionId(tab);
+      onAgentContext({
+        mode: "docker",
+        sessionId: sid ?? "",
+        profileId: tab.profileId ?? activeRemoteProfileId ?? "",
+        dockerScope: tab.scope,
+        containerId: tab.containerId,
+      });
+      return;
+    }
+    const rsid =
+      scope === "remote" && activeRemoteProfileId ? remoteByProfile[activeRemoteProfileId]?.sessionId ?? "" : "";
+    onAgentContext({
+      mode: "docker",
+      sessionId: rsid,
+      profileId: activeRemoteProfileId ?? "",
+      dockerScope: scope,
+      containerId: activeContainerId ?? "",
+    });
+  }, [onAgentContext, activeDockerTab, scope, activeContainerId, activeRemoteProfileId, remoteByProfile]);
 
   const leftProfileShim = useMemo<ProfileDTO[]>(
     () =>

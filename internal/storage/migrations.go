@@ -79,6 +79,19 @@ func (s *Store) Migrate() error {
 				return nil
 			},
 		},
+		{
+			ID: "2026-04-12-0006-ai",
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(
+					&AiConversation{},
+					&AiMessage{},
+					&AiUsageEvent{},
+				)
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return nil
+			},
+		},
 	})
 
 	return m.Migrate()

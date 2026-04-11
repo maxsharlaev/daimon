@@ -24,9 +24,12 @@ import {
   SettingsPrivacyReport,
   UpsertLogFormat,
   UpsertMacro,
+  ListAiConversations,
+  DeleteAiConversation,
 } from "../../wailsjs/go/main/App";
 import type { MacroDTO, ProfileDTO } from "../types/models";
 import { SettingsPlacesPanel } from "./SettingsPlacesPanel";
+import { AiModePanel } from "./AiModePanel";
 import "./docker/docker.css";
 import type {
   LogFormatDTO,
@@ -36,6 +39,7 @@ import type {
   LogsSettingsDTO,
   SettingsPrivacyReportDTO,
 } from "../types/logs";
+import { main } from "../../wailsjs/go/models";
 import "./settingspage.css";
 
 type Props = {
@@ -45,7 +49,7 @@ type Props = {
   onOpenLogsWorkspace: () => void;
 };
 
-type SettingsTab = "logs" | "macros" | "places" | "privacy";
+type SettingsTab = "logs" | "macros" | "places" | "ai" | "privacy";
 
 type PrivacyProfileDetail = {
   profileId: string;
@@ -199,11 +203,28 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
   const [privacyMaintenanceErr, setPrivacyMaintenanceErr] = useState<string | null>(null);
   const [privacyMaintenanceConfirm, setPrivacyMaintenanceConfirm] = useState<null | "layout" | "logs" | "secrets">(null);
 
+  const [aiPrivacyList, setAiPrivacyList] = useState<main.AiConversationListDTO[]>([]);
+  const [aiPrivacyBusy, setAiPrivacyBusy] = useState(false);
+
   const sortedProfiles = useMemo(
     () =>
       [...profiles].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id, undefined, { sensitivity: "base" })),
     [profiles]
   );
+
+  useEffect(() => {
+    if (tab !== "privacy") return;
+    void (async () => {
+      setAiPrivacyBusy(true);
+      try {
+        setAiPrivacyList(await ListAiConversations());
+      } catch {
+        setAiPrivacyList([]);
+      } finally {
+        setAiPrivacyBusy(false);
+      }
+    })();
+  }, [tab]);
 
   const loadMacros = useCallback(async () => {
     setMacrosBusy(true);
@@ -821,6 +842,15 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
             <button
               type="button"
               role="tab"
+              className={`settings-tab ${tab === "ai" ? "active" : ""}`}
+              aria-selected={tab === "ai"}
+              onClick={() => setTab("ai")}
+            >
+              AI Mode
+            </button>
+            <button
+              type="button"
+              role="tab"
               className={`settings-tab ${tab === "privacy" ? "active" : ""}`}
               aria-selected={tab === "privacy"}
               onClick={() => setTab("privacy")}
@@ -833,8 +863,47 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
         <div className="settings-body">
           {tab === "places" ? <SettingsPlacesPanel profiles={profiles} /> : null}
 
+          {tab === "ai" ? <AiModePanel onSettingsChanged={() => void 0} /> : null}
+
           {tab === "privacy" ? (
             <div className="settings-section">
+              <div className="settings-section settings-ai-privacy-block">
+                <div className="settings-section-title">AI: saved dialogs</div>
+                <p className="muted small">Stored locally in the app database. Delete to remove message history.</p>
+                {aiPrivacyBusy ? <div className="muted">Loading…</div> : null}
+                <table className="settings-table ai-privacy-table">
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Updated</th>
+                      <th>Size</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiPrivacyList.map((c) => (
+                      <tr key={c.id}>
+                        <td>{c.title || "(untitled)"}</td>
+                        <td className="mono">{c.updatedAt?.slice(0, 19).replace("T", " ") ?? "—"}</td>
+                        <td className="mono">{c.byteSize} B</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={async () => {
+                              await DeleteAiConversation(c.id);
+                              setAiPrivacyList(await ListAiConversations());
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
               <div className="settings-privacy-dbsource">
                 <div className="settings-privacy-dbsource-label" id="settings-privacy-db-label">
                   Database source

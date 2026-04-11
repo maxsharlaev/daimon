@@ -295,3 +295,61 @@ func (m *LogEntry) BeforeCreate(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+// AiConversation is one persisted AI agent chat thread.
+type AiConversation struct {
+	ID     string `gorm:"primaryKey;size:36"`
+	Title  string `gorm:"not null;default:''"`
+	// SummaryText holds compressed history for storage / long context (optional).
+	SummaryText string `gorm:"not null;default:''"`
+	// SummaryUpdatedAt is set when SummaryText was last refreshed.
+	SummaryUpdatedAt *time.Time
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (m *AiConversation) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	return nil
+}
+
+// AiMessage is one message row in an AI conversation (user, assistant, system, tool).
+type AiMessage struct {
+	ID             string `gorm:"primaryKey;size:36"`
+	ConversationID string `gorm:"index;size:36;not null"`
+	Role           string `gorm:"index;size:16;not null"` // user | assistant | system | tool
+	PayloadJSON    string `gorm:"not null;default:'{}'"`
+	ByteSize       int    `gorm:"not null;default:0"`
+
+	CreatedAt time.Time
+}
+
+func (m *AiMessage) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	return nil
+}
+
+// AiUsageEvent records token usage for one LLM call (and optional errors).
+type AiUsageEvent struct {
+	ID     string `gorm:"primaryKey;size:36"`
+	Model  string `gorm:"index;size:120;not null;default:''"`
+	PromptTokens     int
+	CompletionTokens int
+	TotalTokens      int
+	ConversationID   string `gorm:"index;size:36;not null;default:''"`
+	Error            string `gorm:"not null;default:''"`
+
+	CreatedAt time.Time
+}
+
+func (m *AiUsageEvent) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	return nil
+}

@@ -366,6 +366,30 @@ func (a *App) DockerRemoteLogsStart(sessionId string, containerId string, tail s
 	return id, nil
 }
 
+// DockerRemoteLogsSnapshot runs a non-streaming docker logs on the remote host via SSH and truncates output.
+func (a *App) DockerRemoteLogsSnapshot(sessionId string, containerId string, tail string, since string, maxBytes int64) (string, error) {
+	if maxBytes <= 0 {
+		maxBytes = 65536
+	}
+	if tail == "" {
+		tail = "500"
+	}
+	var cmd string
+	if strings.TrimSpace(since) != "" {
+		cmd = fmt.Sprintf("docker logs --since %s --tail %s %s 2>&1", shellescape.Quote(since), shellescape.Quote(tail), shellescape.Quote(containerId))
+	} else {
+		cmd = fmt.Sprintf("docker logs --tail %s %s 2>&1", shellescape.Quote(tail), shellescape.Quote(containerId))
+	}
+	out, err := a.ssh.Exec(sessionId, cmd)
+	if err != nil {
+		return "", err
+	}
+	if int64(len(out)) > maxBytes {
+		out = out[len(out)-int(maxBytes):]
+	}
+	return out, nil
+}
+
 func (a *App) DockerRemoteExecStart(sessionId string, containerId string, cols int, rows int) (string, error) {
 	if a.ctx == nil || a.dockerStreams == nil {
 		return "", errors.New("app not ready")

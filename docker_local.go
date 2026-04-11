@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -374,6 +375,39 @@ func (a *App) DockerLocalLogsStart(containerId string, tail string, since string
 		return <-done
 	})
 	return id, nil
+}
+
+// DockerLocalLogsSnapshot reads a bounded amount of non-streaming container logs (stdout+stderr demux).
+func (a *App) DockerLocalLogsSnapshot(containerId string, tail string, since string, maxBytes int64) (string, error) {
+	if maxBytes <= 0 {
+		maxBytes = 65536
+	}
+	if tail == "" {
+		tail = "500"
+	}
+	cli, err := dockerClient()
+	if err != nil {
+		return "", err
+	}
+	defer cli.Close()
+	ctx := context.Background()
+	rc, err := cli.ContainerLogs(ctx, containerId, container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     false,
+		Tail:       tail,
+		Since:      since,
+	})
+	if err != nil {
+		return "", err
+	}
+	defer rc.Close()
+	var stdoutB, stderrB bytes.Buffer
+	_, err = stdcopy.StdCopy(&stdoutB, &stderrB, io.LimitReader(rc, maxBytes))
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	return stdoutB.String() + stderrB.String(), nil
 }
 
 func (a *App) DockerLocalExecStart(containerId string, cols int, rows int) (string, error) {

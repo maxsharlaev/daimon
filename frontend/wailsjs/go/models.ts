@@ -1,5 +1,221 @@
 export namespace main {
 	
+	export class AgentContextDTO {
+	    mode: string;
+	    sessionId: string;
+	    profileId: string;
+	    dockerScope: string;
+	    containerId: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AgentContextDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
+	        this.sessionId = source["sessionId"];
+	        this.profileId = source["profileId"];
+	        this.dockerScope = source["dockerScope"];
+	        this.containerId = source["containerId"];
+	    }
+	}
+	export class AiChatRequest {
+	    conversationId: string;
+	    userText: string;
+	    agentContext: AgentContextDTO;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiChatRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.conversationId = source["conversationId"];
+	        this.userText = source["userText"];
+	        this.agentContext = this.convertValues(source["agentContext"], AgentContextDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AiPendingCommandDTO {
+	    assistantMessageId: string;
+	    command: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiPendingCommandDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.assistantMessageId = source["assistantMessageId"];
+	        this.command = source["command"];
+	    }
+	}
+	export class AiMessageDTO {
+	    id: string;
+	    conversationId: string;
+	    role: string;
+	    payloadJson: string;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiMessageDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.conversationId = source["conversationId"];
+	        this.role = source["role"];
+	        this.payloadJson = source["payloadJson"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
+	export class AiChatResponse {
+	    assistantMessage?: AiMessageDTO;
+	    pendingCommand?: AiPendingCommandDTO;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiChatResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.assistantMessage = this.convertValues(source["assistantMessage"], AiMessageDTO);
+	        this.pendingCommand = this.convertValues(source["pendingCommand"], AiPendingCommandDTO);
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AiConversationListDTO {
+	    id: string;
+	    title: string;
+	    updatedAt: string;
+	    byteSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiConversationListDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.updatedAt = source["updatedAt"];
+	        this.byteSize = source["byteSize"];
+	    }
+	}
+	
+	
+	export class AiResolveCommandRequest {
+	    conversationId: string;
+	    assistantMessageId: string;
+	    approved: boolean;
+	    agentContext: AgentContextDTO;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiResolveCommandRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.conversationId = source["conversationId"];
+	        this.assistantMessageId = source["assistantMessageId"];
+	        this.approved = source["approved"];
+	        this.agentContext = this.convertValues(source["agentContext"], AgentContextDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AiSettingsDTO {
+	    integrationType: string;
+	    baseURL: string;
+	    model: string;
+	    maxTokensPerRequest: number;
+	    contextTokenLimit: number;
+	    summaryKeepLastMessages: number;
+	    apiKeySet: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiSettingsDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.integrationType = source["integrationType"];
+	        this.baseURL = source["baseURL"];
+	        this.model = source["model"];
+	        this.maxTokensPerRequest = source["maxTokensPerRequest"];
+	        this.contextTokenLimit = source["contextTokenLimit"];
+	        this.summaryKeepLastMessages = source["summaryKeepLastMessages"];
+	        this.apiKeySet = source["apiKeySet"];
+	    }
+	}
+	export class AiUsagePointDTO {
+	    day: string;
+	    totalTokens: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiUsagePointDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.day = source["day"];
+	        this.totalTokens = source["totalTokens"];
+	    }
+	}
 	export class DashboardAlertDTO {
 	    id: string;
 	    severity: string;
@@ -1029,6 +1245,38 @@ export namespace main {
 	        this.rows = source["rows"];
 	        this.timeoutMs = source["timeoutMs"];
 	    }
+	}
+	export class SaveAiSettingsRequest {
+	    settings: AiSettingsDTO;
+	    apiKey: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SaveAiSettingsRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.settings = this.convertValues(source["settings"], AiSettingsDTO);
+	        this.apiKey = source["apiKey"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class SecretItemDTO {
 	    profileId: string;

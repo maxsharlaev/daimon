@@ -79,7 +79,7 @@ func (r *Router) GetSecretValue(profileID string, kind Kind) (SecretValue, Stora
 		if err != nil {
 			return SecretValue{}, mode, err
 		}
-		if kind == KindPassword {
+		if kind == KindPassword || kind == KindAIAPIKey {
 			return SecretValue{Password: secret}, mode, nil
 		}
 		// For private key, store JSON in keyring to keep passphrase too
@@ -114,7 +114,7 @@ func (r *Router) PutSecretValue(profileID string, kind Kind, storageMode Storage
 		return r.SetSecretRef(profileID, kind, storageMode, "", metaJSON)
 	case StorageKeyring:
 		var payload string
-		if kind == KindPassword {
+		if kind == KindPassword || kind == KindAIAPIKey {
 			payload = val.Password
 		} else {
 			p, err := encodeSecretValue(val)

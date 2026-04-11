@@ -5,6 +5,8 @@ type Kind string
 const (
 	KindPassword   Kind = "password"
 	KindPrivateKey Kind = "private_key"
+	// KindAIAPIKey stores the OpenAI-compatible API key (SecretValue.Password) for app-level AI integration.
+	KindAIAPIKey Kind = "ai_api_key"
 )
 
 type Storage string

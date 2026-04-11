@@ -3,7 +3,19 @@
 import {main} from '../models';
 import {sftp} from '../models';
 
+export function AiChat(arg1:main.AiChatRequest):Promise<main.AiChatResponse>;
+
+export function AiResolveCommand(arg1:main.AiResolveCommandRequest):Promise<main.AiChatResponse>;
+
+export function AiTestOpenAIConnection():Promise<void>;
+
+export function AiUsageSeries(arg1:number):Promise<Array<main.AiUsagePointDTO>>;
+
 export function CopySecretToClipboard(arg1:string,arg2:string):Promise<void>;
+
+export function CreateAiConversation(arg1:string):Promise<string>;
+
+export function DeleteAiConversation(arg1:string):Promise<void>;
 
 export function DeleteLogFormat(arg1:string):Promise<void>;
 
@@ -60,6 +72,8 @@ export function DockerLocalListImages():Promise<Array<main.DockerImageDTO>>;
 export function DockerLocalListNetworks():Promise<Array<main.DockerNetworkDTO>>;
 
 export function DockerLocalListVolumes():Promise<Array<main.DockerVolumeDTO>>;
+
+export function DockerLocalLogsSnapshot(arg1:string,arg2:string,arg3:string,arg4:number):Promise<string>;
 
 export function DockerLocalLogsStart(arg1:string,arg2:string,arg3:string):Promise<string>;
 
@@ -131,6 +145,8 @@ export function DockerRemoteListNetworks(arg1:string):Promise<Array<main.DockerN
 
 export function DockerRemoteListVolumes(arg1:string):Promise<Array<main.DockerVolumeDTO>>;
 
+export function DockerRemoteLogsSnapshot(arg1:string,arg2:string,arg3:string,arg4:string,arg5:number):Promise<string>;
+
 export function DockerRemoteLogsStart(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
 
 export function DockerRemoteMkdir(arg1:string,arg2:string,arg3:string):Promise<void>;
@@ -171,6 +187,10 @@ export function ExportProfileEncrypted(arg1:string,arg2:string):Promise<string>;
 
 export function ExportProfileEncryptedPreview(arg1:string):Promise<string>;
 
+export function GetAiMessages(arg1:string):Promise<Array<main.AiMessageDTO>>;
+
+export function GetAiSettings():Promise<main.AiSettingsDTO>;
+
 export function GetLogsSettings():Promise<main.LogsSettingsDTO>;
 
 export function GetSecretRef(arg1:string,arg2:string):Promise<main.SecretRefDTO>;
@@ -178,6 +198,8 @@ export function GetSecretRef(arg1:string,arg2:string):Promise<main.SecretRefDTO>
 export function Greet(arg1:string):Promise<string>;
 
 export function ImportProfileEncrypted(arg1:string,arg2:string,arg3:main.ImportOptions):Promise<main.ProfileDTO>;
+
+export function ListAiConversations():Promise<Array<main.AiConversationListDTO>>;
 
 export function ListAllPlaces():Promise<Array<main.PlaceDTO>>;
 
@@ -304,6 +326,8 @@ export function SSHResize(arg1:string,arg2:number,arg3:number):Promise<void>;
 export function SSHSend(arg1:string,arg2:string):Promise<void>;
 
 export function SSHTestConnection(arg1:main.SSHConfig):Promise<string>;
+
+export function SaveAiSettings(arg1:main.SaveAiSettingsRequest):Promise<void>;
 
 export function SaveLogsSettings(arg1:main.LogsSettingsDTO):Promise<void>;
 

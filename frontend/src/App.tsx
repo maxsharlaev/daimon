@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 
 import { SplitView } from "./components/SplitView";
@@ -17,7 +17,11 @@ import {
   SFTPConnectProfile,
   UpsertPlace,
   UpsertMacro,
+  GetAiSettings,
 } from "../wailsjs/go/main/App";
+import { main } from "../wailsjs/go/models";
+import { AgentPanel } from "./components/AgentPanel";
+import type { AgentContext } from "./types/agent";
 import { pickSessionIcon } from "./utils/sessionTag";
 import { FilesTabs, type FilesSession } from "./components/FilesTabs";
 import { PlacesPanel } from "./components/PlacesPanel";
@@ -87,6 +91,49 @@ function App() {
   const [secretsModal, setSecretsModal] = useState<{ open: boolean; profileId: string | null }>({ open: false, profileId: null });
 
   const [navToRemoteBySessionId, setNavToRemoteBySessionId] = useState<Record<string, { path: string; token: number }>>({});
+
+  const [aiSettings, setAiSettings] = useState<main.AiSettingsDTO | null>(null);
+  const [agentOpen, setAgentOpen] = useState(false);
+  const [dockerAgentCtx, setDockerAgentCtx] = useState<AgentContext>({
+    mode: "docker",
+    sessionId: "",
+    profileId: "",
+    dockerScope: "",
+    containerId: "",
+  });
+
+  const refreshAiSettings = useCallback(() => {
+    void GetAiSettings().then(setAiSettings).catch(() => setAiSettings(null));
+  }, []);
+
+  useEffect(() => {
+    refreshAiSettings();
+  }, [appMode, refreshAiSettings]);
+
+  useEffect(() => {
+    const fn = () => refreshAiSettings();
+    window.addEventListener("daimon-ai-settings-changed", fn);
+    return () => window.removeEventListener("daimon-ai-settings-changed", fn);
+  }, [refreshAiSettings]);
+
+  const connectionsAgentCtx = useMemo((): AgentContext => {
+    const s = sessions.find((x) => x.sessionId === activeSessionId);
+    return {
+      mode: "connections",
+      sessionId: activeSessionId ?? "",
+      profileId: s?.profileId ?? "",
+      dockerScope: "",
+      containerId: "",
+    };
+  }, [sessions, activeSessionId]);
+
+  const agentContextForPanel = useMemo((): AgentContext => {
+    if (appMode === "connections") return connectionsAgentCtx;
+    if (appMode === "docker") return dockerAgentCtx;
+    return { mode: "logs", sessionId: "", profileId: "", dockerScope: "", containerId: "" };
+  }, [appMode, connectionsAgentCtx, dockerAgentCtx]);
+
+  const aiAgentEnabled = aiSettings?.integrationType === "openai_compatible";
 
   useEffect(() => {
     fileSessionsRef.current = fileSessions;
@@ -523,10 +570,26 @@ function App() {
   );
 
   const connectionsContent = (
-    <SplitView left={sidebar} right={rightPane} initialLeftPct={34} minLeftPx={340} minRightPx={420} />
+    <div className="app-mode-agent-wrap">
+      <div className="app-mode-agent-main">
+        <SplitView left={sidebar} right={rightPane} initialLeftPct={34} minLeftPx={340} minRightPx={420} />
+      </div>
+      {agentOpen && aiAgentEnabled ? (
+        <AgentPanel open={agentOpen} agentContext={agentContextForPanel} onClose={() => setAgentOpen(false)} />
+      ) : null}
+    </div>
   );
 
-  const dockerContent = <DockerMode profiles={profiles} groups={groups} onOpenSecrets={openSecretsForProfile} />;
+  const dockerContent = (
+    <div className="app-mode-agent-wrap">
+      <div className="app-mode-agent-main">
+        <DockerMode profiles={profiles} groups={groups} onOpenSecrets={openSecretsForProfile} onAgentContext={setDockerAgentCtx} />
+      </div>
+      {agentOpen && aiAgentEnabled ? (
+        <AgentPanel open={agentOpen} agentContext={agentContextForPanel} onClose={() => setAgentOpen(false)} />
+      ) : null}
+    </div>
+  );
   const logsContent = <LogsWorkspace profiles={profiles} />;
   const settingsContent = (
     <SettingsPage
