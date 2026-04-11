@@ -64,7 +64,7 @@ export function TerminalPanel({
       const term = new Terminal({
         cursorBlink: true,
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
-        fontSize: 13,
+        fontSize: 15,
         theme: {
           background: "#0b1220",
           foreground: "#c8d5e6",

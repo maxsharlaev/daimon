@@ -84,7 +84,16 @@ export function ProfileEditorModal({
     if (!open) return;
     setError(null);
     setBusy(false);
-    setGroupId(profile?.groupId ?? defaultGroupId ?? "");
+    const trimmed = (v: string | undefined | null) =>
+      v != null && String(v).trim() !== "" ? String(v).trim() : "";
+    let resolvedGroup = "";
+    if (profile?.id) {
+      const g = trimmed(profile.groupId);
+      resolvedGroup = g || trimmed(defaultGroupId) || groups[0]?.id || "";
+    } else {
+      resolvedGroup = trimmed(defaultGroupId) || groups[0]?.id || "";
+    }
+    setGroupId(resolvedGroup);
     setName(profile?.name ?? "");
     setHost(profile?.host ?? "");
     setPort(profile?.port ?? 22);
@@ -152,19 +161,22 @@ export function ProfileEditorModal({
     })();
   }, [open, profile, defaultGroupId]);
 
+  // Create flow: if groups arrive after open, pick first group (never override edit mode).
+  useEffect(() => {
+    if (!open) return;
+    if (profile?.id) return;
+    if (groupId) return;
+    if (defaultGroupId != null && String(defaultGroupId).trim() !== "") return;
+    const first = groups[0]?.id;
+    if (first) setGroupId(first);
+  }, [open, profile?.id, groupId, groups, defaultGroupId]);
+
   // Reset test indicator when inputs change
   useEffect(() => {
     if (!open) return;
     setTestState({ status: "idle" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, host, port, username, authKind, password, keyStorage, keyPath, keyPEM, keyPassphrase, insecureIgnoreHostKey, timeoutMs]);
-
-  useEffect(() => {
-    if (!open) return;
-    if (groupId) return;
-    if (defaultGroupId) return;
-    if (groups.length > 0) setGroupId(groups[0].id);
-  }, [open, groupId, groups, defaultGroupId]);
 
   const canSave = useMemo(() => {
     if (busy) return false;
