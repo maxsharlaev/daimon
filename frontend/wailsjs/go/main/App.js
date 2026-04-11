@@ -14,6 +14,10 @@ export function AiTestOpenAIConnection() {
   return window['go']['main']['App']['AiTestOpenAIConnection']();
 }
 
+export function AiTestOpenAIConnectionWithSettings(arg1) {
+  return window['go']['main']['App']['AiTestOpenAIConnectionWithSettings'](arg1);
+}
+
 export function AiUsageSeries(arg1) {
   return window['go']['main']['App']['AiUsageSeries'](arg1);
 }
@@ -672,6 +676,10 @@ export function SetSecret(arg1) {
 
 export function SettingsClearUILayout() {
   return window['go']['main']['App']['SettingsClearUILayout']();
+}
+
+export function SettingsDatabaseStorageReport() {
+  return window['go']['main']['App']['SettingsDatabaseStorageReport']();
 }
 
 export function SettingsPrivacyProfileDetail(arg1) {

@@ -94,6 +94,7 @@ function App() {
 
   const [aiSettings, setAiSettings] = useState<main.AiSettingsDTO | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
+  const [agentActiveConversationId, setAgentActiveConversationId] = useState<string | null>(null);
   const [dockerAgentCtx, setDockerAgentCtx] = useState<AgentContext>({
     mode: "docker",
     sessionId: "",
@@ -574,8 +575,13 @@ function App() {
       <div className="app-mode-agent-main">
         <SplitView left={sidebar} right={rightPane} initialLeftPct={34} minLeftPx={340} minRightPx={420} />
       </div>
-      {agentOpen && aiAgentEnabled ? (
-        <AgentPanel open={agentOpen} agentContext={agentContextForPanel} onClose={() => setAgentOpen(false)} />
+      {agentOpen && aiAgentEnabled && appMode === "connections" ? (
+        <AgentPanel
+          open={agentOpen}
+          agentContext={agentContextForPanel}
+          activeConversationId={agentActiveConversationId}
+          onActiveConversationIdChange={setAgentActiveConversationId}
+        />
       ) : null}
     </div>
   );
@@ -585,8 +591,13 @@ function App() {
       <div className="app-mode-agent-main">
         <DockerMode profiles={profiles} groups={groups} onOpenSecrets={openSecretsForProfile} onAgentContext={setDockerAgentCtx} />
       </div>
-      {agentOpen && aiAgentEnabled ? (
-        <AgentPanel open={agentOpen} agentContext={agentContextForPanel} onClose={() => setAgentOpen(false)} />
+      {agentOpen && aiAgentEnabled && appMode === "docker" ? (
+        <AgentPanel
+          open={agentOpen}
+          agentContext={agentContextForPanel}
+          activeConversationId={agentActiveConversationId}
+          onActiveConversationIdChange={setAgentActiveConversationId}
+        />
       ) : null}
     </div>
   );
@@ -602,7 +613,6 @@ function App() {
         setMacroEditorMacro(m);
         setMacroEditorOpen(true);
       }}
-      onOpenLogsWorkspace={() => setAppMode("logs")}
     />
   );
 
@@ -642,6 +652,17 @@ function App() {
           </div>
         </div>
         <div className="topbar-actions">
+          {aiAgentEnabled ? (
+            <button
+              className={`topbar-agent ${agentOpen ? "active" : ""}`}
+              type="button"
+              title={agentOpen ? "Close AI Agent" : "Open AI Agent"}
+              aria-pressed={agentOpen}
+              onClick={() => setAgentOpen((o) => !o)}
+            >
+              Agent
+            </button>
+          ) : null}
           <button className={`topbar-settings ${appMode === "settings" ? "active" : ""}`} type="button" onClick={() => setAppMode("settings")}>
             <span className="topbar-settings-icon" aria-hidden="true">
               ⚙

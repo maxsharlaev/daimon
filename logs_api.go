@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -37,15 +38,31 @@ type LogsSettingsDTO struct {
 }
 
 type SettingsPrivacyReportDTO struct {
-	DBPath         string `json:"dbPath"`
-	ProfileCount   int64  `json:"profileCount"`
-	PlaceCount     int64  `json:"placeCount"`
-	MacroCount     int64  `json:"macroCount"`
-	SecretRefCount int64  `json:"secretRefCount"`
-	VaultItemCount int64  `json:"vaultItemCount"`
-	LogSourceCount int64  `json:"logSourceCount"`
-	LogEntryCount  int64  `json:"logEntryCount"`
-	LogFormatCount int64  `json:"logFormatCount"`
+	DBPath              string `json:"dbPath"`
+	ProfileCount        int64  `json:"profileCount"`
+	PlaceCount          int64  `json:"placeCount"`
+	MacroCount          int64  `json:"macroCount"`
+	SecretRefCount      int64  `json:"secretRefCount"`
+	VaultItemCount      int64  `json:"vaultItemCount"`
+	AiConversationCount int64  `json:"aiConversationCount"`
+	LogSourceCount      int64  `json:"logSourceCount"`
+	LogEntryCount       int64  `json:"logEntryCount"`
+	LogFormatCount      int64  `json:"logFormatCount"`
+}
+
+// SettingsDatabaseTableStatDTO is one user table and its row count (SELECT COUNT(*)).
+type SettingsDatabaseTableStatDTO struct {
+	TableName string `json:"tableName"`
+	RowCount  int64  `json:"rowCount"`
+}
+
+// SettingsDatabaseStorageDTO summarizes database file size (and WAL/SHM if present) plus per-table row counts.
+type SettingsDatabaseStorageDTO struct {
+	DbPath    string                         `json:"dbPath"`
+	FileBytes int64                          `json:"fileBytes"`
+	WalBytes  int64                          `json:"walBytes"`
+	ShmBytes  int64                          `json:"shmBytes"`
+	Tables    []SettingsDatabaseTableStatDTO `json:"tables"`
 }
 
 type LogFormatDTO struct {
@@ -320,9 +337,62 @@ func (a *App) SettingsPrivacyReport() (SettingsPrivacyReportDTO, error) {
 	_ = a.db.DB.Model(&storage.Macro{}).Count(&out.MacroCount).Error
 	_ = a.db.DB.Model(&storage.SecretRef{}).Count(&out.SecretRefCount).Error
 	_ = a.db.DB.Model(&storage.VaultItem{}).Count(&out.VaultItemCount).Error
+	_ = a.db.DB.Model(&storage.AiConversation{}).Count(&out.AiConversationCount).Error
 	_ = a.db.DB.Model(&storage.LogSource{}).Count(&out.LogSourceCount).Error
 	_ = a.db.DB.Model(&storage.LogEntry{}).Count(&out.LogEntryCount).Error
 	_ = a.db.DB.Model(&storage.LogFormat{}).Count(&out.LogFormatCount).Error
+	return out, nil
+}
+
+func statFileBytes(path string) int64 {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0
+	}
+	return fi.Size()
+}
+
+func quoteSQLiteIdent(s string) string {
+	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+}
+
+// SettingsDatabaseStorageReport returns main DB file size (and WAL/SHM if present) plus row counts per app table.
+func (a *App) SettingsDatabaseStorageReport() (SettingsDatabaseStorageDTO, error) {
+	if a.db == nil || a.db.DB == nil {
+		return SettingsDatabaseStorageDTO{}, errors.New("db not ready")
+	}
+	dbPath := a.db.Path()
+	out := SettingsDatabaseStorageDTO{
+		DbPath:    dbPath,
+		FileBytes: statFileBytes(dbPath),
+		WalBytes:  statFileBytes(dbPath + "-wal"),
+		ShmBytes:  statFileBytes(dbPath + "-shm"),
+	}
+	rows, err := a.db.DB.Raw(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`).Rows()
+	if err != nil {
+		return out, nil
+	}
+	defer rows.Close()
+	var tableNames []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			continue
+		}
+		if name != "" {
+			tableNames = append(tableNames, name)
+		}
+	}
+	_ = rows.Err()
+
+	for _, tbl := range tableNames {
+		var cnt int64
+		q := "SELECT COUNT(*) FROM " + quoteSQLiteIdent(tbl)
+		if err := a.db.DB.Raw(q).Scan(&cnt).Error; err != nil {
+			continue
+		}
+		out.Tables = append(out.Tables, SettingsDatabaseTableStatDTO{TableName: tbl, RowCount: cnt})
+	}
 	return out, nil
 }
 

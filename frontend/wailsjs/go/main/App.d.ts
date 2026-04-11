@@ -9,6 +9,8 @@ export function AiResolveCommand(arg1:main.AiResolveCommandRequest):Promise<main
 
 export function AiTestOpenAIConnection():Promise<void>;
 
+export function AiTestOpenAIConnectionWithSettings(arg1:main.SaveAiSettingsRequest):Promise<void>;
+
 export function AiUsageSeries(arg1:number):Promise<Array<main.AiUsagePointDTO>>;
 
 export function CopySecretToClipboard(arg1:string,arg2:string):Promise<void>;
@@ -338,6 +340,8 @@ export function SetMacroFavorite(arg1:string,arg2:string,arg3:boolean):Promise<m
 export function SetSecret(arg1:main.SetSecretRequest):Promise<void>;
 
 export function SettingsClearUILayout():Promise<void>;
+
+export function SettingsDatabaseStorageReport():Promise<main.SettingsDatabaseStorageDTO>;
 
 export function SettingsPrivacyProfileDetail(arg1:string):Promise<main.SettingsPrivacyProfileDetailDTO>;
 

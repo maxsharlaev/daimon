@@ -23,10 +23,18 @@
   font-size: 13px;
 }
 
-.agent-panel-close {
-  font-size: 20px;
+.agent-panel-new {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 !important;
   line-height: 1;
-  padding: 2px 8px;
+  font-size: 20px;
+  font-weight: 600;
 }
 
 .agent-panel-body {
@@ -132,23 +140,163 @@
 
 .agent-dialogs-btn {
   flex-shrink: 0;
-  padding: 8px 10px !important;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 !important;
+  line-height: 1;
+  font-size: 15px;
 }
 
-.agent-dialogs-modal {
-  max-width: 520px;
-  width: 92vw;
+.modal.agent-dialogs-modal {
+  width: min(920px, 94vw);
+  max-width: 94vw;
 }
 
-.agent-dialog-list {
+.agent-dialogs-body {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-dialogs-columns {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(300px, 1.15fr);
+  gap: 14px;
+  align-items: stretch;
+  flex: 1;
+  min-height: 360px;
+  max-height: min(540px, 72vh);
+}
+
+.agent-dialogs-list-wrap {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-dialogs-modal .agent-dialog-list {
   list-style: none;
-  margin: 12px 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 360px;
-  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.agent-dialogs-preview {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  padding-left: 14px;
+}
+
+.agent-dialogs-preview-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.agent-dialogs-preview-label {
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.agent-dialogs-preview-sub {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-dialogs-preview-inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-dialogs-preview-empty {
+  padding: 8px 0;
+}
+
+.agent-dialogs-preview-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
+}
+
+.agent-dialog-preview-msg {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.agent-dialog-preview-role {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.42);
+  margin-bottom: 4px;
+}
+
+.agent-dialog-preview-msg--user .agent-dialog-preview-text {
+  color: rgba(180, 230, 255, 0.95);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.agent-dialog-preview-msg--assistant .agent-dialog-preview-text {
+  color: rgba(255, 255, 255, 0.88);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.agent-dialog-preview-msg--sys .agent-dialog-preview-text {
+  color: rgba(255, 200, 140, 0.9);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.modal.agent-dialogs-modal .modal-actions.agent-dialogs-actions {
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  gap: 0;
+}
+
+.agent-dialogs-actions-left {
+  padding-left: 12px;
+}
+
+.agent-dialogs-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 12px;
 }
 
 .agent-dialog-list li {
@@ -174,6 +322,16 @@
 .agent-dialog-pick.active {
   border-color: rgba(110, 231, 255, 0.4);
   background: rgba(110, 231, 255, 0.08);
+}
+
+.agent-dialog-pick.preview:not(.active) {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.agent-dialog-pick.preview.active {
+  border-color: rgba(110, 231, 255, 0.55);
+  background: rgba(110, 231, 255, 0.12);
 }
 
 .agent-dialog-title {

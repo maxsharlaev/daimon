@@ -7,6 +7,7 @@ import {
   parseDockerPlaceProfileId,
   sanitizeDockerPlaceNameSegment,
 } from "../utils/dockerPlaceProfileId";
+import { SETTINGS_REFRESH_ALL_EVENT } from "../settingsEvents";
 import "./docker/docker.css";
 
 export type PlacesSegment = "connection" | "docker_local" | "docker_remote";
@@ -113,6 +114,12 @@ export function SettingsPlacesPanel({ profiles }: Props) {
     await loadAll();
     if (segment === "docker_local") await loadLocalContainers();
   }, [loadAll, loadLocalContainers, segment]);
+
+  useEffect(() => {
+    const onRefreshAll = () => void refreshPlacesAndMaybeDocker();
+    window.addEventListener(SETTINGS_REFRESH_ALL_EVENT, onRefreshAll);
+    return () => window.removeEventListener(SETTINGS_REFRESH_ALL_EVENT, onRefreshAll);
+  }, [refreshPlacesAndMaybeDocker]);
 
   useEffect(() => {
     void loadAll();
@@ -317,14 +324,6 @@ export function SettingsPlacesPanel({ profiles }: Props) {
             </button>
           ))}
         </div>
-        <button
-          className="btn btn-ghost settings-places-refresh"
-          type="button"
-          onClick={() => void refreshPlacesAndMaybeDocker()}
-          disabled={busy || localContainersBusy}
-        >
-          Refresh
-        </button>
       </div>
 
       <div className="settings-master-detail">
@@ -353,7 +352,7 @@ export function SettingsPlacesPanel({ profiles }: Props) {
               <ul className="settings-master-list">
                 {localRows.length === 0 ? (
                   <li className="muted settings-master-empty">
-                    Local Docker is unavailable or there are no containers. If you already saved places, click Refresh after Docker is running.
+                    Local Docker is unavailable or there are no containers. If you already saved places, use Refresh in the Settings toolbar after Docker is running.
                   </li>
                 ) : null}
                 {localRows.map((row) => (

@@ -131,24 +131,53 @@ func truncateChatMessages(msgs []ai.ChatMessage, limit int) []ai.ChatMessage {
 	return out
 }
 
-// AiTestOpenAIConnection verifies base URL, model, and API key with a minimal completion.
+// aiTestOpenAIConnectionDraft runs a minimal completion using the given settings (may differ from saved DB state).
+// If req.ApiKey is empty, the stored key from secrets is used (same rule as Save).
+func (a *App) aiTestOpenAIConnectionDraft(req SaveAiSettingsRequest) error {
+	if a.db == nil || a.db.DB == nil {
+		return errors.New("db not ready")
+	}
+	s := req.Settings
+	if s.IntegrationType != "openai_compatible" {
+		return errors.New("AI integration is disabled")
+	}
+	baseURL := strings.TrimSpace(s.BaseURL)
+	model := strings.TrimSpace(s.Model)
+	if baseURL == "" {
+		return errors.New("baseURL required")
+	}
+	if model == "" {
+		return errors.New("model required")
+	}
+	var key string
+	var err error
+	if strings.TrimSpace(req.ApiKey) != "" {
+		key = strings.TrimSpace(req.ApiKey)
+	} else {
+		key, err = a.getOpenAIAPIKey()
+		if err != nil {
+			return err
+		}
+	}
+	client := ai.NewHTTPClient(45 * time.Second)
+	_, _, _, _, err = ai.ChatCompletion(client, key, baseURL, model, []ai.ChatMessage{
+		{Role: "user", Content: "Reply with exactly: ok"},
+	}, 16, 0)
+	return err
+}
+
+// AiTestOpenAIConnection verifies saved base URL, model, and API key with a minimal completion.
 func (a *App) AiTestOpenAIConnection() error {
 	st, err := a.loadAiSettingsDTO()
 	if err != nil {
 		return err
 	}
-	if st.IntegrationType != "openai_compatible" {
-		return errors.New("AI integration is disabled")
-	}
-	key, err := a.getOpenAIAPIKey()
-	if err != nil {
-		return err
-	}
-	client := ai.NewHTTPClient(45 * time.Second)
-	_, _, _, _, err = ai.ChatCompletion(client, key, st.BaseURL, st.Model, []ai.ChatMessage{
-		{Role: "user", Content: "Reply with exactly: ok"},
-	}, 16, 0)
-	return err
+	return a.aiTestOpenAIConnectionDraft(SaveAiSettingsRequest{Settings: st, ApiKey: ""})
+}
+
+// AiTestOpenAIConnectionWithSettings verifies using current form values (unsaved OK). Uses draft API key when non-empty.
+func (a *App) AiTestOpenAIConnectionWithSettings(req SaveAiSettingsRequest) error {
+	return a.aiTestOpenAIConnectionDraft(req)
 }
 
 // AiChat appends the user message, runs the model, executes non-interactive tools, and may return a pending command.

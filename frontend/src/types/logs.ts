@@ -67,9 +67,23 @@ export type SettingsPrivacyReportDTO = {
   macroCount: number;
   secretRefCount: number;
   vaultItemCount: number;
+  aiConversationCount: number;
   logSourceCount: number;
   logEntryCount: number;
   logFormatCount: number;
+};
+
+export type SettingsDatabaseTableStatDTO = {
+  tableName: string;
+  rowCount: number;
+};
+
+export type SettingsDatabaseStorageDTO = {
+  dbPath: string;
+  fileBytes: number;
+  walBytes: number;
+  shmBytes: number;
+  tables: SettingsDatabaseTableStatDTO[];
 };
 
 export type LogsSyncResultDTO = {

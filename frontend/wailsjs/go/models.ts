@@ -1344,6 +1344,59 @@ export namespace main {
 	        this.passphrase = source["passphrase"];
 	    }
 	}
+	export class SettingsDatabaseTableStatDTO {
+	    tableName: string;
+	    rowCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SettingsDatabaseTableStatDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tableName = source["tableName"];
+	        this.rowCount = source["rowCount"];
+	    }
+	}
+	export class SettingsDatabaseStorageDTO {
+	    dbPath: string;
+	    fileBytes: number;
+	    walBytes: number;
+	    shmBytes: number;
+	    tables: SettingsDatabaseTableStatDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SettingsDatabaseStorageDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dbPath = source["dbPath"];
+	        this.fileBytes = source["fileBytes"];
+	        this.walBytes = source["walBytes"];
+	        this.shmBytes = source["shmBytes"];
+	        this.tables = this.convertValues(source["tables"], SettingsDatabaseTableStatDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class SettingsPrivacyProfileDetailDTO {
 	    profileId: string;
 	    passwordStorage: string;
@@ -1399,6 +1452,7 @@ export namespace main {
 	    macroCount: number;
 	    secretRefCount: number;
 	    vaultItemCount: number;
+	    aiConversationCount: number;
 	    logSourceCount: number;
 	    logEntryCount: number;
 	    logFormatCount: number;
@@ -1415,6 +1469,7 @@ export namespace main {
 	        this.macroCount = source["macroCount"];
 	        this.secretRefCount = source["secretRefCount"];
 	        this.vaultItemCount = source["vaultItemCount"];
+	        this.aiConversationCount = source["aiConversationCount"];
 	        this.logSourceCount = source["logSourceCount"];
 	        this.logEntryCount = source["logEntryCount"];
 	        this.logFormatCount = source["logFormatCount"];

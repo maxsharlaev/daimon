@@ -22,12 +22,14 @@ import {
   SettingsClearUILayout,
   SettingsPrivacyProfileDetail,
   SettingsPrivacyReport,
+  SettingsDatabaseStorageReport,
   UpsertLogFormat,
   UpsertMacro,
   ListAiConversations,
   DeleteAiConversation,
 } from "../../wailsjs/go/main/App";
 import type { MacroDTO, ProfileDTO } from "../types/models";
+import { SETTINGS_REFRESH_ALL_EVENT } from "../settingsEvents";
 import { SettingsPlacesPanel } from "./SettingsPlacesPanel";
 import { AiModePanel } from "./AiModePanel";
 import "./docker/docker.css";
@@ -38,6 +40,7 @@ import type {
   LogParseDraftDTO,
   LogsSettingsDTO,
   SettingsPrivacyReportDTO,
+  SettingsDatabaseStorageDTO,
 } from "../types/logs";
 import { main } from "../../wailsjs/go/models";
 import "./settingspage.css";
@@ -46,7 +49,6 @@ type Props = {
   profiles: ProfileDTO[];
   onCreateMacro: () => void;
   onEditMacro: (m: MacroDTO) => void;
-  onOpenLogsWorkspace: () => void;
 };
 
 type SettingsTab = "logs" | "macros" | "places" | "ai" | "privacy";
@@ -65,6 +67,8 @@ type PrivacyProfileDetail = {
 };
 
 type PrivacyScope = "connection" | "docker_local" | "docker_remote";
+
+type PrivacySubPage = "home" | "database" | "profiles" | "dialogs" | "maintenance";
 
 type PrivacyDockerLogBucket = {
   containerName: string;
@@ -97,6 +101,19 @@ const FORMAT_SAMPLE_BY_BUILTIN: Record<string, string> = {
 
 const CUSTOM_FORMAT_FALLBACK_SAMPLE =
   "2026-04-10 14:32:01 ERROR connection refused to db.example.com:5432";
+
+function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "—";
+  if (n < 1024) return `${Math.round(n)} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = n / 1024;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(1)} ${units[i]}`;
+}
 
 function formatSampleLine(f: LogFormatDTO): string {
   const key = (f.builtinKey || "").trim();
@@ -146,8 +163,9 @@ const emptyEditor: FormatEditorState = {
   levelMappingJson: "{}",
 };
 
-export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsWorkspace }: Props) {
+export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
   const [tab, setTab] = useState<SettingsTab>("privacy");
+  const [settingsRefreshing, setSettingsRefreshing] = useState(false);
 
   const [macros, setMacros] = useState<MacroDTO[]>([]);
   const [macrosBusy, setMacrosBusy] = useState(false);
@@ -203,6 +221,10 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
   const [privacyMaintenanceErr, setPrivacyMaintenanceErr] = useState<string | null>(null);
   const [privacyMaintenanceConfirm, setPrivacyMaintenanceConfirm] = useState<null | "layout" | "logs" | "secrets">(null);
 
+  const [privacySub, setPrivacySub] = useState<PrivacySubPage>("home");
+  const [dbStorage, setDbStorage] = useState<SettingsDatabaseStorageDTO | null>(null);
+  const [dbStorageBusy, setDbStorageBusy] = useState(false);
+
   const [aiPrivacyList, setAiPrivacyList] = useState<main.AiConversationListDTO[]>([]);
   const [aiPrivacyBusy, setAiPrivacyBusy] = useState(false);
 
@@ -213,7 +235,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
   );
 
   useEffect(() => {
-    if (tab !== "privacy") return;
+    if (tab !== "privacy" || privacySub !== "dialogs") return;
     void (async () => {
       setAiPrivacyBusy(true);
       try {
@@ -224,7 +246,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
         setAiPrivacyBusy(false);
       }
     })();
-  }, [tab]);
+  }, [tab, privacySub]);
 
   const loadMacros = useCallback(async () => {
     setMacrosBusy(true);
@@ -252,6 +274,19 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
     }
   }, []);
 
+  const loadDbStorage = useCallback(async () => {
+    setDbStorageBusy(true);
+    try {
+      const raw = (await SettingsDatabaseStorageReport()) as SettingsDatabaseStorageDTO & { tables?: unknown };
+      const tables = Array.isArray(raw?.tables) ? raw.tables : [];
+      setDbStorage({ ...raw, tables } as SettingsDatabaseStorageDTO);
+    } catch {
+      setDbStorage(null);
+    } finally {
+      setDbStorageBusy(false);
+    }
+  }, []);
+
   const loadLogsSettings = useCallback(async () => {
     setFormatsBusy(true);
     setFormatsError(null);
@@ -273,6 +308,15 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
     void loadPrivacy();
     void loadLogsSettings();
   }, [loadLogsSettings, loadMacros, loadPrivacy]);
+
+  useEffect(() => {
+    if (tab !== "privacy") setPrivacySub("home");
+  }, [tab]);
+
+  useEffect(() => {
+    if (tab !== "privacy" || privacySub !== "database") return;
+    void loadDbStorage();
+  }, [tab, privacySub, loadDbStorage]);
 
   const loadPrivacyDetail = useCallback(async (profileId: string) => {
     setPrivacyDetailBusy(true);
@@ -365,23 +409,23 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
   ]);
 
   useEffect(() => {
-    if (tab !== "privacy") return;
+    if (tab !== "privacy" || privacySub !== "profiles") return;
     if (!privacySelectedProfileId) {
       setPrivacyDetail(null);
       return;
     }
     void loadPrivacyDetail(privacySelectedProfileId);
-  }, [tab, privacySelectedProfileId, loadPrivacyDetail]);
+  }, [tab, privacySub, privacySelectedProfileId, loadPrivacyDetail]);
 
   useEffect(() => {
-    if (tab !== "privacy") return;
+    if (tab !== "privacy" || privacySub !== "profiles") return;
     if (sortedProfiles.length === 0) {
       setPrivacySelectedProfileId(null);
       return;
     }
     if (privacySelectedProfileId && sortedProfiles.some((p) => p.id === privacySelectedProfileId)) return;
     setPrivacySelectedProfileId(sortedProfiles[0].id);
-  }, [tab, sortedProfiles, privacySelectedProfileId]);
+  }, [tab, privacySub, sortedProfiles, privacySelectedProfileId]);
 
   useEffect(() => {
     if (tab !== "privacy") {
@@ -393,12 +437,12 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
   }, [tab]);
 
   useEffect(() => {
-    if (tab !== "privacy" || privacyScope !== "docker_local") return;
+    if (tab !== "privacy" || privacySub !== "profiles" || privacyScope !== "docker_local") return;
     void reloadPrivacyDockerLocal();
-  }, [tab, privacyScope, reloadPrivacyDockerLocal]);
+  }, [tab, privacySub, privacyScope, reloadPrivacyDockerLocal]);
 
   useEffect(() => {
-    if (tab !== "privacy" || privacyScope !== "docker_remote") return;
+    if (tab !== "privacy" || privacySub !== "profiles" || privacyScope !== "docker_remote") return;
     const orphanIds = privacyRemoteOrphanProfileIds;
     if (sortedProfiles.length === 0 && orphanIds.length === 0) {
       setPrivacyRemoteMasterProfileId(null);
@@ -414,17 +458,17 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
     } else {
       setPrivacyRemoteMasterProfileId(orphanIds[0] ?? null);
     }
-  }, [tab, privacyScope, sortedProfiles, privacyRemoteOrphanProfileIds, privacyRemoteMasterProfileId]);
+  }, [tab, privacySub, privacyScope, sortedProfiles, privacyRemoteOrphanProfileIds, privacyRemoteMasterProfileId]);
 
   useEffect(() => {
-    if (tab !== "privacy" || privacyScope !== "docker_remote") {
+    if (tab !== "privacy" || privacySub !== "profiles" || privacyScope !== "docker_remote") {
       return;
     }
     void reloadPrivacyDockerRemoteOrphans();
-  }, [tab, privacyScope, reloadPrivacyDockerRemoteOrphans]);
+  }, [tab, privacySub, privacyScope, reloadPrivacyDockerRemoteOrphans]);
 
   useEffect(() => {
-    if (tab !== "privacy" || privacyScope !== "docker_remote" || !privacyRemoteMasterProfileId) {
+    if (tab !== "privacy" || privacySub !== "profiles" || privacyScope !== "docker_remote" || !privacyRemoteMasterProfileId) {
       setPrivacyDockerRemoteBuckets([]);
       return;
     }
@@ -435,6 +479,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
     void reloadPrivacyDockerRemote(privacyRemoteMasterProfileId);
   }, [
     tab,
+    privacySub,
     privacyScope,
     privacyRemoteMasterProfileId,
     privacyRemoteMasterIsKnownProfile,
@@ -454,13 +499,14 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
         if (action === "logs") await PrivacyPurgeProfileLogs(privacySelectedProfileId);
         await loadPrivacyDetail(privacySelectedProfileId);
         await loadPrivacy();
+        await loadDbStorage();
       } catch (e: any) {
         setPrivacyDetailError(e?.message ?? String(e));
       } finally {
         setPrivacyActionBusy(false);
       }
     },
-    [privacySelectedProfileId, loadPrivacyDetail, loadPrivacy]
+    [privacySelectedProfileId, loadPrivacyDetail, loadPrivacy, loadDbStorage]
   );
 
   const runDockerPrivacyPurgeLocal = useCallback(
@@ -479,6 +525,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
       try {
         await PrivacyPurgeDockerLocalLogs(containerName);
         await loadPrivacy();
+        await loadDbStorage();
         await reloadPrivacyDockerLocal();
         setPrivacyDockerLocalSelected(null);
       } catch (e: any) {
@@ -487,7 +534,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
         setPrivacyActionBusy(false);
       }
     },
-    [loadPrivacy, reloadPrivacyDockerLocal]
+    [loadPrivacy, loadDbStorage, reloadPrivacyDockerLocal]
   );
 
   const runDockerPrivacyPurgeRemote = useCallback(
@@ -511,6 +558,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
       try {
         await PrivacyPurgeDockerRemoteLogs(profileId, containerName);
         await loadPrivacy();
+        await loadDbStorage();
         await reloadPrivacyDockerRemoteOrphans();
         if (profiles.some((p) => p.id === profileId)) {
           await reloadPrivacyDockerRemote(profileId);
@@ -522,11 +570,12 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
         setPrivacyActionBusy(false);
       }
     },
-    [loadPrivacy, profiles, reloadPrivacyDockerRemote, reloadPrivacyDockerRemoteOrphans]
+    [loadPrivacy, loadDbStorage, profiles, reloadPrivacyDockerRemote, reloadPrivacyDockerRemoteOrphans]
   );
 
   const runPrivacyRefresh = useCallback(async () => {
     await loadPrivacy();
+    await loadDbStorage();
     if (privacyScope === "docker_local") await reloadPrivacyDockerLocal();
     if (privacyScope === "docker_remote") {
       await reloadPrivacyDockerRemoteOrphans();
@@ -539,6 +588,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
     }
   }, [
     loadPrivacy,
+    loadDbStorage,
     loadPrivacyDetail,
     privacyScope,
     privacySelectedProfileId,
@@ -549,6 +599,22 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
     reloadPrivacyDockerRemoteOrphans,
   ]);
 
+  const refreshAllSettings = useCallback(async () => {
+    setSettingsRefreshing(true);
+    try {
+      await Promise.all([loadMacros(), loadLogsSettings()]);
+      await runPrivacyRefresh();
+      try {
+        setAiPrivacyList(await ListAiConversations());
+      } catch {
+        setAiPrivacyList([]);
+      }
+      window.dispatchEvent(new CustomEvent(SETTINGS_REFRESH_ALL_EVENT));
+    } finally {
+      setSettingsRefreshing(false);
+    }
+  }, [loadMacros, loadLogsSettings, runPrivacyRefresh]);
+
   const executePrivacyMaintenance = useCallback(
     async (kind: "layout" | "logs" | "secrets") => {
       setPrivacyMaintenanceBusy(true);
@@ -557,9 +623,11 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
         if (kind === "layout") {
           await SettingsClearUILayout();
           await loadPrivacy();
+          await loadDbStorage();
         } else if (kind === "logs") {
           await LogsPurge({} as any);
           await loadPrivacy();
+          await loadDbStorage();
           if (privacySelectedProfileId) await loadPrivacyDetail(privacySelectedProfileId);
           await reloadPrivacyDockerLocal();
           await reloadPrivacyDockerRemoteOrphans();
@@ -569,6 +637,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
         } else {
           await PrivacyPurgeAllSecrets();
           await loadPrivacy();
+          await loadDbStorage();
           if (privacySelectedProfileId) await loadPrivacyDetail(privacySelectedProfileId);
         }
         setPrivacyMaintenanceConfirm(null);
@@ -581,6 +650,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
     },
     [
       loadPrivacy,
+      loadDbStorage,
       loadPrivacyDetail,
       privacySelectedProfileId,
       reloadPrivacyDockerLocal,
@@ -786,8 +856,14 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
           <span className="muted">Global settings, privacy report, and log format configuration.</span>
         </div>
         <div className="panel-actions">
-          <button className="btn btn-ghost" type="button" onClick={onOpenLogsWorkspace}>
-            Open Logs Workspace
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={() => void refreshAllSettings()}
+            disabled={settingsRefreshing}
+            title="Reload macros, logs settings, privacy report, database sizes, and open sub-panels"
+          >
+            {settingsRefreshing ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       </div>
@@ -848,15 +924,72 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
             >
               AI Mode
             </button>
-            <button
-              type="button"
-              role="tab"
-              className={`settings-tab ${tab === "privacy" ? "active" : ""}`}
-              aria-selected={tab === "privacy"}
-              onClick={() => setTab("privacy")}
-            >
-              Privacy
-            </button>
+            <div className="settings-nav-group settings-nav-group--privacy" role="presentation">
+              <button
+                type="button"
+                role="tab"
+                className={`settings-tab ${tab === "privacy" && privacySub === "home" ? "active" : ""}`}
+                aria-selected={tab === "privacy" && privacySub === "home"}
+                onClick={() => {
+                  setTab("privacy");
+                  setPrivacySub("home");
+                }}
+              >
+                Privacy
+              </button>
+              {tab === "privacy" ? (
+                <>
+                  <button
+                    type="button"
+                    role="tab"
+                    className={`settings-tab-text ${privacySub === "database" ? "active" : ""}`}
+                    aria-selected={privacySub === "database"}
+                    onClick={() => {
+                      setTab("privacy");
+                      setPrivacySub("database");
+                    }}
+                  >
+                    Database
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    className={`settings-tab-text ${privacySub === "profiles" ? "active" : ""}`}
+                    aria-selected={privacySub === "profiles"}
+                    onClick={() => {
+                      setTab("privacy");
+                      setPrivacySub("profiles");
+                    }}
+                  >
+                    Profiles
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    className={`settings-tab-text ${privacySub === "dialogs" ? "active" : ""}`}
+                    aria-selected={privacySub === "dialogs"}
+                    onClick={() => {
+                      setTab("privacy");
+                      setPrivacySub("dialogs");
+                    }}
+                  >
+                    Dialogs
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    className={`settings-tab-text ${privacySub === "maintenance" ? "active" : ""}`}
+                    aria-selected={privacySub === "maintenance"}
+                    onClick={() => {
+                      setTab("privacy");
+                      setPrivacySub("maintenance");
+                    }}
+                  >
+                    Maintenance
+                  </button>
+                </>
+              ) : null}
+            </div>
           </div>
         </aside>
 
@@ -866,59 +999,93 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
           {tab === "ai" ? <AiModePanel onSettingsChanged={() => void 0} /> : null}
 
           {tab === "privacy" ? (
-            <div className="settings-section">
-              <div className="settings-section settings-ai-privacy-block">
-                <div className="settings-section-title">AI: saved dialogs</div>
-                <p className="muted small">Stored locally in the app database. Delete to remove message history.</p>
-                {aiPrivacyBusy ? <div className="muted">Loading…</div> : null}
-                <table className="settings-table ai-privacy-table">
-                  <thead>
-                    <tr>
-                      <th>Title</th>
-                      <th>Updated</th>
-                      <th>Size</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {aiPrivacyList.map((c) => (
-                      <tr key={c.id}>
-                        <td>{c.title || "(untitled)"}</td>
-                        <td className="mono">{c.updatedAt?.slice(0, 19).replace("T", " ") ?? "—"}</td>
-                        <td className="mono">{c.byteSize} B</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            onClick={async () => {
-                              await DeleteAiConversation(c.id);
-                              setAiPrivacyList(await ListAiConversations());
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="settings-section settings-privacy-root">
+              {privacySub === "home" ? (
+                <div className="settings-section">
+                  {privacyError ? <div className="error-text">{privacyError}</div> : null}
+                  <div className="settings-section-title" style={{ marginTop: 4 }}>
+                    Record counts
+                  </div>
+                  <div className="settings-grid">
+                    <SettingCard label="Profiles" value={String(report?.profileCount ?? 0)} />
+                    <SettingCard label="Places" value={String(report?.placeCount ?? 0)} />
+                    <SettingCard label="Macros" value={String(report?.macroCount ?? 0)} />
+                    <SettingCard label="Secret refs" value={String(report?.secretRefCount ?? 0)} />
+                    <SettingCard label="Vault items" value={String(report?.vaultItemCount ?? 0)} />
+                    <SettingCard label="Dialogs" value={String(report?.aiConversationCount ?? 0)} />
+                    <SettingCard label="Log sources" value={String(report?.logSourceCount ?? 0)} />
+                    <SettingCard label="Log entries" value={String(report?.logEntryCount ?? 0)} />
+                    <SettingCard label="Log formats" value={String(report?.logFormatCount ?? 0)} />
+                  </div>
+                </div>
+              ) : null}
 
-              <div className="settings-privacy-dbsource">
-                <div className="settings-privacy-dbsource-label" id="settings-privacy-db-label">
-                  Database source
-                </div>
-                <div
-                  className="settings-privacy-dbpath mono"
-                  title={report?.dbPath ?? ""}
-                  aria-labelledby="settings-privacy-db-label"
-                >
-                  {report?.dbPath ?? "—"}
-                </div>
-              </div>
-              {privacyError ? <div className="error-text">{privacyError}</div> : null}
-              {privacyDetailError ? <div className="error-text">{privacyDetailError}</div> : null}
-              {privacyMaintenanceErr ? <div className="error-text">{privacyMaintenanceErr}</div> : null}
+              {privacySub === "database" ? (
+                <>
+                  <div className="settings-section-title">Database</div>
+                  {privacyError ? <div className="error-text">{privacyError}</div> : null}
+                  <div className="settings-privacy-dbsource">
+                    <div className="settings-privacy-dbsource-label" id="settings-privacy-db-label">
+                      Database file
+                    </div>
+                    <div
+                      className="settings-privacy-dbpath mono"
+                      title={report?.dbPath ?? dbStorage?.dbPath ?? ""}
+                      aria-labelledby="settings-privacy-db-label"
+                    >
+                      {report?.dbPath ?? dbStorage?.dbPath ?? "—"}
+                    </div>
+                  </div>
+                  <div className="settings-grid" style={{ marginTop: 12 }}>
+                    <SettingCard
+                      label="Main file"
+                      value={
+                        dbStorage ? formatBytes(Number(dbStorage.fileBytes) || 0) : dbStorageBusy ? "…" : "—"
+                      }
+                    />
+                    {dbStorage && Number(dbStorage.walBytes) > 0 ? (
+                      <SettingCard label="WAL (-wal)" value={formatBytes(Number(dbStorage.walBytes) || 0)} />
+                    ) : null}
+                    {dbStorage && Number(dbStorage.shmBytes) > 0 ? (
+                      <SettingCard label="Shared memory (-shm)" value={formatBytes(Number(dbStorage.shmBytes) || 0)} />
+                    ) : null}
+                  </div>
+                  {(dbStorage?.tables?.length ?? 0) > 0 ? (
+                    <>
+                      <div className="settings-section-title" style={{ marginTop: 16 }}>
+                        Tables
+                      </div>
+                      <p className="muted small">Row counts per SQLite table (<span className="mono">SELECT COUNT(*)</span>).</p>
+                      <table className="settings-table">
+                        <thead>
+                          <tr>
+                            <th>Table</th>
+                            <th>Rows</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(dbStorage?.tables ?? []).map((row) => (
+                            <tr key={row.tableName}>
+                              <td className="mono">{row.tableName}</td>
+                              <td className="mono">{String(row.rowCount ?? 0)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </>
+                  ) : dbStorage && !dbStorageBusy ? (
+                    <p className="muted small" style={{ marginTop: 12 }}>
+                      No table list available.
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+
+              {privacySub === "profiles" ? (
+                <>
+                  <div className="settings-section-title">Profiles</div>
+                  {privacyError ? <div className="error-text">{privacyError}</div> : null}
+                  {privacyDetailError ? <div className="error-text">{privacyDetailError}</div> : null}
 
               <div className="settings-places-topbar">
                 <div className="settings-places-segments" role="tablist" aria-label="Privacy data scope">
@@ -940,14 +1107,6 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
                     </button>
                   ))}
                 </div>
-                <button
-                  className="btn btn-ghost settings-places-refresh"
-                  type="button"
-                  onClick={() => void runPrivacyRefresh()}
-                  disabled={privacyBusy || privacyMaintenanceBusy}
-                >
-                  Refresh
-                </button>
               </div>
 
               {privacyScope === "connection" ? (
@@ -1382,49 +1541,87 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
               </div>
               )}
 
-              <div className="settings-grid">
-                <SettingCard label="Profiles" value={String(report?.profileCount ?? 0)} />
-                <SettingCard label="Places" value={String(report?.placeCount ?? 0)} />
-                <SettingCard label="Macros" value={String(report?.macroCount ?? 0)} />
-                <SettingCard label="Secret refs" value={String(report?.secretRefCount ?? 0)} />
-                <SettingCard label="Vault items" value={String(report?.vaultItemCount ?? 0)} />
-                <SettingCard label="Log sources" value={String(report?.logSourceCount ?? 0)} />
-                <SettingCard label="Log entries" value={String(report?.logEntryCount ?? 0)} />
-                <SettingCard label="Log formats" value={String(report?.logFormatCount ?? 0)} />
-              </div>
+                </>
+              ) : null}
 
-              <div className="settings-privacy-maintenance">
-                <div className="settings-privacy-maintenance-head">Maintenance</div>
-                <p className="muted settings-privacy-maintenance-desc">
-                  Bulk actions that affect the whole app or database. Use the per-scope controls above for targeted cleanup.
-                </p>
-                <div className="settings-privacy-maintenance-actions">
-                  <button
-                    className="btn btn-ghost"
-                    type="button"
-                    disabled={privacyMaintenanceBusy}
-                    onClick={() => setPrivacyMaintenanceConfirm("layout")}
-                  >
-                    Clear UI layout
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    type="button"
-                    disabled={privacyMaintenanceBusy}
-                    onClick={() => setPrivacyMaintenanceConfirm("logs")}
-                  >
-                    Purge all logs
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    type="button"
-                    disabled={privacyMaintenanceBusy}
-                    onClick={() => setPrivacyMaintenanceConfirm("secrets")}
-                  >
-                    Purge all secrets
-                  </button>
-                </div>
-              </div>
+              {privacySub === "dialogs" ? (
+                <>
+                  <div className="settings-section-title">AI dialogs</div>
+                  <p className="muted small">Stored locally in the app database. Delete to remove message history.</p>
+                  {aiPrivacyBusy ? <div className="muted">Loading…</div> : null}
+                  <table className="settings-table ai-privacy-table">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        <th>Updated</th>
+                        <th>Size</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {aiPrivacyList.map((c) => (
+                        <tr key={c.id}>
+                          <td>{c.title || "(untitled)"}</td>
+                          <td className="mono">{c.updatedAt?.slice(0, 19).replace("T", " ") ?? "—"}</td>
+                          <td className="mono">{c.byteSize} B</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={async () => {
+                                await DeleteAiConversation(c.id);
+                                setAiPrivacyList(await ListAiConversations());
+                                void loadDbStorage();
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              ) : null}
+
+              {privacySub === "maintenance" ? (
+                <>
+                  {privacyMaintenanceErr ? <div className="error-text">{privacyMaintenanceErr}</div> : null}
+                  <div className="settings-privacy-maintenance">
+                    <div className="settings-privacy-maintenance-head">Maintenance</div>
+                    <p className="muted settings-privacy-maintenance-desc">
+                      Bulk actions that affect the whole app or database. Use Profiles for targeted cleanup per connection or
+                      container.
+                    </p>
+                    <div className="settings-privacy-maintenance-actions">
+                      <button
+                        className="btn btn-ghost"
+                        type="button"
+                        disabled={privacyMaintenanceBusy}
+                        onClick={() => setPrivacyMaintenanceConfirm("layout")}
+                      >
+                        Clear UI layout
+                      </button>
+                      <button
+                        className="btn btn-ghost"
+                        type="button"
+                        disabled={privacyMaintenanceBusy}
+                        onClick={() => setPrivacyMaintenanceConfirm("logs")}
+                      >
+                        Purge all logs
+                      </button>
+                      <button
+                        className="btn btn-ghost"
+                        type="button"
+                        disabled={privacyMaintenanceBusy}
+                        onClick={() => setPrivacyMaintenanceConfirm("secrets")}
+                      >
+                        Purge all secrets
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : null}
             </div>
           ) : null}
 
@@ -1433,9 +1630,6 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
             {logsSubTab === "general" ? (
               <div className="settings-logs-general">
                 <div className="settings-toolbar">
-                  <button className="btn btn-ghost" type="button" onClick={() => void loadLogsSettings()} disabled={formatsBusy}>
-                    Refresh
-                  </button>
                   <button className="btn" type="button" onClick={() => void saveLogs()} disabled={!logsSettingsDirty}>
                     Save Defaults
                   </button>
@@ -1587,9 +1781,6 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
                         </button>
                       </div>
                       <div className="settings-formats-preview-toolbar-actions">
-                        <button className="btn btn-ghost" type="button" onClick={() => void loadLogsSettings()} disabled={formatsBusy}>
-                          Refresh
-                        </button>
                         <button className="btn" type="button" onClick={openCreateFormat}>
                           + Custom Format
                         </button>
@@ -1679,9 +1870,6 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro, onOpenLogsW
           {tab === "macros" ? (
           <div className="settings-section">
             <div className="settings-toolbar">
-              <button className="btn btn-ghost" type="button" onClick={() => void loadMacros()} disabled={macrosBusy}>
-                Refresh
-              </button>
               <button className="btn" type="button" onClick={onCreateMacro}>
                 + Macro
               </button>
