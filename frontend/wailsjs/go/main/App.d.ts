@@ -3,6 +3,8 @@
 import {main} from '../models';
 import {sftp} from '../models';
 
+export function AiAgentExplain(arg1:main.AiAgentExplainRequest):Promise<main.AiAgentExplainResponse>;
+
 export function AiChat(arg1:main.AiChatRequest):Promise<main.AiChatResponse>;
 
 export function AiResolveCommand(arg1:main.AiResolveCommandRequest):Promise<main.AiChatResponse>;

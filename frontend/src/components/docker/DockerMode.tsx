@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { MacroDTO, PlaceDTO, ProfileDTO, ProfileGroupDTO } from "../../types/models";
 import { SplitView } from "../SplitView";
 import { DockerSidebar } from "./DockerSidebar";
@@ -73,12 +74,24 @@ import { onSSHState, startSSHEventBridge } from "../../ssh/events";
 
 import type { AgentContext } from "../../types/agent";
 
+export type DockerAgentOutputDock = {
+  visible: boolean;
+  active: boolean;
+  onSelect: () => void;
+  onClose?: () => void;
+  children: ReactNode;
+};
+
 type Props = {
   profiles: ProfileDTO[];
   groups: ProfileGroupDTO[];
   onOpenSecrets?: (profileId: string) => void;
   /** Report context for the AI Agent panel (active container / SSH session). */
   onAgentContext?: (ctx: AgentContext) => void;
+  /** Agent shell output journal next to Logs/Shell/Files in the main Docker pane. */
+  agentOutputDock?: DockerAgentOutputDock | null;
+  /** User focused a container workspace tab — hide agent output pane. */
+  onClearAgentOutputDock?: () => void;
 };
 
 type View = "containers" | "images" | "volumes" | "networks" | "system";
@@ -121,7 +134,14 @@ function shellQuote(p: string) {
   return `'${s.replace(/'/g, `'\"'\"'`)}'`;
 }
 
-export function DockerMode({ profiles, groups, onOpenSecrets, onAgentContext }: Props) {
+export function DockerMode({
+  profiles,
+  groups,
+  onOpenSecrets,
+  onAgentContext,
+  agentOutputDock,
+  onClearAgentOutputDock,
+}: Props) {
   const [view, setView] = useState<View>("containers");
   const [scope, setScope] = useState<Scope>("local");
   const [localStatus, setLocalStatus] = useState<DockerStatusDTO | null>(null);
@@ -844,6 +864,7 @@ export function DockerMode({ profiles, groups, onOpenSecrets, onAgentContext }: 
   };
 
   const openDockerTab = (kind: DockerTabKind, containerId: string, containerName: string, initialPath?: string) => {
+    onClearAgentOutputDock?.();
     const sessionId = scope === "remote" ? activeRemoteSession?.sessionId ?? null : null;
     if (scope === "remote" && !sessionId) {
       setContainersError("Remote session not connected");
@@ -891,6 +912,7 @@ export function DockerMode({ profiles, groups, onOpenSecrets, onAgentContext }: 
     const lastId = lastTabByContainer[containerId];
     const lastTab = lastId ? dockerTabs.find((t) => t.id === lastId) : null;
     if (lastTab) {
+      onClearAgentOutputDock?.();
       setActiveDockerTabId(lastTab.id);
       setActiveContainerId(containerId);
       return;
@@ -1165,13 +1187,14 @@ export function DockerMode({ profiles, groups, onOpenSecrets, onAgentContext }: 
               <div className="muted">No active tabs.</div>
             ) : (
               dockerTabs.map((t) => {
-                const isActive = t.id === activeDockerTabId;
+                const isActive = !agentOutputDock?.active && t.id === activeDockerTabId;
                 return (
                   <button
                     key={t.id}
                     className={`docker-tabbtn ${isActive ? "active" : ""} kind-${t.kind}`}
                     type="button"
                     onClick={() => {
+                      onClearAgentOutputDock?.();
                       setActiveDockerTabId(t.id);
                       setActiveContainerId(t.containerId);
                       setLastTabByContainer((prev) => ({ ...prev, [t.containerId]: t.id }));
@@ -1193,22 +1216,58 @@ export function DockerMode({ profiles, groups, onOpenSecrets, onAgentContext }: 
                 );
               })
             )}
+            {agentOutputDock?.visible ? (
+              <button
+                type="button"
+                className={`docker-tabbtn kind-agent-output ${agentOutputDock.active ? "active" : ""}`}
+                onClick={() => agentOutputDock.onSelect()}
+                title="Agent command output"
+              >
+                <span className="docker-tabbtn-icon" aria-hidden="true">
+                  🤖
+                </span>
+                <span className="docker-tabbtn-label">Agent output</span>
+                {agentOutputDock.onClose ? (
+                  <span
+                    className="docker-tabbtn-close"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      agentOutputDock.onClose?.();
+                    }}
+                    title="Close"
+                  >
+                    ×
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
           </div>
           <div className="panel-titlebar">
             <div className="panel-title">Sessions</div>
             <div className="panel-meta">
-              {activeDockerTab
-                ? `${trimContainerName(activeDockerTab.containerName)} — ${activeDockerTab.kind}`
-                : "Select a container"}
+              {agentOutputDock?.active
+                ? "Agent output"
+                : activeDockerTab
+                  ? `${trimContainerName(activeDockerTab.containerName)} — ${activeDockerTab.kind}`
+                  : "Select a container"}
             </div>
           </div>
           <div className="panel-body">
-            {dockerTabs.length === 0 ? (
+            {dockerTabs.length === 0 && !agentOutputDock?.visible ? (
               <div className="empty">Pick a container and open Logs, Shell, or Files.</div>
+            ) : dockerTabs.length === 0 && agentOutputDock?.visible ? (
+              <div className="docker-tabpanes">
+                <div className={`docker-tabpane docker-tabpane-agent-output ${agentOutputDock.active ? "active" : ""}`}>
+                  {agentOutputDock.children}
+                </div>
+              </div>
             ) : (
               <div className="docker-tabpanes">
                 {dockerTabs.map((t) => (
-                  <div key={t.id} className={`docker-tabpane ${t.id === activeDockerTabId ? "active" : ""}`}>
+                  <div
+                    key={t.id}
+                    className={`docker-tabpane ${!agentOutputDock?.active && t.id === activeDockerTabId ? "active" : ""}`}
+                  >
                     {t.kind === "logs" ? (
                       <DockerLogsPanel
                         scope={t.scope}
@@ -1260,6 +1319,13 @@ export function DockerMode({ profiles, groups, onOpenSecrets, onAgentContext }: 
                     )}
                   </div>
                 ))}
+                {agentOutputDock?.visible ? (
+                  <div
+                    className={`docker-tabpane docker-tabpane-agent-output ${agentOutputDock.active ? "active" : ""}`}
+                  >
+                    {agentOutputDock.children}
+                  </div>
+                ) : null}
               </div>
             )}
           </div>

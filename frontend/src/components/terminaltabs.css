@@ -127,6 +127,40 @@
   opacity: 1;
 }
 
+.tab.tab-agent-output {
+  max-width: 240px;
+  border-style: dashed;
+}
+
+.tab.tab-agent-output.active {
+  border-style: solid;
+}
+
+.tab-agent-output-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.95;
+}
+
+.terminaltabs-panel-agent-output {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+/* Agent output tab: active uses flex so inner log can shrink and scroll (beats .terminaltabs-panel.active { display: block }). */
+.terminaltabs-panel.terminaltabs-panel-agent-output.active {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.terminaltabs-panel.terminaltabs-panel-agent-output.active > * {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
 .empty {
   padding: 14px;
   color: rgba(255, 255, 255, 0.65);

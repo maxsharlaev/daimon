@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useMemo } from "react";
 import type { ProfileDTO } from "../types/models";
 import { TerminalPanel } from "./TerminalPanel";
@@ -15,6 +16,15 @@ export type TerminalSession = {
   lastError?: string | null;
 };
 
+export type TerminalAgentOutputTab = {
+  visible: boolean;
+  active: boolean;
+  onSelect: () => void;
+  /** Close the Agent output tab (stay on terminal). */
+  onClose?: () => void;
+  children: ReactNode;
+};
+
 type Props = {
   profiles: ProfileDTO[];
   sessions: TerminalSession[];
@@ -26,6 +36,8 @@ type Props = {
   onOpenPlaces?: (profileId: string) => void;
   onOpenMacros?: (profileId: string) => void;
   onOpenSecrets?: (profileId: string) => void;
+  /** Journal of agent shell runs — tab next to terminal sessions in the main content area. */
+  agentOutputTab?: TerminalAgentOutputTab | null;
 };
 
 export function TerminalTabs({
@@ -39,6 +51,7 @@ export function TerminalTabs({
   onOpenPlaces,
   onOpenMacros,
   onOpenSecrets,
+  agentOutputTab,
 }: Props) {
   const byProfile = useMemo(() => {
     const m = new Map<string, ProfileDTO>();
@@ -52,7 +65,11 @@ export function TerminalTabs({
     return m;
   }, [sessions]);
 
-  if (sessions.length === 0) {
+  const active =
+    sessions.length > 0 ? (sessions.find((s) => s.sessionId === activeSessionId) ?? sessions[0]) : null;
+  const agentOut = agentOutputTab?.visible ? agentOutputTab : null;
+
+  if (sessions.length === 0 && !agentOut) {
     return (
       <div className="panel">
         <div className="panel-titlebar">
@@ -66,13 +83,11 @@ export function TerminalTabs({
     );
   }
 
-  const active = sessions.find((s) => s.sessionId === activeSessionId) ?? sessions[0];
-
   return (
     <div className="terminaltabs">
       <div className="terminaltabs-bar">
         {sessions.map((s) => {
-          const isActive = s.sessionId === active.sessionId;
+          const isActive = !agentOut?.active && active != null && s.sessionId === active.sessionId;
           const prof = byProfile.get(s.profileId);
           const multi = (countsByProfile.get(s.profileId) ?? 0) > 1;
           const label = prof
@@ -100,10 +115,35 @@ export function TerminalTabs({
             </button>
           );
         })}
+        {agentOut ? (
+          <button
+            type="button"
+            className={`tab tab-agent-output ${agentOut.active ? "active" : ""}`}
+            title="Agent command output"
+            onClick={() => agentOut.onSelect()}
+          >
+            <span className="tab-agent-output-icon" aria-hidden="true">
+              🤖
+            </span>
+            <span className="tab-label">Agent output</span>
+            {agentOut.onClose ? (
+              <span
+                className="tab-close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  agentOut.onClose?.();
+                }}
+                title="Close"
+              >
+                ×
+              </span>
+            ) : null}
+          </button>
+        ) : null}
       </div>
       <div className="terminaltabs-panels">
         {sessions.map((s) => {
-          const isActive = s.sessionId === active.sessionId;
+          const isActive = !agentOut?.active && active != null && s.sessionId === active.sessionId;
           return (
             <div key={s.sessionId} className={`terminaltabs-panel ${isActive ? "active" : ""}`}>
               <TerminalPanel
@@ -120,8 +160,10 @@ export function TerminalTabs({
             </div>
           );
         })}
+        {agentOut ? (
+          <div className={`terminaltabs-panel terminaltabs-panel-agent-output ${agentOut.active ? "active" : ""}`}>{agentOut.children}</div>
+        ) : null}
       </div>
     </div>
   );
 }
-

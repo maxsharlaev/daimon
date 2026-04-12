@@ -43,11 +43,97 @@ type AiResolveCommandRequest struct {
 type aiParsedReply struct {
 	ReplyText string              `json:"replyText"`
 	Service   []aiServiceItemJSON `json:"service"`
+	Tasks     []aiTaskItemJSON    `json:"tasks"`
 }
 
 type aiServiceItemJSON struct {
 	Type string         `json:"type"`
 	Meta map[string]any `json:"meta"`
+}
+
+type aiTaskItemJSON struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Status string `json:"status"`
+}
+
+func (a *App) buildAgentContextHintText(ag AgentContextDTO) string {
+	if a.db == nil || a.db.DB == nil {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("Current connection context (sanitized; no secrets): ")
+	b.WriteString("mode=" + strings.TrimSpace(ag.Mode))
+	if pid := strings.TrimSpace(ag.ProfileID); pid != "" {
+		b.WriteString("; profileId=" + pid)
+		var p storage.Profile
+		if err := a.db.DB.First(&p, "id = ?", pid).Error; err == nil {
+			b.WriteString("; host=" + p.Host)
+			b.WriteString(fmt.Sprintf("; port=%d", p.Port))
+			b.WriteString("; sshUser=" + p.Username)
+		}
+	}
+	if strings.TrimSpace(ag.SessionID) != "" {
+		b.WriteString("; hasActiveTerminalSession=true")
+	} else {
+		b.WriteString("; hasActiveTerminalSession=false")
+	}
+	if cid := strings.TrimSpace(ag.ContainerID); cid != "" {
+		b.WriteString("; containerId=" + cid)
+	}
+	if ds := strings.TrimSpace(ag.DockerScope); ds != "" {
+		b.WriteString("; dockerScope=" + ds)
+	}
+	b.WriteString("\n\nWhen the user asks about security, audit, or concrete host diagnostics and hasActiveTerminalSession is true, you MUST output a concrete task list in the `tasks` field (see protocol) and use service tools to gather facts — not generic advice alone. When all tasks are done or skipped, use replyText as a concise closing summary.")
+	return b.String()
+}
+
+// buildAgentContextShortLabel returns a one-line label for UI (tool run context, etc.).
+func (a *App) buildAgentContextShortLabel(ag AgentContextDTO) string {
+	mode := strings.TrimSpace(ag.Mode)
+	if a.db == nil || a.db.DB == nil {
+		if mode == "" {
+			return "App"
+		}
+		return mode
+	}
+	switch mode {
+	case "connections":
+		if pid := strings.TrimSpace(ag.ProfileID); pid != "" {
+			var p storage.Profile
+			if err := a.db.DB.First(&p, "id = ?", pid).Error; err == nil {
+				return fmt.Sprintf("%s — %s@%s:%d", p.Name, p.Username, p.Host, p.Port)
+			}
+			return "SSH profile " + pid
+		}
+		return "SSH (no profile)"
+	case "docker":
+		cid := strings.TrimSpace(ag.ContainerID)
+		ds := strings.TrimSpace(ag.DockerScope)
+		if cid != "" {
+			if ds != "" {
+				return "Docker (" + ds + ") · " + cid
+			}
+			return "Docker · " + cid
+		}
+		return "Docker"
+	default:
+		if mode == "" {
+			return "App"
+		}
+		return mode
+	}
+}
+
+func assistantPayloadMap(parsed aiParsedReply, extra map[string]any) map[string]any {
+	out := map[string]any{"replyText": parsed.ReplyText, "service": parsed.Service}
+	if len(parsed.Tasks) > 0 {
+		out["tasks"] = parsed.Tasks
+	}
+	for k, v := range extra {
+		out[k] = v
+	}
+	return out
 }
 
 func (a *App) getOpenAIAPIKey() (string, error) {
@@ -64,12 +150,15 @@ func (a *App) getOpenAIAPIKey() (string, error) {
 	return v.Password, nil
 }
 
-func (a *App) buildOpenAIMessages(convID string, st AiSettingsDTO) ([]ai.ChatMessage, error) {
+func (a *App) buildOpenAIMessages(convID string, st AiSettingsDTO, ag AgentContextDTO) ([]ai.ChatMessage, error) {
 	rows, err := a.GetAiMessages(convID)
 	if err != nil {
 		return nil, err
 	}
 	msgs := []ai.ChatMessage{{Role: "system", Content: ai.SystemPrompt()}}
+	if hint := a.buildAgentContextHintText(ag); hint != "" {
+		msgs = append(msgs, ai.ChatMessage{Role: "system", Content: hint})
+	}
 	for _, m := range rows {
 		switch m.Role {
 		case "user":
@@ -115,8 +204,12 @@ func truncateChatMessages(msgs []ai.ChatMessage, limit int) []ai.ChatMessage {
 	if len(msgs) == 0 {
 		return msgs
 	}
-	out := []ai.ChatMessage{msgs[0]}
-	rest := msgs[1:]
+	prefixLen := 0
+	for prefixLen < len(msgs) && msgs[prefixLen].Role == "system" {
+		prefixLen++
+	}
+	out := append([]ai.ChatMessage(nil), msgs[:prefixLen]...)
+	rest := append([]ai.ChatMessage(nil), msgs[prefixLen:]...)
 	for len(rest) > 0 {
 		t := 0
 		for _, m := range append(out, rest...) {
@@ -232,7 +325,7 @@ func (a *App) maybeSetConversationTitle(convID, firstUser string) error {
 func (a *App) aiRunModelTurn(convID, apiKey string, st AiSettingsDTO, ag AgentContextDTO) (AiChatResponse, error) {
 	client := ai.NewHTTPClient(120 * time.Second)
 	for round := 0; round < 4; round++ {
-		msgs, err := a.buildOpenAIMessages(convID, st)
+		msgs, err := a.buildOpenAIMessages(convID, st, ag)
 		if err != nil {
 			return AiChatResponse{}, err
 		}
@@ -254,13 +347,11 @@ func (a *App) aiRunModelTurn(convID, apiKey string, st AiSettingsDTO, ag AgentCo
 		toolTexts, pendingCmd, _ := a.aiExecuteServiceItems(ag, parsed.Service)
 
 		if pendingCmd != "" {
-			payload := map[string]any{
-				"replyText":      parsed.ReplyText,
-				"service":        parsed.Service,
+			payload := assistantPayloadMap(parsed, map[string]any{
 				"toolTrace":      toolTexts,
 				"phase":          "awaiting_command",
 				"pendingCommand": pendingCmd,
-			}
+			})
 			b, err := json.Marshal(payload)
 			if err != nil {
 				return AiChatResponse{}, err
@@ -277,8 +368,7 @@ func (a *App) aiRunModelTurn(convID, apiKey string, st AiSettingsDTO, ag AgentCo
 		}
 
 		if len(toolTexts) == 0 {
-			out := map[string]any{"replyText": parsed.ReplyText, "service": parsed.Service}
-			b, err := json.Marshal(out)
+			b, err := json.Marshal(assistantPayloadMap(parsed, nil))
 			if err != nil {
 				return AiChatResponse{}, err
 			}
@@ -295,7 +385,7 @@ func (a *App) aiRunModelTurn(convID, apiKey string, st AiSettingsDTO, ag AgentCo
 			return AiChatResponse{}, err
 		}
 		follow := "Tool results (JSON/text):\n" + strings.Join(toolTexts, "\n---\n") +
-			"\n\nAnswer in JSON with replyText and service (empty array if nothing else is needed)."
+			"\n\nAnswer in JSON with replyText, service (empty array if nothing else is needed), and tasks when you are using a task plan (keep stable task ids; update each status: pending, in_progress, done, or skipped). When no further tools are needed and every task is done or skipped, make replyText a concise closing summary of the whole investigation. If you include tasks and service is empty and you are not proposing a new shell command, do not leave any task in in_progress."
 		uj, _ := json.Marshal(map[string]string{"text": follow})
 		if _, err := a.appendAiMessage(convID, "user", string(uj)); err != nil {
 			return AiChatResponse{}, err
@@ -329,6 +419,9 @@ func parseAiReply(raw string) (aiParsedReply, error) {
 	}
 	if sv, ok := m["service"]; ok {
 		_ = json.Unmarshal(sv, &out.Service)
+	}
+	if tv, ok := m["tasks"]; ok && len(tv) > 0 {
+		_ = json.Unmarshal(tv, &out.Tasks)
 	}
 	return out, nil
 }
@@ -409,29 +502,31 @@ func (a *App) AiResolveCommand(req AiResolveCommandRequest) (AiChatResponse, err
 		return AiChatResponse{}, errors.New("conversationId and assistantMessageId required")
 	}
 
+	ctxLabel := a.buildAgentContextShortLabel(req.AgentContext)
+	var am storage.AiMessage
+	if err := a.db.DB.First(&am, "id = ? AND conversation_id = ?", amID, convID).Error; err != nil {
+		return AiChatResponse{}, err
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(am.PayloadJSON), &payload); err != nil {
+		return AiChatResponse{}, err
+	}
+	cmd, _ := payload["pendingCommand"].(string)
+	cmd = strings.TrimSpace(cmd)
+	if cmd == "" {
+		return AiChatResponse{}, errors.New("no pending command on assistant message")
+	}
+
 	var toolPayload map[string]any
 	if req.Approved {
-		var am storage.AiMessage
-		if err := a.db.DB.First(&am, "id = ? AND conversation_id = ?", amID, convID).Error; err != nil {
-			return AiChatResponse{}, err
-		}
-		var payload map[string]any
-		if err := json.Unmarshal([]byte(am.PayloadJSON), &payload); err != nil {
-			return AiChatResponse{}, err
-		}
-		cmd, _ := payload["pendingCommand"].(string)
-		cmd = strings.TrimSpace(cmd)
-		if cmd == "" {
-			return AiChatResponse{}, errors.New("no pending command on assistant message")
-		}
 		out, err := a.aiExecCommand(req.AgentContext, cmd)
 		if err != nil {
-			toolPayload = map[string]any{"tool": "command", "command": cmd, "error": err.Error(), "output": ""}
+			toolPayload = map[string]any{"tool": "command", "command": cmd, "error": err.Error(), "output": "", "contextLabel": ctxLabel}
 		} else {
-			toolPayload = map[string]any{"tool": "command", "command": cmd, "output": truncateStr(out, 200000)}
+			toolPayload = map[string]any{"tool": "command", "command": cmd, "output": truncateStr(out, 200000), "contextLabel": ctxLabel}
 		}
 	} else {
-		toolPayload = map[string]any{"tool": "command", "cancelled": true}
+		toolPayload = map[string]any{"tool": "command", "command": cmd, "cancelled": true, "contextLabel": ctxLabel}
 	}
 	tb, _ := json.Marshal(toolPayload)
 	if _, err := a.appendAiMessage(convID, "tool", string(tb)); err != nil {

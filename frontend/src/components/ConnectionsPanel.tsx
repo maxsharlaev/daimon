@@ -9,9 +9,7 @@ import {
   ListProfileGroups,
   ListProfiles,
   SSHConnectProfile,
-  SSHConnectProfileWithPassword,
   SSHDashboardConnectProfile,
-  SSHDashboardConnectProfileWithPassword,
   UpsertProfile,
   UpsertProfileGroup,
   VaultSetup,
@@ -26,6 +24,8 @@ import { SSHDisconnect } from "../../wailsjs/go/main/App";
 import { ClipboardSetText } from "../../wailsjs/runtime/runtime";
 import "./connections.css";
 import { ProfileEditorModal } from "./ProfileEditorModal";
+import { SshPasswordModal, type SshPasswordModalContext } from "./SshPasswordModal";
+import { VaultUnlockConnectionModal, type VaultUnlockConnectionContext } from "./VaultUnlockConnectionModal";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
 
 export type Marker = "green" | "gray" | "yellow" | "blue" | "purple" | "none";
@@ -125,6 +125,8 @@ export function ConnectionsPanel({
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sshPasswordModal, setSshPasswordModal] = useState<SshPasswordModalContext | null>(null);
+  const [vaultUnlockModal, setVaultUnlockModal] = useState<VaultUnlockConnectionContext | null>(null);
 
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [profileEditorProfileId, setProfileEditorProfileId] = useState<string | null>(null);
@@ -303,28 +305,13 @@ export function ConnectionsPanel({
       onOpenSession(id, p.id);
     } catch (e: any) {
       const msg = e?.message ?? String(e);
+      const lower = String(msg).toLowerCase();
+      if (lower.includes("vault locked")) {
+        setVaultUnlockModal({ profile: p, purpose: "terminal" });
+        return;
+      }
       if (String(msg).includes("password required")) {
-        const password = prompt(`Password for ${p.username}@${p.host}:`, "");
-        if (password === null) return;
-
-        const remember = prompt('Remember password? Enter: "none" | "keyring" | "internal"', "none");
-        if (remember === null) return;
-
-        if (remember === "internal") {
-          const st = await VaultStatus();
-          if (!st.setup) {
-            const mpw = prompt("Set master password for vault:", "");
-            if (mpw === null) return;
-            await VaultSetup(mpw);
-          } else if (!st.unlocked) {
-            const mpw = prompt("Unlock vault (master password):", "");
-            if (mpw === null) return;
-            await VaultUnlock(mpw);
-          }
-        }
-
-        const id = await SSHConnectProfileWithPassword(p.id, password, remember);
-        onOpenSession(id, p.id);
+        setSshPasswordModal({ profile: p, purpose: "terminal" });
         return;
       }
       setError(msg);
@@ -349,29 +336,13 @@ export function ConnectionsPanel({
       onDashboardMode();
     } catch (e: any) {
       const msg = e?.message ?? String(e);
+      const lower = String(msg).toLowerCase();
+      if (lower.includes("vault locked")) {
+        setVaultUnlockModal({ profile: p, purpose: "dashboard" });
+        return;
+      }
       if (String(msg).includes("password required")) {
-        const password = prompt(`Password for ${p.username}@${p.host}:`, "");
-        if (password === null) return;
-
-        const remember = prompt('Remember password? Enter: "none" | "keyring" | "internal"', "none");
-        if (remember === null) return;
-
-        if (remember === "internal") {
-          const st = await VaultStatus();
-          if (!st.setup) {
-            const mpw = prompt("Set master password for vault:", "");
-            if (mpw === null) return;
-            await VaultSetup(mpw);
-          } else if (!st.unlocked) {
-            const mpw = prompt("Unlock vault (master password):", "");
-            if (mpw === null) return;
-            await VaultUnlock(mpw);
-          }
-        }
-
-        const id = await SSHDashboardConnectProfileWithPassword(p.id, password, remember);
-        onOpenDashboardSession(id, p.id);
-        onDashboardMode();
+        setSshPasswordModal({ profile: p, purpose: "dashboard" });
         return;
       }
       setError(msg);
@@ -765,6 +736,34 @@ export function ConnectionsPanel({
           </div>
         </div>
       ) : null}
+
+      <SshPasswordModal
+        context={sshPasswordModal}
+        onClose={() => setSshPasswordModal(null)}
+        onConnected={(sessionId, purpose, profileId) => {
+          setSshPasswordModal(null);
+          if (purpose === "terminal") {
+            onOpenSession(sessionId, profileId);
+          } else {
+            onOpenDashboardSession(sessionId, profileId);
+            onDashboardMode();
+          }
+        }}
+      />
+
+      <VaultUnlockConnectionModal
+        context={vaultUnlockModal}
+        onClose={() => setVaultUnlockModal(null)}
+        onConnected={(sessionId, purpose, profileId) => {
+          setVaultUnlockModal(null);
+          if (purpose === "terminal") {
+            onOpenSession(sessionId, profileId);
+          } else {
+            onOpenDashboardSession(sessionId, profileId);
+            onDashboardMode();
+          }
+        }}
+      />
 
       <ProfileEditorModal
         open={profileEditorOpen}

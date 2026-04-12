@@ -304,10 +304,20 @@ func (m *SSHManager) Exec(id string, cmd string) (string, error) {
 	defer sess.Close()
 
 	out, err := sess.CombinedOutput(cmd)
-	if err != nil {
-		return "", fmt.Errorf("ssh exec failed: %w", err)
+	text := strings.TrimSpace(string(out))
+	if err == nil {
+		return text, nil
 	}
-	return strings.TrimSpace(string(out)), nil
+	// CombinedOutput still fills out when the remote exits non-zero (e.g. systemctl status → 3 for inactive/failed).
+	// Returning only the error hid useful diagnostics in the AI agent and SSHExec callers.
+	if text != "" {
+		var ee *ssh.ExitError
+		if errors.As(err, &ee) {
+			return text + fmt.Sprintf("\n\n[exit status %d]", ee.ExitStatus()), nil
+		}
+		return text + "\n\n[" + err.Error() + "]", nil
+	}
+	return "", fmt.Errorf("ssh exec failed: %w", err)
 }
 
 // Client returns the underlying ssh.Client for a connection id.

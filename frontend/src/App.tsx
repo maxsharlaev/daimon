@@ -20,8 +20,10 @@ import {
   GetAiSettings,
 } from "../wailsjs/go/main/App";
 import { main } from "../wailsjs/go/models";
-import { AgentPanel } from "./components/AgentPanel";
+import { AgentOutputLog } from "./components/AgentOutputLog";
+import { AgentPanel, type AgentRunContextStripProps } from "./components/AgentPanel";
 import type { AgentContext } from "./types/agent";
+import type { AgentToolRun } from "./types/agentToolRun";
 import { pickSessionIcon } from "./utils/sessionTag";
 import { FilesTabs, type FilesSession } from "./components/FilesTabs";
 import { PlacesPanel } from "./components/PlacesPanel";
@@ -95,6 +97,15 @@ function App() {
   const [aiSettings, setAiSettings] = useState<main.AiSettingsDTO | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
   const [agentActiveConversationId, setAgentActiveConversationId] = useState<string | null>(null);
+  const [agentToolRuns, setAgentToolRuns] = useState<AgentToolRun[]>([]);
+  const [connectionsAgentOutputActive, setConnectionsAgentOutputActive] = useState(false);
+  const [dockerAgentOutputActive, setDockerAgentOutputActive] = useState(false);
+  const [agentOutputFocusId, setAgentOutputFocusId] = useState<string | null>(null);
+  const [agentOutputHighlightId, setAgentOutputHighlightId] = useState<string | null>(null);
+  const agentOutputHighlightIdRef = useRef<string | null>(null);
+  const prevAgentToolRunCountRef = useRef(0);
+  const [agentOverrideSessionId, setAgentOverrideSessionId] = useState<string | null>(null);
+  const [agentConnectionPickerOpen, setAgentConnectionPickerOpen] = useState(false);
   const [dockerAgentCtx, setDockerAgentCtx] = useState<AgentContext>({
     mode: "docker",
     sessionId: "",
@@ -117,16 +128,65 @@ function App() {
     return () => window.removeEventListener("daimon-ai-settings-changed", fn);
   }, [refreshAiSettings]);
 
+  const effectiveAgentTerminalSessionId = useMemo(() => {
+    if (agentOverrideSessionId && sessions.some((s) => s.sessionId === agentOverrideSessionId)) {
+      return agentOverrideSessionId;
+    }
+    return activeSessionId;
+  }, [agentOverrideSessionId, sessions, activeSessionId]);
+
   const connectionsAgentCtx = useMemo((): AgentContext => {
-    const s = sessions.find((x) => x.sessionId === activeSessionId);
+    const s = sessions.find((x) => x.sessionId === effectiveAgentTerminalSessionId);
     return {
       mode: "connections",
-      sessionId: activeSessionId ?? "",
+      sessionId: effectiveAgentTerminalSessionId ?? "",
       profileId: s?.profileId ?? "",
       dockerScope: "",
       containerId: "",
     };
-  }, [sessions, activeSessionId]);
+  }, [sessions, effectiveAgentTerminalSessionId]);
+
+  const agentRunContextStrip = useMemo((): AgentRunContextStripProps | null => {
+    if (appMode === "connections") {
+      const sid = effectiveAgentTerminalSessionId;
+      const s = sessions.find((x) => x.sessionId === sid);
+      const p = profiles.find((pr) => pr.id === s?.profileId);
+      const label =
+        p != null
+          ? `${p.name} — ${p.username}@${p.host}:${p.port}`
+          : sid
+            ? "SSH session"
+            : "No session";
+      return {
+        label,
+        interactive: sessions.length > 0,
+        onOpenPicker: () => setAgentConnectionPickerOpen(true),
+        pickerOpen: agentConnectionPickerOpen,
+        onClosePicker: () => setAgentConnectionPickerOpen(false),
+        pickerSessions: sessions,
+        profiles,
+        onPickSession: (sessionId: string) => {
+          setAgentOverrideSessionId(sessionId);
+          setAgentConnectionPickerOpen(false);
+        },
+      };
+    }
+    if (appMode === "docker") {
+      const cid = (dockerAgentCtx.containerId || "").trim();
+      const ds = (dockerAgentCtx.dockerScope || "").trim();
+      const label = cid !== "" ? (ds !== "" ? `Docker (${ds}) · ${cid}` : `Docker · ${cid}`) : "Docker";
+      return {
+        label,
+        interactive: false,
+        pickerOpen: false,
+        onClosePicker: () => {},
+        pickerSessions: [],
+        profiles: [],
+        onPickSession: () => {},
+      };
+    }
+    return null;
+  }, [appMode, sessions, effectiveAgentTerminalSessionId, profiles, dockerAgentCtx, agentConnectionPickerOpen]);
 
   const agentContextForPanel = useMemo((): AgentContext => {
     if (appMode === "connections") return connectionsAgentCtx;
@@ -135,6 +195,74 @@ function App() {
   }, [appMode, connectionsAgentCtx, dockerAgentCtx]);
 
   const aiAgentEnabled = aiSettings?.integrationType === "openai_compatible";
+
+  const handleAgentToolRunsChange = useCallback((runs: AgentToolRun[]) => {
+    setAgentToolRuns(runs);
+  }, []);
+
+  const openAgentOutputWorkspace = useCallback(
+    (opts: { messageId: string }) => {
+      if (agentOutputHighlightIdRef.current === opts.messageId) {
+        agentOutputHighlightIdRef.current = null;
+        setAgentOutputHighlightId(null);
+        return;
+      }
+      agentOutputHighlightIdRef.current = opts.messageId;
+      setAgentOutputHighlightId(opts.messageId);
+      setAgentOutputFocusId(opts.messageId);
+      if (appMode === "connections") {
+        setRightMode("terminal");
+        setConnectionsAgentOutputActive(true);
+      } else if (appMode === "docker") {
+        setDockerAgentOutputActive(true);
+      }
+    },
+    [appMode]
+  );
+
+  const clearAgentOutputFocus = useCallback(() => {
+    setAgentOutputFocusId(null);
+  }, []);
+
+  useEffect(() => {
+    setAgentOutputFocusId(null);
+    agentOutputHighlightIdRef.current = null;
+    setAgentOutputHighlightId(null);
+  }, [agentActiveConversationId]);
+
+  useEffect(() => {
+    agentOutputHighlightIdRef.current = agentOutputHighlightId;
+  }, [agentOutputHighlightId]);
+
+  useEffect(() => {
+    const n = agentToolRuns.length;
+    if (n > prevAgentToolRunCountRef.current && prevAgentToolRunCountRef.current > 0) {
+      agentOutputHighlightIdRef.current = null;
+      setAgentOutputHighlightId(null);
+    }
+    prevAgentToolRunCountRef.current = n;
+  }, [agentToolRuns]);
+
+  useEffect(() => {
+    if (!agentOpen) {
+      setConnectionsAgentOutputActive(false);
+      setDockerAgentOutputActive(false);
+    }
+  }, [agentOpen]);
+
+  useEffect(() => {
+    setConnectionsAgentOutputActive(false);
+    setDockerAgentOutputActive(false);
+    setAgentOverrideSessionId(null);
+    setAgentConnectionPickerOpen(false);
+  }, [appMode]);
+
+  useEffect(() => {
+    if (!agentOverrideSessionId) return;
+    if (!sessions.some((s) => s.sessionId === agentOverrideSessionId)) {
+      setAgentOverrideSessionId(null);
+    }
+  }, [sessions, agentOverrideSessionId]);
 
   useEffect(() => {
     fileSessionsRef.current = fileSessions;
@@ -486,7 +614,10 @@ function App() {
           profiles={profiles}
           sessions={sessions}
           activeSessionId={activeSessionId}
-          onActivate={setActiveSessionId}
+          onActivate={(sid) => {
+            setActiveSessionId(sid);
+            setConnectionsAgentOutputActive(false);
+          }}
           onClose={closeSession}
           onShowPwd={async (sshSessionId) => {
             const cur = sessions.find((s) => s.sessionId === sshSessionId);
@@ -514,6 +645,28 @@ function App() {
             setPlaceModal({ open: true, profileId, name: "", remotePath });
             openPlacesForProfile(profileId);
           }}
+          agentOutputTab={
+            aiAgentEnabled && agentOpen
+              ? {
+                  visible: true,
+                  active: connectionsAgentOutputActive,
+                  onSelect: () => {
+                    setRightMode("terminal");
+                    setConnectionsAgentOutputActive(true);
+                  },
+                  onClose: () => setConnectionsAgentOutputActive(false),
+                  children: (
+                    <AgentOutputLog
+                      runs={agentToolRuns}
+                      agentContext={agentContextForPanel}
+                      focusMessageId={agentOutputFocusId}
+                      onFocusConsumed={clearAgentOutputFocus}
+                      highlightMessageId={agentOutputHighlightId}
+                    />
+                  ),
+                }
+              : null
+          }
         />
       </div>
       <div className={`rightstack-pane ${rightMode === "files" ? "active" : ""}`}>
@@ -581,6 +734,9 @@ function App() {
           agentContext={agentContextForPanel}
           activeConversationId={agentActiveConversationId}
           onActiveConversationIdChange={setAgentActiveConversationId}
+          onToolRunsChange={handleAgentToolRunsChange}
+          onRequestOpenAgentOutput={openAgentOutputWorkspace}
+          runContextStrip={agentRunContextStrip}
         />
       ) : null}
     </div>
@@ -589,7 +745,32 @@ function App() {
   const dockerContent = (
     <div className="app-mode-agent-wrap">
       <div className="app-mode-agent-main">
-        <DockerMode profiles={profiles} groups={groups} onOpenSecrets={openSecretsForProfile} onAgentContext={setDockerAgentCtx} />
+        <DockerMode
+          profiles={profiles}
+          groups={groups}
+          onOpenSecrets={openSecretsForProfile}
+          onAgentContext={setDockerAgentCtx}
+          agentOutputDock={
+            aiAgentEnabled && agentOpen
+              ? {
+                  visible: true,
+                  active: dockerAgentOutputActive,
+                  onSelect: () => setDockerAgentOutputActive(true),
+                  onClose: () => setDockerAgentOutputActive(false),
+                  children: (
+                    <AgentOutputLog
+                      runs={agentToolRuns}
+                      agentContext={agentContextForPanel}
+                      focusMessageId={agentOutputFocusId}
+                      onFocusConsumed={clearAgentOutputFocus}
+                      highlightMessageId={agentOutputHighlightId}
+                    />
+                  ),
+                }
+              : undefined
+          }
+          onClearAgentOutputDock={() => setDockerAgentOutputActive(false)}
+        />
       </div>
       {agentOpen && aiAgentEnabled && appMode === "docker" ? (
         <AgentPanel
@@ -597,6 +778,9 @@ function App() {
           agentContext={agentContextForPanel}
           activeConversationId={agentActiveConversationId}
           onActiveConversationIdChange={setAgentActiveConversationId}
+          onToolRunsChange={handleAgentToolRunsChange}
+          onRequestOpenAgentOutput={openAgentOutputWorkspace}
+          runContextStrip={agentRunContextStrip}
         />
       ) : null}
     </div>
