@@ -3,8 +3,9 @@
 ## Scope
 
 This project handles infrastructure connection data (SSH profiles, credentials, key
-material, command output, remote file paths). Security reports are welcome and
-appreciated.
+material, command output, remote file paths), **ingested log lines and metadata** (Logs
+workspace), and **optional AI assistant** data (local chat history, usage metadata, and
+user-configured LLM API access). Security reports are welcome and appreciated.
 
 ## Reporting a Vulnerability
 
@@ -50,6 +51,11 @@ The project is under active development. Current known security limitations incl
 - SSH host key verification is not yet secure-by-default in all connection paths
 - SFTP host key verification is currently MVP-level and needs hardening
 - threat model and hardening roadmap are documented in `docs/security/`
+- when **AI integration** is enabled, user content and agent context may be sent to the
+  **third-party LLM endpoint** you configure; treat this as sensitive data crossing a
+  trust boundary
+- **Log ingestion** stores arbitrary log content locally; rely on retention/redaction
+  settings and disk protections for sensitive environments
 
 See:
 

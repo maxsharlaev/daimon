@@ -13,6 +13,8 @@
 - Privacy and local data handling: `PRIVACY.md`
 - Threat model: `docs/security/THREAT_MODEL.md`
 - Hardening plan: `docs/security/HARDENING_ROADMAP.md`
+- Kubernetes mode (planned): `docs/kubernetes/IMPLEMENTATION_ROADMAP.md`
+- Light SQL / Data tab (planned, SSH tunnel only): `docs/sql/LIGHT_SQL_ROADMAP.md`
 
 ## Features
 
