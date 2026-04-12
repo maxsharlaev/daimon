@@ -2,6 +2,10 @@
 
 `daimon` is a **Golang + Wails** desktop app for working with remote hosts: an **SSH terminal**, **SFTP file browser**, **Places** (saved remote paths), **Macros** (parameterized scripts), and a Linux **Dashboard** (metrics + alerts).
 
+## Positioning
+
+**daimon** is a **local-first desktop operator console** for remote infrastructure: one place for **SSH**, **SFTP**, **repeatable scripts (Macros)**, **saved paths (Places)**, and **Linux visibility (Dashboard)** — with optional modes such as **Docker**. Secrets stay under user control (**OS keyring** and/or **encrypted internal vault**); network use is explicit. The app is **open source (MPL-2.0)**; commercial or team-oriented services (releases pipeline, billing, shared catalogs) are planned **around** the app, not as a mandatory cloud core — see **`docs/PRODUCT_ROADMAP.md`** and **`docs/ecosystem/AROUND_DAIMON.md`**.
+
 ## License
 
 - Source code: **MPL-2.0** (see `LICENSE`)
@@ -13,8 +17,10 @@
 - Privacy and local data handling: `PRIVACY.md`
 - Threat model: `docs/security/THREAT_MODEL.md`
 - Hardening plan: `docs/security/HARDENING_ROADMAP.md`
-- Kubernetes mode (planned): `docs/kubernetes/IMPLEMENTATION_ROADMAP.md`
-- Light SQL / Data tab (planned, SSH tunnel only): `docs/sql/LIGHT_SQL_ROADMAP.md`
+
+## Roadmaps (product and technical)
+
+Prioritized in-app work, ecosystem, and deep-dive plans: **`docs/PRODUCT_ROADMAP.md`** (index to Kubernetes, Light SQL/Data, hardening, and adjacent services).
 
 ## Features
 

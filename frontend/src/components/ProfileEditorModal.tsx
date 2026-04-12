@@ -549,11 +549,18 @@ export function ProfileEditorModal({
               <div className="subsection">
                 <div className="subsection-title">Private key storage</div>
                 <div className="row">
-                  <label>Storage</label>
+                  <label>
+                    Storage
+                    <Tooltip content="OS keyring has a small size limit (~2 KB). Large PEM keys are stored in the internal vault when it is unlocked, or choose Internal / external file.">
+                      <span className="help-icon" aria-label="Private key storage help">
+                        ?
+                      </span>
+                    </Tooltip>
+                  </label>
                   <select value={keyStorage} onChange={(e) => setKeyStorage(e.target.value as any)} disabled={busy}>
                     <option value="none">none (ask each time)</option>
                     <option value="external">external file path</option>
-                    <option value="keyring">keyring (OS) (stores PEM)</option>
+                    <option value="keyring">keyring (OS) — PEM if it fits</option>
                     <option value="internal">internal vault (stores PEM)</option>
                   </select>
                 </div>

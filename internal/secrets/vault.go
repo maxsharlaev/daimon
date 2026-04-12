@@ -115,6 +115,13 @@ func (v *Vault) Lock() {
 	v.key = nil
 }
 
+// IsUnlocked reports whether the vault currently holds a derived key (safe for Router to branch on).
+func (v *Vault) IsUnlocked() bool {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.unlocked && len(v.key) > 0
+}
+
 func (v *Vault) Put(profileID string, kind Kind, val SecretValue, hint string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()

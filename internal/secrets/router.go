@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"daimon/internal/storage"
 	"gorm.io/gorm"
@@ -15,12 +16,53 @@ type Router struct {
 	vault   *Vault
 }
 
+// maxKeyringPayloadLen is a conservative limit for OS keychain entries (e.g. Windows Credential
+// Manager ~2.5KB blob). PEM private keys as JSON almost always exceed this.
+const maxKeyringPayloadLen = 2000
+
 func NewRouter(db *gorm.DB) *Router {
 	return &Router{
 		db:      db,
 		keyring: NewKeyringStore("daimon"),
 		vault:   NewVault(db),
 	}
+}
+
+func isKeyringTooBigError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "too big") || strings.Contains(s, "too large") || strings.Contains(s, "credential blob")
+}
+
+func (r *Router) putPrivateKeyKeyringOrVault(profileID string, val SecretValue, metaJSON string) error {
+	payload, err := encodeSecretValue(val)
+	if err != nil {
+		return err
+	}
+	if len(payload) <= maxKeyringPayloadLen {
+		if err := r.keyring.Set(profileID, KindPrivateKey, payload); err != nil {
+			if r.vault.IsUnlocked() && isKeyringTooBigError(err) {
+				return r.putPrivateKeyVaultOnly(profileID, val, metaJSON)
+			}
+			return err
+		}
+		_ = r.vault.Delete(profileID, KindPrivateKey)
+		return r.SetSecretRef(profileID, KindPrivateKey, StorageKeyring, "keyring:"+r.keyring.Key(profileID, KindPrivateKey), metaJSON)
+	}
+	if r.vault.IsUnlocked() {
+		return r.putPrivateKeyVaultOnly(profileID, val, metaJSON)
+	}
+	return fmt.Errorf("private key is too large for the OS keyring (~%d byte limit). Unlock Internal vault and choose Internal storage, or use an external key file", maxKeyringPayloadLen)
+}
+
+func (r *Router) putPrivateKeyVaultOnly(profileID string, val SecretValue, metaJSON string) error {
+	if err := r.vault.Put(profileID, KindPrivateKey, val, ""); err != nil {
+		return err
+	}
+	_ = r.keyring.Delete(profileID, KindPrivateKey)
+	return r.SetSecretRef(profileID, KindPrivateKey, StorageInternal, "vault:"+profileID+":"+string(KindPrivateKey), metaJSON)
 }
 
 func (r *Router) Vault() *Vault {
@@ -113,6 +155,9 @@ func (r *Router) PutSecretValue(profileID string, kind Kind, storageMode Storage
 		_ = r.vault.Delete(profileID, kind)
 		return r.SetSecretRef(profileID, kind, storageMode, "", metaJSON)
 	case StorageKeyring:
+		if kind == KindPrivateKey {
+			return r.putPrivateKeyKeyringOrVault(profileID, val, metaJSON)
+		}
 		var payload string
 		if kind == KindPassword || kind == KindAIAPIKey {
 			payload = val.Password
