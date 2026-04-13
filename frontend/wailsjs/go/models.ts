@@ -1328,6 +1328,22 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class SaveAiToolExplainRequest {
+	    conversationId: string;
+	    messageId: string;
+	    explainText: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SaveAiToolExplainRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.conversationId = source["conversationId"];
+	        this.messageId = source["messageId"];
+	        this.explainText = source["explainText"];
+	    }
+	}
 	export class SecretItemDTO {
 	    profileId: string;
 	    key: string;

@@ -28,6 +28,7 @@ type ChatLine =
       cancelled: boolean;
       error?: string;
       contextLabel?: string;
+      explainText?: string;
     };
 
 type PreviewChatLine = Extract<ChatLine, { kind: "user" } | { kind: "assistant" }>;
@@ -107,6 +108,7 @@ function toAgentToolRuns(lines: ChatLine[]): AgentToolRun[] {
       cancelled: ln.cancelled,
       error: ln.error,
       contextLabel: ln.contextLabel,
+      explainText: ln.explainText,
     }));
 }
 
@@ -323,6 +325,17 @@ export function AgentPanel({
     if (!dialogsOpen || !convId) return;
     void loadDialogPreview(convId);
   }, [dialogsOpen, convId, loadDialogPreview]);
+
+  useEffect(() => {
+    const onExplainSaved = (ev: Event) => {
+      const ce = ev as CustomEvent<{ conversationId?: string }>;
+      const cid = ce.detail?.conversationId;
+      if (!open || !convId || cid !== convId) return;
+      void loadMessages(convId);
+    };
+    window.addEventListener("daimon-ai-tool-explain-saved", onExplainSaved);
+    return () => window.removeEventListener("daimon-ai-tool-explain-saved", onExplainSaved);
+  }, [open, convId, loadMessages]);
 
   const selectConv = async (id: string) => {
     setConvId(id);

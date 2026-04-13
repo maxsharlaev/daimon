@@ -333,6 +333,8 @@ export function SSHTestConnection(arg1:main.SSHConfig):Promise<string>;
 
 export function SaveAiSettings(arg1:main.SaveAiSettingsRequest):Promise<void>;
 
+export function SaveAiToolExplain(arg1:main.SaveAiToolExplainRequest):Promise<void>;
+
 export function SaveLogsSettings(arg1:main.LogsSettingsDTO):Promise<void>;
 
 export function SaveUILayout(arg1:string,arg2:string):Promise<void>;

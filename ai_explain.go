@@ -1,11 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
 
 	"daimon/internal/ai"
+	"daimon/internal/storage"
+
+	"gorm.io/gorm"
 )
 
 const aiExplainOutputMaxRunes = 24000
@@ -99,4 +103,57 @@ Match the user's language when the command or output is clearly Russian; otherwi
 		return AiAgentExplainResponse{Error: "empty model response"}, nil
 	}
 	return AiAgentExplainResponse{ReplyText: raw}, nil
+}
+
+// SaveAiToolExplainRequest merges cached explain text into an existing tool message payload.
+type SaveAiToolExplainRequest struct {
+	ConversationID string `json:"conversationId"`
+	MessageID      string `json:"messageId"`
+	ExplainText    string `json:"explainText"`
+}
+
+// SaveAiToolExplain persists explain text on a tool row so the UI does not call the model again.
+func (a *App) SaveAiToolExplain(req SaveAiToolExplainRequest) error {
+	if a.db == nil || a.db.DB == nil {
+		return errors.New("db not ready")
+	}
+	convID := strings.TrimSpace(req.ConversationID)
+	msgID := strings.TrimSpace(req.MessageID)
+	text := strings.TrimSpace(req.ExplainText)
+	if convID == "" || msgID == "" {
+		return errors.New("conversationId and messageId required")
+	}
+	if text == "" {
+		return errors.New("explainText required")
+	}
+	var m storage.AiMessage
+	err := a.db.DB.First(&m, "id = ? AND conversation_id = ?", msgID, convID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return errors.New("message not found")
+	}
+	if err != nil {
+		return err
+	}
+	if m.Role != "tool" {
+		return errors.New("message is not a tool row")
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(m.PayloadJSON), &payload); err != nil {
+		return err
+	}
+	payload["explainText"] = text
+	payload["explainAt"] = time.Now().UTC().Format(time.RFC3339)
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	js := string(b)
+	if err := a.db.DB.Model(&storage.AiMessage{}).Where("id = ? AND conversation_id = ?", msgID, convID).Updates(map[string]any{
+		"payload_json": js,
+		"byte_size":    len(js),
+	}).Error; err != nil {
+		return err
+	}
+	_ = a.db.DB.Model(&storage.AiConversation{}).Where("id = ?", convID).Update("updated_at", time.Now().UTC()).Error
+	return nil
 }

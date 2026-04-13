@@ -659,6 +659,7 @@ function App() {
                     <AgentOutputLog
                       runs={agentToolRuns}
                       agentContext={agentContextForPanel}
+                      conversationId={agentActiveConversationId}
                       focusMessageId={agentOutputFocusId}
                       onFocusConsumed={clearAgentOutputFocus}
                       highlightMessageId={agentOutputHighlightId}
@@ -761,6 +762,7 @@ function App() {
                     <AgentOutputLog
                       runs={agentToolRuns}
                       agentContext={agentContextForPanel}
+                      conversationId={agentActiveConversationId}
                       focusMessageId={agentOutputFocusId}
                       onFocusConsumed={clearAgentOutputFocus}
                       highlightMessageId={agentOutputHighlightId}

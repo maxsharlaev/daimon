@@ -662,6 +662,10 @@ export function SaveAiSettings(arg1) {
   return window['go']['main']['App']['SaveAiSettings'](arg1);
 }
 
+export function SaveAiToolExplain(arg1) {
+  return window['go']['main']['App']['SaveAiToolExplain'](arg1);
+}
+
 export function SaveLogsSettings(arg1) {
   return window['go']['main']['App']['SaveLogsSettings'](arg1);
 }

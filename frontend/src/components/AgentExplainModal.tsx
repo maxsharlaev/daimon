@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AiAgentExplain } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import type { AgentContext } from "../types/agent";
@@ -14,6 +14,10 @@ type Props = {
   kind: AgentExplainKind;
   command: string;
   output: string;
+  /** If set, show this text only — no LLM call (already persisted or optimistic). */
+  cachedReplyText?: string;
+  /** After a successful model reply; used to cache explain on the tool message (tool_output only). */
+  onPersistReply?: (replyText: string) => Promise<void>;
 };
 
 function dtoFromAgentContext(agentContext: AgentContext) {
@@ -26,10 +30,21 @@ function dtoFromAgentContext(agentContext: AgentContext) {
   });
 }
 
-export function AgentExplainModal({ open, onClose, agentContext, kind, command, output }: Props) {
+export function AgentExplainModal({
+  open,
+  onClose,
+  agentContext,
+  kind,
+  command,
+  output,
+  cachedReplyText,
+  onPersistReply,
+}: Props) {
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const persistRef = useRef(onPersistReply);
+  persistRef.current = onPersistReply;
 
   useEffect(() => {
     if (!open) {
@@ -41,6 +56,13 @@ export function AgentExplainModal({ open, onClose, agentContext, kind, command, 
     const cmd = command.trim();
     if (!cmd) {
       setErr("No command to explain");
+      return;
+    }
+    const cached = (cachedReplyText || "").trim();
+    if (cached) {
+      setErr(null);
+      setText(cached);
+      setLoading(false);
       return;
     }
     let cancelled = false;
@@ -62,7 +84,15 @@ export function AgentExplainModal({ open, onClose, agentContext, kind, command, 
           setText("");
         } else {
           setErr(null);
-          setText((res.replyText || "").trim());
+          const t = (res.replyText || "").trim();
+          setText(t);
+          if (t && kind === "tool_output" && persistRef.current) {
+            try {
+              await persistRef.current(t);
+            } catch (e) {
+              console.error("SaveAiToolExplain:", e);
+            }
+          }
         }
       } catch (e: unknown) {
         if (!cancelled) {
@@ -81,6 +111,7 @@ export function AgentExplainModal({ open, onClose, agentContext, kind, command, 
     kind,
     command,
     output,
+    cachedReplyText,
     agentContext.mode,
     agentContext.sessionId,
     agentContext.profileId,
