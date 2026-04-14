@@ -22,6 +22,7 @@ type AiSettingsDTO struct {
 	IntegrationType         string `json:"integrationType"` // none | openai_compatible
 	BaseURL                 string `json:"baseURL"`
 	Model                   string `json:"model"`
+	PreferredLanguage       string `json:"preferredLanguage"`
 	MaxTokensPerRequest     int    `json:"maxTokensPerRequest"`
 	ContextTokenLimit       int    `json:"contextTokenLimit"`
 	SummaryKeepLastMessages int    `json:"summaryKeepLastMessages"`
@@ -39,6 +40,7 @@ func defaultAiSettings() AiSettingsDTO {
 		IntegrationType:         "none",
 		BaseURL:                 "https://api.openai.com/v1",
 		Model:                   "gpt-4o-mini",
+		PreferredLanguage:       "",
 		MaxTokensPerRequest:     4096,
 		ContextTokenLimit:       ai.DefaultContextTokenLimit,
 		SummaryKeepLastMessages: ai.DefaultSummaryKeepLastMessages,
@@ -124,6 +126,10 @@ func (a *App) SaveAiSettings(req SaveAiSettingsRequest) error {
 		if strings.TrimSpace(s.Model) == "" {
 			return errors.New("model required")
 		}
+	}
+	s.PreferredLanguage = strings.TrimSpace(s.PreferredLanguage)
+	if len([]rune(s.PreferredLanguage)) > 80 {
+		s.PreferredLanguage = string([]rune(s.PreferredLanguage)[:80])
 	}
 	b, err := json.Marshal(s)
 	if err != nil {

@@ -51,6 +51,7 @@ export function AiModePanel({ onSettingsChanged }: Props) {
         integrationType: st.integrationType,
         baseURL: st.baseURL,
         model: st.model,
+        preferredLanguage: st.preferredLanguage,
         maxTokensPerRequest: st.maxTokensPerRequest,
         contextTokenLimit: st.contextTokenLimit,
         summaryKeepLastMessages: st.summaryKeepLastMessages,
@@ -78,6 +79,7 @@ export function AiModePanel({ onSettingsChanged }: Props) {
         integrationType: st.integrationType,
         baseURL: st.baseURL,
         model: st.model,
+        preferredLanguage: st.preferredLanguage,
         maxTokensPerRequest: st.maxTokensPerRequest,
         contextTokenLimit: st.contextTokenLimit,
         summaryKeepLastMessages: st.summaryKeepLastMessages,
@@ -148,6 +150,16 @@ export function AiModePanel({ onSettingsChanged }: Props) {
                 value={st.model}
                 onChange={(e) => setSt({ ...st, model: e.target.value })}
                 disabled={busy}
+              />
+            </label>
+            <label className="settings-field">
+              <span className="settings-field-label">Preferred language</span>
+              <input
+                className="settings-field-input"
+                value={st.preferredLanguage || ""}
+                onChange={(e) => setSt({ ...st, preferredLanguage: e.target.value })}
+                disabled={busy}
+                placeholder="e.g. Russian, English, Deutsch"
               />
             </label>
             <label className="settings-field">

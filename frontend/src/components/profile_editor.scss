@@ -88,6 +88,24 @@
   gap: 6px;
 }
 
+/* Keep tooltip bubbles inside modal bounds (modal container clips overflow). */
+.section .row > label:not(.label-inline) .tooltip {
+  margin-left: 6px;
+}
+
+.section .row > label.label-inline .tooltip {
+  margin-left: 0;
+}
+
+.section .tooltip-bubble {
+  left: 0;
+  transform: none;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 120px));
+  white-space: normal;
+  line-height: 1.35;
+}
+
 .help-icon {
   width: 16px;
   height: 16px;

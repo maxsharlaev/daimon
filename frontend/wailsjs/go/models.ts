@@ -232,6 +232,7 @@ export namespace main {
 	    integrationType: string;
 	    baseURL: string;
 	    model: string;
+	    preferredLanguage: string;
 	    maxTokensPerRequest: number;
 	    contextTokenLimit: number;
 	    summaryKeepLastMessages: number;
@@ -246,6 +247,7 @@ export namespace main {
 	        this.integrationType = source["integrationType"];
 	        this.baseURL = source["baseURL"];
 	        this.model = source["model"];
+	        this.preferredLanguage = source["preferredLanguage"];
 	        this.maxTokensPerRequest = source["maxTokensPerRequest"];
 	        this.contextTokenLimit = source["contextTokenLimit"];
 	        this.summaryKeepLastMessages = source["summaryKeepLastMessages"];

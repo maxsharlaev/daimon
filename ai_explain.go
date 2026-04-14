@@ -63,6 +63,9 @@ func (a *App) AiAgentExplain(req AiAgentExplainRequest) (AiAgentExplainResponse,
 The user clicked "Explain" on a shell command or its output. Reply in plain language only (no JSON, no tool calls).
 Be concise but useful: what the command does, what notable lines in the output mean, exit implications if obvious, and safety notes if relevant.
 Match the user's language when the command or output is clearly Russian; otherwise English is fine.`
+	if pl := strings.TrimSpace(st.PreferredLanguage); pl != "" {
+		system += "\nPreferred reply language: " + pl + ". If possible, write the explanation in this language."
+	}
 
 	var user strings.Builder
 	user.WriteString("Connection context (for orientation only): ")

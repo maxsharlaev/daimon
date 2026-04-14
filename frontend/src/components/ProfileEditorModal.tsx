@@ -549,7 +549,7 @@ export function ProfileEditorModal({
               <div className="subsection">
                 <div className="subsection-title">Private key storage</div>
                 <div className="row">
-                  <label>
+                  <label className="label-inline">
                     Storage
                     <Tooltip content="OS keyring has a small size limit (~2 KB). Large PEM keys are stored in the internal vault when it is unlocked, or choose Internal / external file.">
                       <span className="help-icon" aria-label="Private key storage help">
