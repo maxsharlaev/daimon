@@ -93,11 +93,19 @@ Match the user's language when the command or output is clearly Russian; otherwi
 	if maxTok > 2048 {
 		maxTok = 2048
 	}
-	raw, pt, ct, tt, err := ai.ChatCompletion(client, key, st.BaseURL, st.Model, []ai.ChatMessage{
+	msgs := []ai.ChatMessage{
 		{Role: "system", Content: system},
 		{Role: "user", Content: user.String()},
-	}, maxTok, 0.25)
-	a.recordAiUsage(st.Model, "explain", pt, ct, tt, errString(err))
+	}
+	raw, pt, ct, tt, err := ai.ChatCompletion(client, key, st.BaseURL, st.Model, msgs, maxTok, 0.25)
+	a.recordAiUsage(st.Model, "explain", pt, ct, tt, errString(err), aiUsageLogMeta{
+		Kind:          "explain",
+		Phase:         kind,
+		MessageCount:  len(msgs),
+		PromptChars:   estimateMessagesChars(msgs),
+		Conversation:  "explain",
+		PromptPreview: msgs,
+	})
 	if err != nil {
 		return AiAgentExplainResponse{Error: err.Error()}, nil
 	}

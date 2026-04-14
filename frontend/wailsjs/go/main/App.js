@@ -386,6 +386,10 @@ export function GetAiSettings() {
   return window['go']['main']['App']['GetAiSettings']();
 }
 
+export function GetAiUsageEventDetail(arg1) {
+  return window['go']['main']['App']['GetAiUsageEventDetail'](arg1);
+}
+
 export function GetLogsSettings() {
   return window['go']['main']['App']['GetLogsSettings']();
 }
@@ -404,6 +408,10 @@ export function ImportProfileEncrypted(arg1, arg2, arg3) {
 
 export function ListAiConversations() {
   return window['go']['main']['App']['ListAiConversations']();
+}
+
+export function ListAiUsageEvents(arg1) {
+  return window['go']['main']['App']['ListAiUsageEvents'](arg1);
 }
 
 export function ListAllPlaces() {
@@ -552,6 +560,10 @@ export function PrivacyPurgeDockerRemoteLogs(arg1, arg2) {
 
 export function PrivacyPurgeProfileLogs(arg1) {
   return window['go']['main']['App']['PrivacyPurgeProfileLogs'](arg1);
+}
+
+export function ReadAiDebugLog(arg1) {
+  return window['go']['main']['App']['ReadAiDebugLog'](arg1);
 }
 
 export function SFTPConnectProfile(arg1) {

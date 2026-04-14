@@ -27,11 +27,14 @@ import {
   UpsertMacro,
   ListAiConversations,
   DeleteAiConversation,
+  GetAiSettings,
 } from "../../wailsjs/go/main/App";
 import type { MacroDTO, ProfileDTO } from "../types/models";
 import { SETTINGS_REFRESH_ALL_EVENT } from "../settingsEvents";
 import { SettingsPlacesPanel } from "./SettingsPlacesPanel";
 import { AiModePanel } from "./AiModePanel";
+import { DeveloperAiLogsPanel } from "./DeveloperAiLogsPanel";
+import { DeveloperModePanel } from "./DeveloperModePanel";
 import "./docker/docker.css";
 import type {
   LogFormatDTO,
@@ -51,7 +54,7 @@ type Props = {
   onEditMacro: (m: MacroDTO) => void;
 };
 
-type SettingsTab = "logs" | "macros" | "places" | "ai" | "privacy";
+type SettingsTab = "logs" | "macros" | "places" | "ai" | "developer" | "privacy";
 
 type PrivacyProfileDetail = {
   profileId: string;
@@ -165,6 +168,7 @@ const emptyEditor: FormatEditorState = {
 
 export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
   const [tab, setTab] = useState<SettingsTab>("privacy");
+  const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
   const [settingsRefreshing, setSettingsRefreshing] = useState(false);
 
   const [macros, setMacros] = useState<MacroDTO[]>([]);
@@ -303,11 +307,21 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
     }
   }, []);
 
+  const loadAiModeGate = useCallback(async () => {
+    try {
+      const st = await GetAiSettings();
+      setDeveloperModeEnabled(!!st?.developerModeEnabled);
+    } catch {
+      setDeveloperModeEnabled(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadMacros();
     void loadPrivacy();
     void loadLogsSettings();
-  }, [loadLogsSettings, loadMacros, loadPrivacy]);
+    void loadAiModeGate();
+  }, [loadAiModeGate, loadLogsSettings, loadMacros, loadPrivacy]);
 
   useEffect(() => {
     if (tab !== "privacy") setPrivacySub("home");
@@ -604,6 +618,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
     try {
       await Promise.all([loadMacros(), loadLogsSettings()]);
       await runPrivacyRefresh();
+      await loadAiModeGate();
       try {
         setAiPrivacyList(await ListAiConversations());
       } catch {
@@ -613,7 +628,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
     } finally {
       setSettingsRefreshing(false);
     }
-  }, [loadMacros, loadLogsSettings, runPrivacyRefresh]);
+  }, [loadAiModeGate, loadMacros, loadLogsSettings, runPrivacyRefresh]);
 
   const executePrivacyMaintenance = useCallback(
     async (kind: "layout" | "logs" | "secrets") => {
@@ -924,6 +939,28 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
             >
               AI Mode
             </button>
+            <div className="settings-nav-group settings-nav-group--developer" role="presentation">
+              <button
+                type="button"
+                role="tab"
+                className={`settings-tab ${tab === "developer" ? "active" : ""}`}
+                aria-selected={tab === "developer"}
+                onClick={() => setTab("developer")}
+              >
+                Developer Mode
+              </button>
+              {tab === "developer" && developerModeEnabled ? (
+                <button
+                  type="button"
+                  role="tab"
+                  className={`settings-tab-text ${tab === "developer" ? "active" : ""}`}
+                  aria-selected={tab === "developer"}
+                  onClick={() => setTab("developer")}
+                >
+                  AI Logs
+                </button>
+              ) : null}
+            </div>
             <div className="settings-nav-group settings-nav-group--privacy" role="presentation">
               <button
                 type="button"
@@ -996,7 +1033,13 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
         <div className="settings-body">
           {tab === "places" ? <SettingsPlacesPanel profiles={profiles} /> : null}
 
-          {tab === "ai" ? <AiModePanel onSettingsChanged={() => void 0} /> : null}
+          {tab === "ai" ? <AiModePanel onSettingsChanged={() => void loadAiModeGate()} /> : null}
+          {tab === "developer" ? (
+            <>
+              <DeveloperModePanel onModeChanged={(enabled) => setDeveloperModeEnabled(enabled)} />
+              {developerModeEnabled ? <DeveloperAiLogsPanel /> : null}
+            </>
+          ) : null}
 
           {tab === "privacy" ? (
             <div className="settings-section settings-privacy-root">

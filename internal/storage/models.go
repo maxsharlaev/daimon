@@ -338,10 +338,15 @@ func (m *AiMessage) BeforeCreate(tx *gorm.DB) error {
 type AiUsageEvent struct {
 	ID     string `gorm:"primaryKey;size:36"`
 	Model  string `gorm:"index;size:120;not null;default:''"`
+	Kind   string `gorm:"index;size:32;not null;default:''"`  // chat_round | explain | test_connection
+	Phase  string `gorm:"index;size:80;not null;default:''"`  // optional subphase
 	PromptTokens     int
 	CompletionTokens int
 	TotalTokens      int
+	MessageCount     int
+	PromptChars      int
 	ConversationID   string `gorm:"index;size:36;not null;default:''"`
+	LogFile          string `gorm:"size:1024;not null;default:''"`
 	Error            string `gorm:"not null;default:''"`
 
 	CreatedAt time.Time

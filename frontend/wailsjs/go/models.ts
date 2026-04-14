@@ -190,6 +190,20 @@ export namespace main {
 	        this.byteSize = source["byteSize"];
 	    }
 	}
+	export class AiDebugLogReadResponse {
+	    logFile: string;
+	    content: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiDebugLogReadResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.logFile = source["logFile"];
+	        this.content = source["content"];
+	    }
+	}
 	
 	
 	export class AiResolveCommandRequest {
@@ -233,6 +247,7 @@ export namespace main {
 	    baseURL: string;
 	    model: string;
 	    preferredLanguage: string;
+	    developerModeEnabled: boolean;
 	    maxTokensPerRequest: number;
 	    contextTokenLimit: number;
 	    summaryKeepLastMessages: number;
@@ -248,10 +263,47 @@ export namespace main {
 	        this.baseURL = source["baseURL"];
 	        this.model = source["model"];
 	        this.preferredLanguage = source["preferredLanguage"];
+	        this.developerModeEnabled = source["developerModeEnabled"];
 	        this.maxTokensPerRequest = source["maxTokensPerRequest"];
 	        this.contextTokenLimit = source["contextTokenLimit"];
 	        this.summaryKeepLastMessages = source["summaryKeepLastMessages"];
 	        this.apiKeySet = source["apiKeySet"];
+	    }
+	}
+	export class AiUsageEventDTO {
+	    id: string;
+	    createdAt: string;
+	    model: string;
+	    kind: string;
+	    phase: string;
+	    promptTokens: number;
+	    completionTokens: number;
+	    totalTokens: number;
+	    messageCount: number;
+	    promptChars: number;
+	    conversationId: string;
+	    logFile: string;
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiUsageEventDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.createdAt = source["createdAt"];
+	        this.model = source["model"];
+	        this.kind = source["kind"];
+	        this.phase = source["phase"];
+	        this.promptTokens = source["promptTokens"];
+	        this.completionTokens = source["completionTokens"];
+	        this.totalTokens = source["totalTokens"];
+	        this.messageCount = source["messageCount"];
+	        this.promptChars = source["promptChars"];
+	        this.conversationId = source["conversationId"];
+	        this.logFile = source["logFile"];
+	        this.error = source["error"];
 	    }
 	}
 	export class AiUsagePointDTO {
@@ -687,6 +739,60 @@ export namespace main {
 	        this.passwordStorage = source["passwordStorage"];
 	        this.keyStorage = source["keyStorage"];
 	    }
+	}
+	export class ListAiUsageEventsRequest {
+	    limit: number;
+	    offset: number;
+	    kind: string;
+	    conversationId: string;
+	    sinceUnixMs: number;
+	    untilUnixMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ListAiUsageEventsRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.limit = source["limit"];
+	        this.offset = source["offset"];
+	        this.kind = source["kind"];
+	        this.conversationId = source["conversationId"];
+	        this.sinceUnixMs = source["sinceUnixMs"];
+	        this.untilUnixMs = source["untilUnixMs"];
+	    }
+	}
+	export class ListAiUsageEventsResponse {
+	    items: AiUsageEventDTO[];
+	    total: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ListAiUsageEventsResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], AiUsageEventDTO);
+	        this.total = source["total"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class ListLogSourcesRequest {
 	    kind: string;
@@ -1248,6 +1354,20 @@ export namespace main {
 	        this.parentId = source["parentId"];
 	        this.name = source["name"];
 	        this.order = source["order"];
+	    }
+	}
+	export class ReadAiDebugLogRequest {
+	    usageEventId: string;
+	    logFile: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReadAiDebugLogRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.usageEventId = source["usageEventId"];
+	        this.logFile = source["logFile"];
 	    }
 	}
 	export class SFTPTransferStartResult {

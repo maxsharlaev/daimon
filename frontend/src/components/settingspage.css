@@ -34,6 +34,10 @@
   padding-left: 18px;
 }
 
+.settings-nav-group--developer .settings-tab-text {
+  padding-left: 18px;
+}
+
 .settings-tab-text {
   width: 100%;
   text-align: left;

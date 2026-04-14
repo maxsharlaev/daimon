@@ -92,6 +92,16 @@ func (s *Store) Migrate() error {
 				return nil
 			},
 		},
+		{
+			ID: "2026-04-14-0007-ai-usage-devlog-fields",
+			Migrate: func(tx *gorm.DB) error {
+				// Add usage dimensions for developer diagnostics and AI logs UI.
+				return tx.AutoMigrate(&AiUsageEvent{})
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return nil
+			},
+		},
 	})
 
 	return m.Migrate()

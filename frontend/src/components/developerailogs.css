@@ -1,0 +1,120 @@
+.developer-ai-logs {
+  min-height: 0;
+}
+
+.developer-ai-logs-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.developer-ai-logs-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.developer-ai-logs-filters .btn.active {
+  border-color: rgba(110, 231, 255, 0.35);
+  background: rgba(110, 231, 255, 0.12);
+}
+
+.developer-ai-logs-filters select {
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(11, 18, 32, 0.55);
+  color: #fff;
+  padding: 0 8px;
+}
+
+.developer-ai-logs-summary {
+  margin-top: 8px;
+}
+
+.developer-ai-logs-split {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: minmax(280px, 420px) 1fr;
+  gap: 12px;
+  min-height: 360px;
+}
+
+.developer-ai-logs-list {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 8px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.developer-ai-log-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+}
+
+.developer-ai-log-item.active {
+  border-color: rgba(110, 231, 255, 0.4);
+  background: rgba(110, 231, 255, 0.08);
+}
+
+.developer-ai-log-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.developer-ai-log-item-sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+}
+
+.developer-ai-logs-detail {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 10px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.developer-ai-log-kv {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.developer-ai-log-raw-head {
+  margin-top: 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.developer-ai-log-raw {
+  margin: 0;
+  max-height: min(520px, 60vh);
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+

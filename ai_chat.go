@@ -248,9 +248,16 @@ func (a *App) aiTestOpenAIConnectionDraft(req SaveAiSettingsRequest) error {
 		}
 	}
 	client := ai.NewHTTPClient(45 * time.Second)
-	_, _, _, _, err = ai.ChatCompletion(client, key, baseURL, model, []ai.ChatMessage{
-		{Role: "user", Content: "Reply with exactly: ok"},
-	}, 16, 0)
+	msgs := []ai.ChatMessage{{Role: "user", Content: "Reply with exactly: ok"}}
+	_, pt, ct, tt, err := ai.ChatCompletion(client, key, baseURL, model, msgs, 16, 0)
+	a.recordAiUsage(model, "settings:test_connection", pt, ct, tt, errString(err), aiUsageLogMeta{
+		Kind:          "test_connection",
+		Phase:         "settings_check",
+		MessageCount:  len(msgs),
+		PromptChars:   estimateMessagesChars(msgs),
+		Conversation:  "settings:test_connection",
+		PromptPreview: msgs,
+	})
 	return err
 }
 
@@ -325,7 +332,13 @@ func (a *App) aiRunModelTurn(convID, apiKey string, st AiSettingsDTO, ag AgentCo
 			return AiChatResponse{}, err
 		}
 		raw, pt, ct, tt, err := ai.ChatCompletion(client, apiKey, st.BaseURL, st.Model, msgs, st.MaxTokensPerRequest, 0.2)
-		a.recordAiUsage(st.Model, convID, pt, ct, tt, errString(err))
+		a.recordAiUsage(st.Model, convID, pt, ct, tt, errString(err), aiUsageLogMeta{
+			Kind:          "chat_round",
+			Phase:         fmt.Sprintf("round_%d", round+1),
+			MessageCount:  len(msgs),
+			PromptChars:   estimateMessagesChars(msgs),
+			PromptPreview: msgs,
+		})
 		if err != nil {
 			return AiChatResponse{Error: err.Error()}, nil
 		}

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,6 +25,7 @@ type AiSettingsDTO struct {
 	BaseURL                 string `json:"baseURL"`
 	Model                   string `json:"model"`
 	PreferredLanguage       string `json:"preferredLanguage"`
+	DeveloperModeEnabled    bool   `json:"developerModeEnabled"`
 	MaxTokensPerRequest     int    `json:"maxTokensPerRequest"`
 	ContextTokenLimit       int    `json:"contextTokenLimit"`
 	SummaryKeepLastMessages int    `json:"summaryKeepLastMessages"`
@@ -41,6 +44,7 @@ func defaultAiSettings() AiSettingsDTO {
 		BaseURL:                 "https://api.openai.com/v1",
 		Model:                   "gpt-4o-mini",
 		PreferredLanguage:       "",
+		DeveloperModeEnabled:    false,
 		MaxTokensPerRequest:     4096,
 		ContextTokenLimit:       ai.DefaultContextTokenLimit,
 		SummaryKeepLastMessages: ai.DefaultSummaryKeepLastMessages,
@@ -255,6 +259,46 @@ type AiUsagePointDTO struct {
 	TotalTokens int    `json:"totalTokens"`
 }
 
+type AiUsageEventDTO struct {
+	ID               string `json:"id"`
+	CreatedAt        string `json:"createdAt"`
+	Model            string `json:"model"`
+	Kind             string `json:"kind"`
+	Phase            string `json:"phase"`
+	PromptTokens     int    `json:"promptTokens"`
+	CompletionTokens int    `json:"completionTokens"`
+	TotalTokens      int    `json:"totalTokens"`
+	MessageCount     int    `json:"messageCount"`
+	PromptChars      int    `json:"promptChars"`
+	ConversationID   string `json:"conversationId"`
+	LogFile          string `json:"logFile"`
+	Error            string `json:"error"`
+}
+
+type ListAiUsageEventsRequest struct {
+	Limit          int    `json:"limit"`
+	Offset         int    `json:"offset"`
+	Kind           string `json:"kind"` // optional: chat_round | explain | test_connection
+	ConversationID string `json:"conversationId"`
+	SinceUnixMs    int64  `json:"sinceUnixMs"`
+	UntilUnixMs    int64  `json:"untilUnixMs"`
+}
+
+type ListAiUsageEventsResponse struct {
+	Items []AiUsageEventDTO `json:"items"`
+	Total int64             `json:"total"`
+}
+
+type ReadAiDebugLogRequest struct {
+	UsageEventID string `json:"usageEventId"`
+	LogFile      string `json:"logFile"`
+}
+
+type AiDebugLogReadResponse struct {
+	LogFile string `json:"logFile"`
+	Content string `json:"content"`
+}
+
 // AiUsageSeries returns per-day total token sums for the last `days` days.
 func (a *App) AiUsageSeries(days int) ([]AiUsagePointDTO, error) {
 	if a.db == nil || a.db.DB == nil {
@@ -289,6 +333,113 @@ ORDER BY day ASC
 	return out, nil
 }
 
+func mapAiUsageEventDTO(ev storage.AiUsageEvent) AiUsageEventDTO {
+	return AiUsageEventDTO{
+		ID:               ev.ID,
+		CreatedAt:        ev.CreatedAt.UTC().Format(time.RFC3339),
+		Model:            ev.Model,
+		Kind:             ev.Kind,
+		Phase:            ev.Phase,
+		PromptTokens:     ev.PromptTokens,
+		CompletionTokens: ev.CompletionTokens,
+		TotalTokens:      ev.TotalTokens,
+		MessageCount:     ev.MessageCount,
+		PromptChars:      ev.PromptChars,
+		ConversationID:   ev.ConversationID,
+		LogFile:          ev.LogFile,
+		Error:            ev.Error,
+	}
+}
+
+func (a *App) ListAiUsageEvents(req ListAiUsageEventsRequest) (ListAiUsageEventsResponse, error) {
+	if a.db == nil || a.db.DB == nil {
+		return ListAiUsageEventsResponse{}, errors.New("db not ready")
+	}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	offset := req.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	q := a.db.DB.Model(&storage.AiUsageEvent{})
+	if k := strings.TrimSpace(req.Kind); k != "" {
+		q = q.Where("kind = ?", k)
+	}
+	if cid := strings.TrimSpace(req.ConversationID); cid != "" {
+		q = q.Where("conversation_id = ?", cid)
+	}
+	if req.SinceUnixMs > 0 {
+		q = q.Where("created_at >= ?", time.UnixMilli(req.SinceUnixMs).UTC())
+	}
+	if req.UntilUnixMs > 0 {
+		q = q.Where("created_at <= ?", time.UnixMilli(req.UntilUnixMs).UTC())
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return ListAiUsageEventsResponse{}, err
+	}
+	var rows []storage.AiUsageEvent
+	if err := q.Order("created_at DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
+		return ListAiUsageEventsResponse{}, err
+	}
+	out := make([]AiUsageEventDTO, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, mapAiUsageEventDTO(r))
+	}
+	return ListAiUsageEventsResponse{Items: out, Total: total}, nil
+}
+
+func (a *App) GetAiUsageEventDetail(id string) (AiUsageEventDTO, error) {
+	if a.db == nil || a.db.DB == nil {
+		return AiUsageEventDTO{}, errors.New("db not ready")
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return AiUsageEventDTO{}, errors.New("id required")
+	}
+	var row storage.AiUsageEvent
+	if err := a.db.DB.First(&row, "id = ?", id).Error; err != nil {
+		return AiUsageEventDTO{}, err
+	}
+	return mapAiUsageEventDTO(row), nil
+}
+
+func (a *App) ReadAiDebugLog(req ReadAiDebugLogRequest) (AiDebugLogReadResponse, error) {
+	if a.db == nil || a.db.DB == nil {
+		return AiDebugLogReadResponse{}, errors.New("db not ready")
+	}
+	logFile := strings.TrimSpace(req.LogFile)
+	if logFile == "" && strings.TrimSpace(req.UsageEventID) != "" {
+		var row storage.AiUsageEvent
+		if err := a.db.DB.First(&row, "id = ?", strings.TrimSpace(req.UsageEventID)).Error; err != nil {
+			return AiDebugLogReadResponse{}, err
+		}
+		logFile = strings.TrimSpace(row.LogFile)
+	}
+	if logFile == "" {
+		return AiDebugLogReadResponse{}, errors.New("log file not specified")
+	}
+	base, err := aiDebugLogRootDir()
+	if err != nil {
+		return AiDebugLogReadResponse{}, err
+	}
+	clean := filepath.Clean(logFile)
+	if filepath.IsAbs(clean) || strings.HasPrefix(clean, "..") {
+		return AiDebugLogReadResponse{}, errors.New("invalid log path")
+	}
+	full := filepath.Join(base, clean)
+	content, err := os.ReadFile(full)
+	if err != nil {
+		return AiDebugLogReadResponse{}, err
+	}
+	return AiDebugLogReadResponse{LogFile: clean, Content: string(content)}, nil
+}
+
 func (a *App) appendAiMessage(convID, role, payloadJSON string) (string, error) {
 	payloadJSON = strings.TrimSpace(payloadJSON)
 	if payloadJSON == "" {
@@ -308,16 +459,77 @@ func (a *App) appendAiMessage(convID, role, payloadJSON string) (string, error) 
 	return m.ID, nil
 }
 
-func (a *App) recordAiUsage(model string, convID string, prompt, completion, total int, errStr string) {
+type aiUsageLogMeta struct {
+	Kind          string
+	Phase         string
+	MessageCount  int
+	PromptChars   int
+	Conversation  string
+	PromptPreview []ai.ChatMessage
+}
+
+func estimateMessagesChars(messages []ai.ChatMessage) int {
+	n := 0
+	for _, m := range messages {
+		n += len(m.Role) + len(m.Content)
+	}
+	return n
+}
+
+func (a *App) recordAiUsage(model string, convID string, prompt, completion, total int, errStr string, meta aiUsageLogMeta) {
 	if a.db == nil || a.db.DB == nil {
 		return
 	}
+	kind := strings.TrimSpace(meta.Kind)
+	if kind == "" {
+		kind = "chat_round"
+	}
+	phase := strings.TrimSpace(meta.Phase)
+	msgCount := meta.MessageCount
+	if msgCount < 0 {
+		msgCount = 0
+	}
+	pChars := meta.PromptChars
+	if pChars < 0 {
+		pChars = 0
+	}
+	if c := strings.TrimSpace(meta.Conversation); c != "" {
+		convID = c
+	}
+	devMode := false
+	if st, err := a.loadAiSettingsDTO(); err == nil {
+		devMode = st.DeveloperModeEnabled
+	}
+	logFile := ""
+	if devMode && meta.PromptPreview != nil {
+		if p, err := writeAiDebugLogFile(aiDebugLogEntry{
+			Timestamp:        time.Now().UTC(),
+			Model:            model,
+			Kind:             kind,
+			Phase:            phase,
+			ConversationID:   convID,
+			PromptTokens:     prompt,
+			CompletionTokens: completion,
+			TotalTokens:      total,
+			MessageCount:     msgCount,
+			PromptChars:      pChars,
+			Error:            errStr,
+			Messages:         meta.PromptPreview,
+		}); err == nil {
+			logFile = p
+		}
+	}
 	ev := storage.AiUsageEvent{
 		Model:            model,
+		Kind:             kind,
+		Phase:            phase,
 		PromptTokens:     prompt,
 		CompletionTokens: completion,
 		TotalTokens:      total,
+		MessageCount:     msgCount,
+		PromptChars:      pChars,
 		ConversationID:   convID,
+		LogFile:          logFile,
 		Error:            errStr,
 	}
 	ev.ID = uuid.NewString()

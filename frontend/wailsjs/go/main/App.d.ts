@@ -195,6 +195,8 @@ export function GetAiMessages(arg1:string):Promise<Array<main.AiMessageDTO>>;
 
 export function GetAiSettings():Promise<main.AiSettingsDTO>;
 
+export function GetAiUsageEventDetail(arg1:string):Promise<main.AiUsageEventDTO>;
+
 export function GetLogsSettings():Promise<main.LogsSettingsDTO>;
 
 export function GetSecretRef(arg1:string,arg2:string):Promise<main.SecretRefDTO>;
@@ -204,6 +206,8 @@ export function Greet(arg1:string):Promise<string>;
 export function ImportProfileEncrypted(arg1:string,arg2:string,arg3:main.ImportOptions):Promise<main.ProfileDTO>;
 
 export function ListAiConversations():Promise<Array<main.AiConversationListDTO>>;
+
+export function ListAiUsageEvents(arg1:main.ListAiUsageEventsRequest):Promise<main.ListAiUsageEventsResponse>;
 
 export function ListAllPlaces():Promise<Array<main.PlaceDTO>>;
 
@@ -278,6 +282,8 @@ export function PrivacyPurgeDockerLocalLogs(arg1:string):Promise<void>;
 export function PrivacyPurgeDockerRemoteLogs(arg1:string,arg2:string):Promise<void>;
 
 export function PrivacyPurgeProfileLogs(arg1:string):Promise<void>;
+
+export function ReadAiDebugLog(arg1:main.ReadAiDebugLogRequest):Promise<main.AiDebugLogReadResponse>;
 
 export function SFTPConnectProfile(arg1:string):Promise<string>;
 
