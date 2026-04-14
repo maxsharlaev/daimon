@@ -249,7 +249,7 @@ func (a *App) aiTestOpenAIConnectionDraft(req SaveAiSettingsRequest) error {
 	}
 	client := ai.NewHTTPClient(45 * time.Second)
 	msgs := []ai.ChatMessage{{Role: "user", Content: "Reply with exactly: ok"}}
-	_, pt, ct, tt, err := ai.ChatCompletion(client, key, baseURL, model, msgs, 16, 0)
+	_, pt, ct, tt, err := ai.ChatCompletion(client, key, baseURL, model, msgs, 16, 0, false)
 	a.recordAiUsage(model, "settings:test_connection", pt, ct, tt, errString(err), aiUsageLogMeta{
 		Kind:          "test_connection",
 		Phase:         "settings_check",
@@ -331,7 +331,7 @@ func (a *App) aiRunModelTurn(convID, apiKey string, st AiSettingsDTO, ag AgentCo
 		if err != nil {
 			return AiChatResponse{}, err
 		}
-		raw, pt, ct, tt, err := ai.ChatCompletion(client, apiKey, st.BaseURL, st.Model, msgs, st.MaxTokensPerRequest, 0.2)
+		raw, pt, ct, tt, err := ai.ChatCompletion(client, apiKey, st.BaseURL, st.Model, msgs, st.MaxTokensPerRequest, 0.2, true)
 		a.recordAiUsage(st.Model, convID, pt, ct, tt, errString(err), aiUsageLogMeta{
 			Kind:          "chat_round",
 			Phase:         fmt.Sprintf("round_%d", round+1),

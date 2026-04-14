@@ -97,7 +97,7 @@ Match the user's language when the command or output is clearly Russian; otherwi
 		{Role: "system", Content: system},
 		{Role: "user", Content: user.String()},
 	}
-	raw, pt, ct, tt, err := ai.ChatCompletion(client, key, st.BaseURL, st.Model, msgs, maxTok, 0.25)
+	raw, pt, ct, tt, err := ai.ChatCompletion(client, key, st.BaseURL, st.Model, msgs, maxTok, 0.25, false)
 	a.recordAiUsage(st.Model, "explain", pt, ct, tt, errString(err), aiUsageLogMeta{
 		Kind:          "explain",
 		Phase:         kind,

@@ -286,7 +286,12 @@ export function AgentPanel({
   const [optimisticUserText, setOptimisticUserText] = useState<string | null>(null);
   const [transientRunCommand, setTransientRunCommand] = useState<string | null>(null);
   const [tasksModalOpen, setTasksModalOpen] = useState(false);
-  const [expandedLongBubbleById, setExpandedLongBubbleById] = useState<Record<string, boolean>>({});
+  /** User toggled expand/collapse for a bubble id (applies to both user and assistant). */
+  const [bubbleManualExpandedById, setBubbleManualExpandedById] = useState<Record<string, boolean>>({});
+  /** Assistant ids that default to expanded (new replies); history defaults to collapsed. Ref + bump for re-render. */
+  const newAssistantExpandedIdsRef = useRef<Set<string>>(new Set());
+  const [, bumpAssistantBubbleDefaults] = useState(0);
+  const assistantIdsBeforeRemoteFetchRef = useRef<Set<string>>(new Set());
   const [sendTick, setSendTick] = useState(0);
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -309,6 +314,23 @@ export function AgentPanel({
     const { lines: next, lastPending } = parseAiMessageRows(rows);
     setLines(next);
     setPending(lastPending);
+    return next;
+  }, []);
+
+  const clearNewAssistantExpandDefaults = useCallback(() => {
+    newAssistantExpandedIdsRef.current.clear();
+    bumpAssistantBubbleDefaults((x) => x + 1);
+  }, []);
+
+  const markNewAssistantMessagesAfterFetch = useCallback((nextLines: ChatLine[], beforeIds: Set<string>) => {
+    let added = false;
+    for (const ln of nextLines) {
+      if (ln.kind === "assistant" && !beforeIds.has(ln.id)) {
+        newAssistantExpandedIdsRef.current.add(ln.id);
+        added = true;
+      }
+    }
+    if (added) bumpAssistantBubbleDefaults((x) => x + 1);
   }, []);
 
   const loadDialogPreview = useCallback(async (id: string) => {
@@ -469,6 +491,8 @@ export function AgentPanel({
       setLines([]);
       setPending(null);
       setDialogsOpen(false);
+      clearNewAssistantExpandDefaults();
+      setBubbleManualExpandedById({});
       return;
     }
     const id = await CreateAiConversation("");
@@ -478,6 +502,8 @@ export function AgentPanel({
     setLines([]);
     setPending(null);
     setDialogsOpen(false);
+    clearNewAssistantExpandDefaults();
+    setBubbleManualExpandedById({});
   };
 
   useEffect(() => {
@@ -498,6 +524,11 @@ export function AgentPanel({
     setTasksModalOpen(false);
   }, [convId]);
 
+  useEffect(() => {
+    setBubbleManualExpandedById({});
+    clearNewAssistantExpandDefaults();
+  }, [convId, clearNewAssistantExpandDefaults]);
+
   const sessionOk = useMemo(() => {
     if (agentContext.mode === "connections") return !!agentContext.sessionId;
     if (agentContext.mode === "docker") {
@@ -517,6 +548,9 @@ export function AgentPanel({
     setErr(null);
     setSysStrip(null);
     setBusy(true);
+    assistantIdsBeforeRemoteFetchRef.current = new Set(
+      lines.filter((ln): ln is Extract<ChatLine, { kind: "assistant" }> => ln.kind === "assistant").map((ln) => ln.id)
+    );
     try {
       const req = new main.AiChatRequest({
         conversationId: convId,
@@ -535,7 +569,8 @@ export function AgentPanel({
         setSysStrip(res.error);
         return;
       }
-      await loadMessages(convId);
+      const nextLines = await loadMessages(convId);
+      markNewAssistantMessagesAfterFetch(nextLines, assistantIdsBeforeRemoteFetchRef.current);
       if (res.pendingCommand) {
         setPending({ assistantMessageId: res.pendingCommand.assistantMessageId, command: res.pendingCommand.command });
         if (!sessionOk) {
@@ -563,6 +598,9 @@ export function AgentPanel({
     }
     setBusy(true);
     setErr(null);
+    assistantIdsBeforeRemoteFetchRef.current = new Set(
+      lines.filter((ln): ln is Extract<ChatLine, { kind: "assistant" }> => ln.kind === "assistant").map((ln) => ln.id)
+    );
     try {
       const req = new main.AiResolveCommandRequest({
         conversationId: convId,
@@ -582,7 +620,8 @@ export function AgentPanel({
         setSysStrip(res.error);
       }
       setPending(null);
-      await loadMessages(convId);
+      const nextLines = await loadMessages(convId);
+      markNewAssistantMessagesAfterFetch(nextLines, assistantIdsBeforeRemoteFetchRef.current);
       if (res.pendingCommand) {
         setPending({ assistantMessageId: res.pendingCommand.assistantMessageId, command: res.pendingCommand.command });
       }
@@ -652,7 +691,7 @@ export function AgentPanel({
               if (ln.kind === "user") {
                 const fullText = ln.text || "";
                 const canCollapse = shouldCollapseLongChatText(fullText);
-                const isExpanded = !!expandedLongBubbleById[ln.id];
+                const isExpanded = bubbleManualExpandedById[ln.id] ?? false;
                 return (
                   <div
                     key={`${ln.id}-${i}`}
@@ -668,7 +707,12 @@ export function AgentPanel({
                       <button
                         type="button"
                         className="agent-bubble-expand-btn"
-                        onClick={() => setExpandedLongBubbleById((prev) => ({ ...prev, [ln.id]: !prev[ln.id] }))}
+                        onClick={() =>
+                          setBubbleManualExpandedById((prev) => ({
+                            ...prev,
+                            [ln.id]: !(prev[ln.id] ?? false),
+                          }))
+                        }
                       >
                         {isExpanded ? "Свернуть" : "Развернуть"}
                       </button>
@@ -679,7 +723,8 @@ export function AgentPanel({
               if (ln.kind === "assistant") {
                 const fullText = ln.text || "";
                 const canCollapse = shouldCollapseLongChatText(fullText);
-                const isExpanded = !!expandedLongBubbleById[ln.id];
+                const isExpanded =
+                  bubbleManualExpandedById[ln.id] ?? newAssistantExpandedIdsRef.current.has(ln.id);
                 return (
                   <div
                     key={`${ln.id}-${i}`}
@@ -693,7 +738,13 @@ export function AgentPanel({
                       <button
                         type="button"
                         className="agent-bubble-expand-btn"
-                        onClick={() => setExpandedLongBubbleById((prev) => ({ ...prev, [ln.id]: !prev[ln.id] }))}
+                        onClick={() =>
+                          setBubbleManualExpandedById((prev) => {
+                            const cur =
+                              prev[ln.id] ?? newAssistantExpandedIdsRef.current.has(ln.id);
+                            return { ...prev, [ln.id]: !cur };
+                          })
+                        }
                       >
                         {isExpanded ? "Свернуть" : "Развернуть"}
                       </button>

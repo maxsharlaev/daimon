@@ -45,3 +45,26 @@ func TestMergeTaskPlans_omittedTasksKeyKeepsPrev(t *testing.T) {
 		t.Fatalf("%+v", out)
 	}
 }
+
+func TestMergeTaskPlans_stableOrderNewTasksAtEnd(t *testing.T) {
+	prev := []aiTaskItemJSON{
+		{ID: "1", Title: "Проверка логов cron", Status: "done"},
+		{ID: "2", Title: "Проверка файла cron", Status: "done"},
+	}
+	// Model lists the new active step first (wrong order).
+	incoming := []aiTaskItemJSON{
+		{ID: "3", Title: "Проверка конфигурации Nginx", Status: "in_progress"},
+		{ID: "1", Title: "Проверка логов cron", Status: "done"},
+		{ID: "2", Title: "Проверка файла cron", Status: "done"},
+	}
+	out := mergeTaskPlans(prev, incoming, true)
+	if len(out) != 3 {
+		t.Fatalf("len=%d want 3: %+v", len(out), out)
+	}
+	if out[0].ID != "1" || out[1].ID != "2" || out[2].ID != "3" {
+		t.Fatalf("order want 1,2,3 got %q %q %q", out[0].ID, out[1].ID, out[2].ID)
+	}
+	if out[2].Status != "in_progress" {
+		t.Fatalf("task 3 status=%q", out[2].Status)
+	}
+}

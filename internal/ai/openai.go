@@ -18,10 +18,17 @@ type ChatMessage struct {
 
 // ChatCompletionRequest is sent to POST {base}/chat/completions.
 type ChatCompletionRequest struct {
-	Model       string          `json:"model"`
-	Messages    []ChatMessage   `json:"messages"`
-	MaxTokens   int             `json:"max_tokens,omitempty"`
-	Temperature float64         `json:"temperature,omitempty"`
+	Model            string           `json:"model"`
+	Messages         []ChatMessage    `json:"messages"`
+	MaxTokens        int              `json:"max_tokens,omitempty"`
+	Temperature      float64          `json:"temperature,omitempty"`
+	ResponseFormat   *responseFormat  `json:"response_format,omitempty"`
+}
+
+// responseFormat selects structured output. Type "json_object" asks the API to return valid JSON only
+// (OpenAI-compatible; supported by OpenAI and many providers for compatible models).
+type responseFormat struct {
+	Type string `json:"type"`
 }
 
 type chatCompletionResponse struct {
@@ -44,7 +51,9 @@ type chatCompletionResponse struct {
 }
 
 // ChatCompletion calls an OpenAI-compatible API. baseURL should be like https://api.openai.com/v1 (no trailing slash).
-func ChatCompletion(httpClient *http.Client, apiKey, baseURL, model string, messages []ChatMessage, maxTokens int, temperature float64) (content string, promptTokens, completionTokens, totalTokens int, err error) {
+// If jsonObjectResponse is true, sets response_format to json_object so the assistant message is valid JSON
+// (use for agent chat protocol). Leave false for plain-text completions (Explain, connection test).
+func ChatCompletion(httpClient *http.Client, apiKey, baseURL, model string, messages []ChatMessage, maxTokens int, temperature float64, jsonObjectResponse bool) (content string, promptTokens, completionTokens, totalTokens int, err error) {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
@@ -58,6 +67,9 @@ func ChatCompletion(httpClient *http.Client, apiKey, baseURL, model string, mess
 		Messages:    messages,
 		MaxTokens:   maxTokens,
 		Temperature: temperature,
+	}
+	if jsonObjectResponse {
+		body.ResponseFormat = &responseFormat{Type: "json_object"}
 	}
 	if body.Temperature == 0 {
 		body.Temperature = 0.2

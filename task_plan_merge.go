@@ -74,7 +74,11 @@ func lastAssistantTasksForMerge(rows []AiMessageDTO) []aiTaskItemJSON {
 // mergeTaskPlans merges the previous plan with the model's new tasks array.
 // If tasksKeyPresent is false, the previous plan is kept unchanged.
 // If tasksKeyPresent is true and incoming is empty, the previous plan is kept (no wipe).
-// Otherwise, every id from prev missing in incoming is appended with status done.
+// Otherwise, every id from prev missing in incoming is treated as done.
+//
+// Task order is stable: ids that already existed in prev keep prev's order; new ids (only in incoming)
+// are appended at the end in incoming order. This avoids a wrong UI when the model lists the active
+// step first or permutes rows.
 func mergeTaskPlans(prev, incoming []aiTaskItemJSON, tasksKeyPresent bool) []aiTaskItemJSON {
 	if len(prev) == 0 {
 		if incoming == nil {
@@ -94,29 +98,77 @@ func mergeTaskPlans(prev, incoming []aiTaskItemJSON, tasksKeyPresent bool) []aiT
 		copy(out, prev)
 		return out
 	}
-	incomingIDs := make(map[string]struct{}, len(incoming))
+
+	incomingByID := make(map[string]aiTaskItemJSON, len(incoming))
 	for _, t := range incoming {
 		id := strings.TrimSpace(t.ID)
 		if id != "" {
-			incomingIDs[id] = struct{}{}
+			incomingByID[id] = t
 		}
 	}
-	out := make([]aiTaskItemJSON, 0, len(incoming)+len(prev))
-	out = append(out, incoming...)
+
+	prevIDOrder := make([]string, 0, len(prev))
+	prevIDSeen := make(map[string]struct{}, len(prev))
 	for _, t := range prev {
 		id := strings.TrimSpace(t.ID)
 		if id == "" {
 			continue
 		}
-		if _, ok := incomingIDs[id]; ok {
+		if _, ok := prevIDSeen[id]; ok {
 			continue
 		}
-		title := strings.TrimSpace(t.Title)
-		if title == "" {
-			title = t.Title
+		prevIDSeen[id] = struct{}{}
+		prevIDOrder = append(prevIDOrder, id)
+	}
+
+	prevIDSet := make(map[string]struct{}, len(prevIDOrder))
+	for _, id := range prevIDOrder {
+		prevIDSet[id] = struct{}{}
+	}
+
+	out := make([]aiTaskItemJSON, 0, len(incoming)+len(prev))
+
+	for _, id := range prevIDOrder {
+		if t, ok := incomingByID[id]; ok {
+			out = append(out, t)
+			continue
+		}
+		var title string
+		for _, p := range prev {
+			if strings.TrimSpace(p.ID) == id {
+				title = p.Title
+				break
+			}
 		}
 		out = append(out, aiTaskItemJSON{ID: id, Title: title, Status: "done"})
 	}
+
+	newSeen := make(map[string]struct{})
+	for _, t := range incoming {
+		id := strings.TrimSpace(t.ID)
+		if id == "" {
+			continue
+		}
+		if _, ok := prevIDSet[id]; ok {
+			continue
+		}
+		if _, ok := newSeen[id]; ok {
+			continue
+		}
+		newSeen[id] = struct{}{}
+		out = append(out, t)
+	}
+
+	for _, t := range incoming {
+		if strings.TrimSpace(t.ID) != "" {
+			continue
+		}
+		if strings.TrimSpace(t.Title) == "" {
+			continue
+		}
+		out = append(out, t)
+	}
+
 	return out
 }
 
