@@ -30,6 +30,7 @@ export function AgentOutputLog({
 }: Props) {
   const refs = useRef<Record<string, HTMLDivElement | null>>({});
   const [explain, setExplain] = useState<{ command: string; output: string; messageId: string } | null>(null);
+  const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
   /** Until GetAiMessages reflects SaveAiToolExplain, treat as explained so we do not call the LLM again. */
   const [optimisticExplainById, setOptimisticExplainById] = useState<Record<string, string>>({});
 
@@ -66,6 +67,7 @@ export function AgentOutputLog({
   }
 
   const explainTextFor = (ln: AgentToolRun) => (ln.explainText?.trim() || optimisticExplainById[ln.id]?.trim() || "");
+  const shouldCollapseOutput = (text: string) => text.length > 900 || text.split("\n").length > 14;
 
   const cachedReplyForOpenModal =
     explain != null
@@ -80,6 +82,9 @@ export function AgentOutputLog({
         {runs.map((ln) => {
           const ctx = ln.contextLabel?.trim() ? ln.contextLabel.trim() : "Context unknown";
           const hasCachedExplain = !!explainTextFor(ln);
+          const outputText = ln.cancelled ? "(cancelled by user)" : ln.output || (ln.error ? "" : "(no output)");
+          const canCollapse = shouldCollapseOutput(outputText);
+          const isExpanded = !!expandedById[ln.id];
           const showExplainBtn = !ln.cancelled && !ln.error;
           let badgeMod = " agent-output-badge--completed";
           let badgeLabel = "Completed";
@@ -126,9 +131,18 @@ export function AgentOutputLog({
                     ) : null}
                   </span>
                 </div>
-                <pre className="agent-output-pre">
-                  {ln.cancelled ? "(cancelled by user)" : ln.output || (ln.error ? "" : "(no output)")}
-                </pre>
+                <pre className={`agent-output-pre${canCollapse && !isExpanded ? " agent-output-pre--collapsed" : ""}`}>{outputText}</pre>
+                {canCollapse ? (
+                  <div className="agent-output-expand-row">
+                    <button
+                      type="button"
+                      className="agent-output-expand-btn"
+                      onClick={() => setExpandedById((prev) => ({ ...prev, [ln.id]: !prev[ln.id] }))}
+                    >
+                      {isExpanded ? "Collapse output" : "Expand output"}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
           );

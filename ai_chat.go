@@ -41,9 +41,10 @@ type AiResolveCommandRequest struct {
 }
 
 type aiParsedReply struct {
-	ReplyText string              `json:"replyText"`
-	Service   []aiServiceItemJSON `json:"service"`
-	Tasks     []aiTaskItemJSON    `json:"tasks"`
+	ReplyText       string              `json:"replyText"`
+	Service         []aiServiceItemJSON `json:"service"`
+	Tasks           []aiTaskItemJSON    `json:"tasks"`
+	TasksKeyPresent bool                `json:"-"`
 }
 
 type aiServiceItemJSON struct {
@@ -84,7 +85,7 @@ func (a *App) buildAgentContextHintText(ag AgentContextDTO) string {
 	if ds := strings.TrimSpace(ag.DockerScope); ds != "" {
 		b.WriteString("; dockerScope=" + ds)
 	}
-	b.WriteString("\n\nWhen the user asks about security, audit, or concrete host diagnostics and hasActiveTerminalSession is true, you MUST output a concrete task list in the `tasks` field (see protocol) and use service tools to gather facts — not generic advice alone. When all tasks are done or skipped, use replyText as a concise closing summary.")
+	b.WriteString("\n\nWhen hasActiveTerminalSession is true and the user's question needs host-specific or app-specific facts (not answerable responsibly from general knowledge alone)—including security/audit/hardening/incident work, scheduler or cron mismatches, service errors, log correlation, or any \"what actually happened on my system\" investigation—you MUST output a concrete task list in the `tasks` field (see protocol) with steps grounded in investigation, and use service tools (file, logs, command) to gather evidence. Prefer including a log/evidence step (logs tool for app/Docker where relevant; file or approved command for system logs such as cron/journal) when it would disambiguate. Keep stable task ids across turns; return the full tasks array each time; do not remove an id without marking it done or skipped. When the user message includes a reminder block with the current task plan JSON, align your `tasks` output with those ids. When all tasks are done or skipped, use replyText as a concise closing summary.")
 	return b.String()
 }
 
@@ -125,17 +126,6 @@ func (a *App) buildAgentContextShortLabel(ag AgentContextDTO) string {
 	}
 }
 
-func assistantPayloadMap(parsed aiParsedReply, extra map[string]any) map[string]any {
-	out := map[string]any{"replyText": parsed.ReplyText, "service": parsed.Service}
-	if len(parsed.Tasks) > 0 {
-		out["tasks"] = parsed.Tasks
-	}
-	for k, v := range extra {
-		out[k] = v
-	}
-	return out
-}
-
 func (a *App) getOpenAIAPIKey() (string, error) {
 	if a.secrets == nil {
 		return "", errors.New("secrets not ready")
@@ -159,7 +149,7 @@ func (a *App) buildOpenAIMessages(convID string, st AiSettingsDTO, ag AgentConte
 	if hint := a.buildAgentContextHintText(ag); hint != "" {
 		msgs = append(msgs, ai.ChatMessage{Role: "system", Content: hint})
 	}
-	for _, m := range rows {
+	for idx, m := range rows {
 		switch m.Role {
 		case "user":
 			var p struct {
@@ -169,7 +159,12 @@ func (a *App) buildOpenAIMessages(convID string, st AiSettingsDTO, ag AgentConte
 			if strings.TrimSpace(p.Text) == "" {
 				continue
 			}
-			msgs = append(msgs, ai.ChatMessage{Role: "user", Content: p.Text})
+			text := p.Text
+			// Synthetic tool follow-ups already include an explicit task plan block; do not prepend twice.
+			if idx == len(rows)-1 && !strings.HasPrefix(strings.TrimSpace(p.Text), "Tool results") {
+				text = userMessagePrefixIfUnfinishedPlan(rows) + text
+			}
+			msgs = append(msgs, ai.ChatMessage{Role: "user", Content: text})
 		case "assistant":
 			msgs = append(msgs, ai.ChatMessage{Role: "assistant", Content: m.PayloadJSON})
 		case "tool":
@@ -344,19 +339,23 @@ func (a *App) aiRunModelTurn(convID, apiKey string, st AiSettingsDTO, ag AgentCo
 			return AiChatResponse{AssistantMessage: dto}, nil
 		}
 
+		finalJSON, ferr := a.finalizeAssistantReplyJSON(convID, raw, &parsed)
+		if ferr != nil {
+			finalJSON = raw
+		}
+
 		toolTexts, pendingCmd, _ := a.aiExecuteServiceItems(ag, parsed.Service)
 
 		if pendingCmd != "" {
-			payload := assistantPayloadMap(parsed, map[string]any{
+			b, err := mergeAssistantPayloadExtras(finalJSON, map[string]any{
 				"toolTrace":      toolTexts,
 				"phase":          "awaiting_command",
 				"pendingCommand": pendingCmd,
 			})
-			b, err := json.Marshal(payload)
 			if err != nil {
 				return AiChatResponse{}, err
 			}
-			mid, err := a.appendAiMessage(convID, "assistant", string(b))
+			mid, err := a.appendAiMessage(convID, "assistant", b)
 			if err != nil {
 				return AiChatResponse{}, err
 			}
@@ -368,11 +367,7 @@ func (a *App) aiRunModelTurn(convID, apiKey string, st AiSettingsDTO, ag AgentCo
 		}
 
 		if len(toolTexts) == 0 {
-			b, err := json.Marshal(assistantPayloadMap(parsed, nil))
-			if err != nil {
-				return AiChatResponse{}, err
-			}
-			mid, err := a.appendAiMessage(convID, "assistant", string(b))
+			mid, err := a.appendAiMessage(convID, "assistant", finalJSON)
 			if err != nil {
 				return AiChatResponse{}, err
 			}
@@ -381,11 +376,12 @@ func (a *App) aiRunModelTurn(convID, apiKey string, st AiSettingsDTO, ag AgentCo
 		}
 
 		// Persist model turn, then feed tool results as the next user message and loop.
-		if _, err := a.appendAiMessage(convID, "assistant", raw); err != nil {
+		if _, err := a.appendAiMessage(convID, "assistant", finalJSON); err != nil {
 			return AiChatResponse{}, err
 		}
 		follow := "Tool results (JSON/text):\n" + strings.Join(toolTexts, "\n---\n") +
-			"\n\nAnswer in JSON with replyText, service (empty array if nothing else is needed), and tasks when you are using a task plan (keep stable task ids; update each status: pending, in_progress, done, or skipped). When no further tools are needed and every task is done or skipped, make replyText a concise closing summary of the whole investigation. If you include tasks and service is empty and you are not proposing a new shell command, do not leave any task in in_progress."
+			"\n\nAnswer in JSON with replyText, service (empty array if nothing else is needed), and tasks when you are using a task plan (keep stable task ids; update each status: pending, in_progress, done, or skipped). When no further tools are needed and every task is done or skipped, make replyText a concise closing summary of the whole investigation. If you include tasks and service is empty and you are not proposing a new shell command, do not leave any task in in_progress." +
+			planInjectionText(parsed.Tasks)
 		uj, _ := json.Marshal(map[string]string{"text": follow})
 		if _, err := a.appendAiMessage(convID, "user", string(uj)); err != nil {
 			return AiChatResponse{}, err
@@ -420,7 +416,8 @@ func parseAiReply(raw string) (aiParsedReply, error) {
 	if sv, ok := m["service"]; ok {
 		_ = json.Unmarshal(sv, &out.Service)
 	}
-	if tv, ok := m["tasks"]; ok && len(tv) > 0 {
+	if tv, ok := m["tasks"]; ok {
+		out.TasksKeyPresent = true
 		_ = json.Unmarshal(tv, &out.Tasks)
 	}
 	return out, nil

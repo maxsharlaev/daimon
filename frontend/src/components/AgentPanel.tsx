@@ -14,6 +14,7 @@ import type { AgentContext } from "../types/agent";
 import { AgentAssistantMarkdown } from "./AgentAssistantMarkdown";
 import { AgentExplainModal } from "./AgentExplainModal";
 import type { TerminalSession } from "./TerminalTabs";
+import { ClipboardSetText } from "../../wailsjs/runtime/runtime";
 import "./agentpanel.css";
 
 type ChatLine =
@@ -148,6 +149,93 @@ function collectTaskSnapshots(lines: ChatLine[]): AgentTaskSnapshot[] {
   return out;
 }
 
+/** Collapse very long chat bubbles (user pasted logs, assistant long dumps). */
+function shouldCollapseLongChatText(text: string): boolean {
+  const t = text || "";
+  if (t.length > 900) return true;
+  const lines = t.split("\n").length;
+  if (lines > 14) return true;
+  return false;
+}
+
+function normTaskStatus(s: string): string {
+  return (s || "").toLowerCase().replace(/\s+/g, "_");
+}
+
+/** The model sometimes leaves multiple rows as in_progress; keep only the last one for display. */
+function normalizeTasksForDisplay(tasks: AgentTaskItem[]): AgentTaskItem[] {
+  if (tasks.length === 0) return tasks;
+  const inProgIdx = tasks.map((t, i) => (normTaskStatus(t.status) === "in_progress" ? i : -1)).filter((i) => i >= 0);
+  if (inProgIdx.length <= 1) return tasks.map((t) => ({ ...t }));
+  const keep = inProgIdx[inProgIdx.length - 1];
+  return tasks.map((t, i) => {
+    if (normTaskStatus(t.status) !== "in_progress") return { ...t };
+    if (i === keep) return { ...t };
+    return { ...t, status: "done" };
+  });
+}
+
+function taskPlanCountsSummary(tasks: AgentTaskItem[]): string {
+  const n = tasks.length;
+  const cnt = (st: string) => tasks.filter((x) => normTaskStatus(x.status) === st).length;
+  return `Plan: ${n} step${n === 1 ? "" : "s"} · ${cnt("done")} done · ${cnt("skipped")} skipped · ${cnt("in_progress")} active · ${cnt("pending")} pending`;
+}
+
+export type TaskStripParts =
+  | { kind: "in_progress"; title: string }
+  | { kind: "next"; title: string }
+  | { kind: "all_done" }
+  | { kind: "empty" };
+
+/** Strip: status + title (no em dash — layout uses gap). */
+function getTaskStripParts(tasks: AgentTaskItem[]): TaskStripParts {
+  const normalized = normalizeTasksForDisplay(tasks);
+  if (normalized.length === 0) return { kind: "empty" };
+  const active = normalized.find((t) => normTaskStatus(t.status) === "in_progress");
+  if (active?.title?.trim()) return { kind: "in_progress", title: active.title.trim() };
+  const pend = normalized.find((t) => normTaskStatus(t.status) === "pending");
+  if (pend?.title?.trim()) return { kind: "next", title: pend.title.trim() };
+  if (normalized.every((t) => ["done", "skipped"].includes(normTaskStatus(t.status)))) return { kind: "all_done" };
+  return { kind: "empty" };
+}
+
+/** Older snapshots are not "current": in_progress was superseded by a later turn. */
+function tasksForHistoryRow(tasks: AgentTaskItem[], isLatestSnapshot: boolean): AgentTaskItem[] {
+  if (isLatestSnapshot) return tasks;
+  return tasks.map((t) =>
+    normTaskStatus(t.status) === "in_progress" ? { ...t, status: "done" } : t
+  );
+}
+
+function AgentToolRunCopyBtn({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="agent-tool-run-copy-btn"
+      title={copied ? "Текст скопирован" : "Скопировать команду"}
+      aria-label={copied ? "Текст скопирован" : "Скопировать команду"}
+      onClick={async (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const t = String(command ?? "").trim();
+        if (!t) return;
+        try {
+          await ClipboardSetText(t);
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 2000);
+        } catch {
+          /* ignore */
+        }
+      }}
+    >
+      <span className="agent-tool-run-copy-glyph" aria-hidden>
+        ⧉
+      </span>
+    </button>
+  );
+}
+
 export type AgentRunContextStripProps = {
   label: string;
   interactive: boolean;
@@ -198,11 +286,14 @@ export function AgentPanel({
   const [optimisticUserText, setOptimisticUserText] = useState<string | null>(null);
   const [transientRunCommand, setTransientRunCommand] = useState<string | null>(null);
   const [tasksModalOpen, setTasksModalOpen] = useState(false);
+  const [expandedLongBubbleById, setExpandedLongBubbleById] = useState<Record<string, boolean>>({});
+  const [sendTick, setSendTick] = useState(0);
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const lastUserBubbleRef = useRef<HTMLDivElement | null>(null);
   const optimisticUserBubbleRef = useRef<HTMLDivElement | null>(null);
   const lastAssistantBubbleRef = useRef<HTMLDivElement | null>(null);
+  const taskHistoryBodyRef = useRef<HTMLDivElement | null>(null);
 
   const loadConversations = useCallback(async () => {
     const list = await ListAiConversations();
@@ -257,14 +348,24 @@ export function AgentPanel({
 
   const taskSnapshots = useMemo(() => collectTaskSnapshots(lines), [lines]);
 
-  const taskSummaryLabel = useMemo(() => {
-    if (taskSnapshots.length === 0) return "";
-    const tasks = taskSnapshots[taskSnapshots.length - 1].tasks;
-    const n = tasks.length;
-    const norm = (s: string) => (s || "").toLowerCase().replace(/\s+/g, "_");
-    const cnt = (st: string) => tasks.filter((x) => norm(x.status) === st).length;
-    return `Plan: ${n} step${n === 1 ? "" : "s"} · ${cnt("done")} done · ${cnt("skipped")} skipped · ${cnt("in_progress")} active · ${cnt("pending")} pending`;
-  }, [taskSnapshots]);
+  const taskSnapshotsDisplay = useMemo(
+    () =>
+      taskSnapshots.map((snap) => {
+        const tasks = normalizeTasksForDisplay(snap.tasks);
+        return { ...snap, tasks, summaryLine: taskPlanCountsSummary(tasks) };
+      }),
+    [taskSnapshots]
+  );
+
+  const taskStripParts = useMemo(() => {
+    if (taskSnapshotsDisplay.length === 0) return null;
+    return getTaskStripParts(taskSnapshotsDisplay[taskSnapshotsDisplay.length - 1].tasks);
+  }, [taskSnapshotsDisplay]);
+
+  const historyLatestPlanSummary = useMemo(() => {
+    if (taskSnapshotsDisplay.length === 0) return "";
+    return taskSnapshotsDisplay[taskSnapshotsDisplay.length - 1].summaryLine;
+  }, [taskSnapshotsDisplay]);
 
   useEffect(() => {
     if (!open) {
@@ -280,10 +381,11 @@ export function AgentPanel({
       busy && optimisticUserText ? optimisticUserBubbleRef.current : lastUserBubbleRef.current;
     if (!userEl) return;
     userEl.scrollIntoView({ block: "start", behavior: "auto" });
-  }, [lines, busy, open, optimisticUserText]);
+  }, [lines, busy, open, optimisticUserText, sendTick]);
 
   useLayoutEffect(() => {
     if (!open) return;
+    if (busy || optimisticUserText) return;
     const asstEl = lastAssistantBubbleRef.current;
     const scrollEl = chatScrollRef.current;
     if (!asstEl || !scrollEl) return;
@@ -383,6 +485,16 @@ export function AgentPanel({
   }, [pending]);
 
   useEffect(() => {
+    if (!tasksModalOpen) return;
+    const raf = window.requestAnimationFrame(() => {
+      const el = taskHistoryBodyRef.current;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [tasksModalOpen, taskSnapshotsDisplay.length]);
+
+  useEffect(() => {
     setTasksModalOpen(false);
   }, [convId]);
 
@@ -399,6 +511,7 @@ export function AgentPanel({
   const send = async () => {
     const t = input.trim();
     if (!t || !convId || busy) return;
+    setSendTick((x) => x + 1);
     setInput("");
     setOptimisticUserText(t);
     setErr(null);
@@ -512,8 +625,24 @@ export function AgentPanel({
           {taskSnapshots.length > 0 ? (
             <div className="agent-task-board" aria-label="Task plan">
               <button type="button" className="agent-task-summary-btn" onClick={() => setTasksModalOpen(true)}>
-                <span className="agent-task-summary-sub">{taskSummaryLabel}</span>
-                <span className="muted small">History</span>
+                <span className="agent-task-summary-main">
+                  {taskStripParts?.kind === "in_progress" ? (
+                    <>
+                      <span className="agent-task-strip-status agent-task-strip-status--active">In progress</span>
+                      <span className="agent-task-strip-title">{taskStripParts.title}</span>
+                    </>
+                  ) : taskStripParts?.kind === "next" ? (
+                    <>
+                      <span className="agent-task-strip-status agent-task-strip-status--next">Next</span>
+                      <span className="agent-task-strip-title">{taskStripParts.title}</span>
+                    </>
+                  ) : taskStripParts?.kind === "all_done" ? (
+                    <span className="agent-task-strip-status agent-task-strip-status--done">All steps finished</span>
+                  ) : (
+                    <span className="agent-task-strip-title">Task plan</span>
+                  )}
+                </span>
+                <span className="muted small agent-task-summary-history">History</span>
               </button>
             </div>
           ) : null}
@@ -521,41 +650,75 @@ export function AgentPanel({
             {err ? <div className="error-text agent-chat-error">{err}</div> : null}
             {lines.map((ln, i) => {
               if (ln.kind === "user") {
+                const fullText = ln.text || "";
+                const canCollapse = shouldCollapseLongChatText(fullText);
+                const isExpanded = !!expandedLongBubbleById[ln.id];
                 return (
                   <div
                     key={`${ln.id}-${i}`}
                     ref={i === lastUserLineIndex ? lastUserBubbleRef : undefined}
                     className="agent-bubble agent-bubble-user"
                   >
-                    {ln.text}
+                    <div
+                      className={`agent-bubble-content agent-bubble-content--plain${canCollapse && !isExpanded ? " agent-bubble-content--collapsed" : ""}`}
+                    >
+                      {ln.text}
+                    </div>
+                    {canCollapse ? (
+                      <button
+                        type="button"
+                        className="agent-bubble-expand-btn"
+                        onClick={() => setExpandedLongBubbleById((prev) => ({ ...prev, [ln.id]: !prev[ln.id] }))}
+                      >
+                        {isExpanded ? "Свернуть" : "Развернуть"}
+                      </button>
+                    ) : null}
                   </div>
                 );
               }
               if (ln.kind === "assistant") {
+                const fullText = ln.text || "";
+                const canCollapse = shouldCollapseLongChatText(fullText);
+                const isExpanded = !!expandedLongBubbleById[ln.id];
                 return (
                   <div
                     key={`${ln.id}-${i}`}
                     ref={i === lastAssistantLineIndex ? lastAssistantBubbleRef : undefined}
                     className="agent-bubble agent-bubble-assistant"
                   >
-                    <AgentAssistantMarkdown text={ln.text} />
+                    <div className={`agent-bubble-content${canCollapse && !isExpanded ? " agent-bubble-content--collapsed" : ""}`}>
+                      <AgentAssistantMarkdown text={ln.text} />
+                    </div>
+                    {canCollapse ? (
+                      <button
+                        type="button"
+                        className="agent-bubble-expand-btn"
+                        onClick={() => setExpandedLongBubbleById((prev) => ({ ...prev, [ln.id]: !prev[ln.id] }))}
+                      >
+                        {isExpanded ? "Свернуть" : "Развернуть"}
+                      </button>
+                    ) : null}
                   </div>
                 );
               }
               if (ln.kind === "tool_run") {
                 const label = ln.cancelled ? "Cancelled" : ln.error ? "Error" : "Done";
-                const cmdShort = ln.command.length > 72 ? `${ln.command.slice(0, 70)}…` : ln.command || "(command)";
+                const labelClass = ln.cancelled
+                  ? "agent-tool-run-label agent-tool-run-label--cancelled"
+                  : ln.error
+                    ? "agent-tool-run-label agent-tool-run-label--error"
+                    : "agent-tool-run-label agent-tool-run-label--done";
+                const cmd = ln.command || "(command)";
                 return (
-                  <button
-                    key={`${ln.id}-${i}`}
-                    type="button"
-                    className="agent-tool-run-compact"
-                    onClick={() => openOutputForTool(ln.id)}
-                  >
-                    <span className="agent-tool-run-label">{label}</span>
-                    <span className="mono agent-tool-run-cmd">{cmdShort}</span>
-                    <span className="agent-tool-run-hint">Agent output tab</span>
-                  </button>
+                  <div key={`${ln.id}-${i}`} className="agent-tool-run-compact agent-tool-run-compact--with-copy">
+                    <button type="button" className="agent-tool-run-scroll" onClick={() => openOutputForTool(ln.id)}>
+                      <span className="agent-tool-run-inner-scroll">
+                        <span className={labelClass}>{label}</span>
+                        <span className="mono agent-tool-run-cmd">{cmd}</span>
+                      </span>
+                    </button>
+                    <AgentToolRunCopyBtn command={cmd} />
+                  </div>
                 );
               }
               return (
@@ -565,11 +728,17 @@ export function AgentPanel({
               );
             })}
             {busy && transientRunCommand ? (
-              <div className="agent-tool-run-compact agent-tool-run-compact--running" aria-live="polite">
-                <span className="agent-tool-run-label">Running</span>
-                <span className="mono agent-tool-run-cmd">
-                  {transientRunCommand.length > 72 ? `${transientRunCommand.slice(0, 70)}…` : transientRunCommand}
-                </span>
+              <div
+                className="agent-tool-run-compact agent-tool-run-compact--running agent-tool-run-compact--with-copy"
+                aria-live="polite"
+              >
+                <div className="agent-tool-run-scroll agent-tool-run-scroll--static">
+                  <span className="agent-tool-run-inner-scroll">
+                    <span className="agent-tool-run-label agent-tool-run-label--running">Running</span>
+                    <span className="mono agent-tool-run-cmd">{transientRunCommand}</span>
+                  </span>
+                </div>
+                <AgentToolRunCopyBtn command={transientRunCommand} />
               </div>
             ) : null}
             {busy && optimisticUserText ? (
@@ -590,7 +759,9 @@ export function AgentPanel({
               {sysStrip ? <div className="agent-sys-msg">{sysStrip}</div> : null}
               <div className="agent-cmd-block">
                 <div className="agent-cmd-head">
-                  <div className="mono agent-cmd-text">{pending.command}</div>
+                  <div className="mono agent-cmd-text agent-cmd-text-scroll">
+                    <span className="agent-cmd-text-inner">{pending.command}</span>
+                  </div>
                   <button
                     type="button"
                     className="agent-cmd-explain-btn"
@@ -706,23 +877,34 @@ export function AgentPanel({
         <div className="modal-overlay" role="dialog" aria-modal="true">
           <div className="modal agent-task-history-modal">
             <div className="modal-title">Task plan history</div>
-            <div className="modal-body">
+            <div className="modal-body" ref={taskHistoryBodyRef}>
+              {historyLatestPlanSummary ? (
+                <div className="agent-task-history-global-summary" aria-label="Current plan summary">
+                  {historyLatestPlanSummary}
+                </div>
+              ) : null}
               <div className="agent-task-history-list">
-                {taskSnapshots.map((snap, idx) => (
-                  <div key={`${snap.messageId}-${idx}`} className="agent-task-history-snap">
-                    <div className="agent-task-history-snap-title">Update {idx + 1}</div>
-                    {snap.replyExcerpt ? <div className="agent-task-history-excerpt">{snap.replyExcerpt}</div> : null}
-                    {snap.tasks.map((t) => (
-                      <div
-                        key={t.id}
-                        className={`agent-task-row agent-task-row--${(t.status || "pending").replace(/\s+/g, "_")}`}
-                      >
-                        <span className="agent-task-status">{t.status}</span>
-                        <span className="agent-task-title">{t.title}</span>
-                      </div>
-                    ))}
-                  </div>
-                ))}
+                {taskSnapshotsDisplay.map((snap, idx) => {
+                  const isLatest = idx === taskSnapshotsDisplay.length - 1;
+                  const rowTasks = tasksForHistoryRow(snap.tasks, isLatest);
+                  const showPerUpdateSummary = snap.tasks.length > 1;
+                  return (
+                    <div key={`${snap.messageId}-${idx}`} className="agent-task-history-snap">
+                      <div className="agent-task-history-snap-title">Update {idx + 1}</div>
+                      {showPerUpdateSummary ? <div className="agent-task-history-summary">{snap.summaryLine}</div> : null}
+                      {snap.replyExcerpt ? <div className="agent-task-history-excerpt">{snap.replyExcerpt}</div> : null}
+                      {rowTasks.map((t) => (
+                        <div
+                          key={t.id}
+                          className={`agent-task-row agent-task-row--${(t.status || "pending").replace(/\s+/g, "_")}`}
+                        >
+                          <span className="agent-task-status">{t.status}</span>
+                          <span className="agent-task-title">{t.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
             <div className="modal-actions">

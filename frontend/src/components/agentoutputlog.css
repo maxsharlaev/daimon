@@ -161,6 +161,28 @@
   scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
 }
 
+.agent-output-pre--collapsed {
+  max-height: min(320px, 34vh);
+}
+
+.agent-output-expand-row {
+  padding: 6px 10px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.agent-output-expand-btn {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(130, 210, 255, 0.95);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.agent-output-expand-btn:hover {
+  color: rgba(160, 225, 255, 1);
+}
+
 .agent-output-pre::-webkit-scrollbar {
   width: 10px;
 }
