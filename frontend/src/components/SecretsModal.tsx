@@ -174,88 +174,6 @@ export function SecretsModal({ open, profileId, profiles, onClose }: Props) {
             ))}
           </div>
 
-          {editorOpen ? (
-            <div className="secrets-editor-overlay" role="dialog" aria-modal="true">
-              <div className="secrets-editor form">
-                <div className="secrets-editor-title">{editingKey ? "Edit secret" : "Add secret"}</div>
-                <div className="row two">
-                  <div className="row">
-                    <label>Name</label>
-                    <input
-                      value={keyInput}
-                      onChange={(e) => setKeyInput(e.target.value)}
-                      placeholder="sudo"
-                      disabled={!!editingKey}
-                    />
-                    <div className="help">Max {KEY_MAX} chars.</div>
-                  </div>
-                  <div className="row">
-                    <label>Storage</label>
-                    <select value={storage} onChange={(e) => setStorage(e.target.value as any)}>
-                      <option value="keyring">OS keyring</option>
-                      <option value="internal">Internal vault</option>
-                      <option value="none">Don’t store</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="row">
-                  <label>{editingKey ? "New value (replace)" : "Value"}</label>
-                  <input
-                    type="password"
-                    value={valueInput}
-                    onChange={(e) => setValueInput(e.target.value)}
-                    placeholder={editingKey ? "Enter new value" : "Secret value"}
-                  />
-                </div>
-                <div className="row actions">
-                  <button
-                    className="btn"
-                    type="button"
-                    disabled={busy || !canSave}
-                    onClick={async () => {
-                      try {
-                        setBusy(true);
-                        setError(null);
-                        await UpsertSecret({
-                          profileId,
-                          key: keyInput.trim(),
-                          storage,
-                          value: valueInput,
-                          metaJson: "{}",
-                        } as any);
-                        setKeyInput("");
-                        setValueInput("");
-                        setEditingKey(null);
-                        setStorage("keyring");
-                        setEditorOpen(false);
-                        await refresh();
-                      } catch (e: any) {
-                        setError(e?.message ?? String(e));
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                  >
-                    {editingKey ? "Update" : "Add"}
-                  </button>
-                  <button
-                    className="btn btn-ghost"
-                    type="button"
-                    onClick={() => {
-                      setEditingKey(null);
-                      setKeyInput("");
-                      setValueInput("");
-                      setStorage("keyring");
-                      setEditorOpen(false);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
           {needsVault ? (
             <div className="secrets-vault">
               <div className="secrets-vault-title">
@@ -351,6 +269,87 @@ export function SecretsModal({ open, profileId, profiles, onClose }: Props) {
           </button>
         </div>
       </div>
+      {editorOpen ? (
+        <div className="secrets-editor-overlay" role="dialog" aria-modal="true" onClick={() => setEditorOpen(false)}>
+          <div className="secrets-editor form" onClick={(e) => e.stopPropagation()}>
+            <div className="secrets-editor-title">{editingKey ? "Edit secret" : "Add secret"}</div>
+            <div className="row two">
+              <div className="row">
+                <label>Name</label>
+                <input
+                  value={keyInput}
+                  onChange={(e) => setKeyInput(e.target.value)}
+                  placeholder="sudo"
+                  disabled={!!editingKey}
+                />
+                <div className="help">Max {KEY_MAX} chars.</div>
+              </div>
+              <div className="row">
+                <label>Storage</label>
+                <select value={storage} onChange={(e) => setStorage(e.target.value as any)}>
+                  <option value="keyring">OS keyring</option>
+                  <option value="internal">Internal vault</option>
+                  <option value="none">Don’t store</option>
+                </select>
+              </div>
+            </div>
+            <div className="row">
+              <label>{editingKey ? "New value (replace)" : "Value"}</label>
+              <input
+                type="password"
+                value={valueInput}
+                onChange={(e) => setValueInput(e.target.value)}
+                placeholder={editingKey ? "Enter new value" : "Secret value"}
+              />
+            </div>
+            <div className="row actions">
+              <button
+                className="btn"
+                type="button"
+                disabled={busy || !canSave}
+                onClick={async () => {
+                  try {
+                    setBusy(true);
+                    setError(null);
+                    await UpsertSecret({
+                      profileId,
+                      key: keyInput.trim(),
+                      storage,
+                      value: valueInput,
+                      metaJson: "{}",
+                    } as any);
+                    setKeyInput("");
+                    setValueInput("");
+                    setEditingKey(null);
+                    setStorage("keyring");
+                    setEditorOpen(false);
+                    await refresh();
+                  } catch (e: any) {
+                    setError(e?.message ?? String(e));
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {editingKey ? "Update" : "Add"}
+              </button>
+              <button
+                className="btn btn-ghost"
+                type="button"
+                onClick={() => {
+                  setEditingKey(null);
+                  setKeyInput("");
+                  setValueInput("");
+                  setStorage("keyring");
+                  setEditorOpen(false);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
