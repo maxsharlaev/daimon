@@ -124,6 +124,8 @@ export function ConnectionsPanel({
   onDataChanged,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  /** SFTP connect is in progress (do not use global `busy` — keep Terminal/Dashboard usable). */
+  const [sftpOpeningProfileId, setSftpOpeningProfileId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sshPasswordModal, setSshPasswordModal] = useState<SshPasswordModalContext | null>(null);
   const [vaultUnlockModal, setVaultUnlockModal] = useState<VaultUnlockConnectionContext | null>(null);
@@ -432,7 +434,7 @@ export function ConnectionsPanel({
   };
 
   const openFiles = async (p: ProfileDTO) => {
-    setBusy(true);
+    setSftpOpeningProfileId(p.id);
     setError(null);
     try {
       const sid = await SFTPConnectProfile(p.id);
@@ -441,7 +443,7 @@ export function ConnectionsPanel({
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
-      setBusy(false);
+      setSftpOpeningProfileId(null);
     }
   };
 
@@ -561,8 +563,13 @@ export function ConnectionsPanel({
                                   <button className="btn" type="button" onClick={() => connectProfile(p)} disabled={busy}>
                                     Connect
                                   </button>
-                                  <button className="btn" type="button" onClick={() => void openFiles(p)} disabled={busy}>
-                                    Files
+                                  <button
+                                    className="btn"
+                                    type="button"
+                                    onClick={() => void openFiles(p)}
+                                    disabled={busy || sftpOpeningProfileId !== null}
+                                  >
+                                    {sftpOpeningProfileId === p.id ? "Files…" : "Files"}
                                   </button>
                                   <button className="btn" type="button" onClick={() => void openDashboard(p)} disabled={busy}>
                                     Dashboard

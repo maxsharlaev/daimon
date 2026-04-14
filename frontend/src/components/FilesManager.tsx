@@ -81,8 +81,12 @@ export function FilesManager({
   onAddLocation,
   navToRemote,
 }: Props) {
-  const [localPath, setLocalPath] = useState<string>("");
-  const [remotePath, setRemotePath] = useState<string>(".");
+  const initialRemoteState = (() => {
+    const t = (initialRemotePath ?? "").trim();
+    return t && t !== "." ? t : ".";
+  })();
+  const [localPath, setLocalPath] = useState<string>(() => (initialLocalPath?.trim() ? initialLocalPath.trim() : ""));
+  const [remotePath, setRemotePath] = useState<string>(() => initialRemoteState);
   const [localEntries, setLocalEntries] = useState<FileEntry[]>([]);
   const [remoteEntries, setRemoteEntries] = useState<FileEntry[]>([]);
   const [busy, setBusy] = useState(false);
@@ -90,6 +94,12 @@ export function FilesManager({
   const disconnectedReportedRef = useRef(false);
   // Forces a refresh even when navigating to the same remote path (React may skip setState).
   const [remoteNavTick, setRemoteNavTick] = useState(0);
+  const localPathRef = useRef(localPath);
+  const remotePathRef = useRef(remotePath);
+  localPathRef.current = localPath;
+  remotePathRef.current = remotePath;
+  const localListGenRef = useRef(0);
+  const remoteListGenRef = useRef(0);
 
   const [activePane, setActivePane] = useState<"local" | "remote">("remote");
   const [selLocal, setSelLocal] = useState<string | null>(null);
@@ -100,7 +110,7 @@ export function FilesManager({
   const cancelByTransferRef = useRef<Set<string>>(new Set());
   const [localDrives, setLocalDrives] = useState<string[]>([]);
   const [remoteGoOpen, setRemoteGoOpen] = useState(false);
-  const [remotePathInput, setRemotePathInput] = useState<string>("");
+  const [remotePathInput, setRemotePathInput] = useState<string>(() => (initialRemoteState === "." ? "" : initialRemoteState));
   const [conflict, setConflict] = useState<ConflictInfo>({ open: false, remotePath: "", localPath: "" });
   const [uploadConfirm, setUploadConfirm] = useState<{ localPath: string; fileName: string; size: number } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ path: string; name: string; isLocal: boolean } | null>(null);
@@ -288,16 +298,24 @@ export function FilesManager({
       const jobs: Promise<void>[] = [];
 
       if (localPath) {
+        const lp = localPathRef.current;
+        const lg = ++localListGenRef.current;
         jobs.push(
-          LocalListDir(localPath).then((l) => {
+          LocalListDir(lp).then((l) => {
+            if (lg !== localListGenRef.current) return;
+            if (localPathRef.current !== lp) return;
             setLocalEntries((l as any) as FileEntry[]);
           })
         );
       }
 
       if (remotePath) {
+        const rp = remotePathRef.current;
+        const rg = ++remoteListGenRef.current;
         jobs.push(
-          SFTPListDir(sessionId, remotePath).then((r) => {
+          SFTPListDir(sessionId, rp).then((r) => {
+            if (rg !== remoteListGenRef.current) return;
+            if (remotePathRef.current !== rp) return;
             setRemoteEntries((r as any) as FileEntry[]);
           })
         );

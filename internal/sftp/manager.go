@@ -60,7 +60,25 @@ func (m *Manager) Connect(ctx context.Context, cfg SSHConfig) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	sftpClient, err := pkgsftp.NewClient(client)
+	handshakeTimeout := sshTimeoutFromConfig(cfg)
+	type newClientRes struct {
+		c   *pkgsftp.Client
+		err error
+	}
+	ch := make(chan newClientRes, 1)
+	go func() {
+		c, e := pkgsftp.NewClient(client)
+		ch <- newClientRes{c, e}
+	}()
+	var sftpClient *pkgsftp.Client
+	select {
+	case r := <-ch:
+		sftpClient = r.c
+		err = r.err
+	case <-time.After(handshakeTimeout):
+		_ = client.Close()
+		return "", fmt.Errorf("sftp subsystem handshake timed out after %v", handshakeTimeout)
+	}
 	if err != nil {
 		_ = client.Close()
 		return "", err
@@ -281,6 +299,14 @@ func (m *Manager) ReadFileTail(sessionId string, p string, maxBytes int64) ([]by
 	return io.ReadAll(io.LimitReader(f, toRead))
 }
 
+func sshTimeoutFromConfig(cfg SSHConfig) time.Duration {
+	timeout := 10 * time.Second
+	if cfg.TimeoutMs > 0 {
+		timeout = time.Duration(cfg.TimeoutMs) * time.Millisecond
+	}
+	return timeout
+}
+
 func dialSSH(cfg SSHConfig) (*ssh.Client, error) {
 	if strings.TrimSpace(cfg.Host) == "" {
 		return nil, errors.New("host is required")
@@ -290,10 +316,6 @@ func dialSSH(cfg SSHConfig) (*ssh.Client, error) {
 	}
 	if strings.TrimSpace(cfg.Username) == "" {
 		return nil, errors.New("username is required")
-	}
-	timeout := 10 * time.Second
-	if cfg.TimeoutMs > 0 {
-		timeout = time.Duration(cfg.TimeoutMs) * time.Millisecond
 	}
 
 	auth, err := buildAuth(cfg)
@@ -307,14 +329,31 @@ func dialSSH(cfg SSHConfig) (*ssh.Client, error) {
 		hostKeyCb = ssh.InsecureIgnoreHostKey()
 	}
 
+	timeout := sshTimeoutFromConfig(cfg)
+
 	clientCfg := &ssh.ClientConfig{
 		User:            cfg.Username,
 		Auth:            auth,
 		HostKeyCallback: hostKeyCb,
-		Timeout:         timeout,
+		// Still set for ssh internals; TCP + handshake are bounded explicitly below.
+		Timeout: timeout,
 	}
 	addr := net.JoinHostPort(cfg.Host, fmt.Sprintf("%d", cfg.Port))
-	return ssh.Dial("tcp", addr, clientCfg)
+
+	// Avoid ssh.Dial(): on some networks it can block far longer than Timeout on half-open TCP.
+	d := &net.Dialer{Timeout: timeout}
+	conn, err := d.Dial("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	_ = conn.SetDeadline(time.Now().Add(timeout))
+	cconn, chans, reqs, err := ssh.NewClientConn(conn, addr, clientCfg)
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	_ = conn.SetDeadline(time.Time{})
+	return ssh.NewClient(cconn, chans, reqs), nil
 }
 
 func buildAuth(cfg SSHConfig) ([]ssh.AuthMethod, error) {
