@@ -48,6 +48,7 @@ type SettingsPrivacyReportDTO struct {
 	LogSourceCount      int64  `json:"logSourceCount"`
 	LogEntryCount       int64  `json:"logEntryCount"`
 	LogFormatCount      int64  `json:"logFormatCount"`
+	DataSourceCount     int64  `json:"dataSourceCount"`
 }
 
 // SettingsDatabaseTableStatDTO is one user table and its row count (SELECT COUNT(*)).
@@ -341,6 +342,7 @@ func (a *App) SettingsPrivacyReport() (SettingsPrivacyReportDTO, error) {
 	_ = a.db.DB.Model(&storage.LogSource{}).Count(&out.LogSourceCount).Error
 	_ = a.db.DB.Model(&storage.LogEntry{}).Count(&out.LogEntryCount).Error
 	_ = a.db.DB.Model(&storage.LogFormat{}).Count(&out.LogFormatCount).Error
+	_ = a.db.DB.Model(&storage.DataSource{}).Count(&out.DataSourceCount).Error
 	return out, nil
 }
 

@@ -28,6 +28,9 @@ type SettingsPrivacyProfileDetailDTO struct {
 	LogProfileSourceCount int64 `json:"logProfileSourceCount"`
 	LogEntryCount         int64 `json:"logEntryCount"`
 	LogLastSyncedUnixMs   int64 `json:"logLastSyncedUnixMs"` // 0 if never
+
+	// DataSourceCount is saved Data tab DB sources whose scope references this SSH profile (SSH or Docker remote).
+	DataSourceCount int64 `json:"dataSourceCount"`
 }
 
 func (a *App) SettingsPrivacyProfileDetail(profileId string) (SettingsPrivacyProfileDetailDTO, error) {
@@ -97,6 +100,19 @@ func (a *App) SettingsPrivacyProfileDetail(profileId string) (SettingsPrivacyPro
 		out.LogLastSyncedUnixMs = maxT.UnixMilli()
 	}
 
+	var dsList []storage.DataSource
+	if err := a.db.DB.Find(&dsList).Error; err == nil {
+		for _, m := range dsList {
+			sc, err := parseDataScopeJSON(m.ScopeJSON)
+			if err != nil {
+				continue
+			}
+			if (sc.Mode == "ssh" || sc.Mode == "docker_remote") && sc.SSHProfileID == profileId {
+				out.DataSourceCount++
+			}
+		}
+	}
+
 	return out, nil
 }
 
@@ -158,7 +174,7 @@ func (a *App) PrivacyPurgeProfileLogs(profileId string) error {
 	return nil
 }
 
-// PrivacyPurgeAllSecrets removes every stored secret reference: clears keyring / internal vault material per ref, then deletes all secret_ref rows (SSH passwords, keys, custom secrets, passphrases).
+// PrivacyPurgeAllSecrets removes only Secrets-dialog custom entries (kind custom:*), not SSH passwords, private keys, AI keys, or Data source passwords.
 func (a *App) PrivacyPurgeAllSecrets() error {
 	if a.db == nil || a.db.DB == nil {
 		return errors.New("db not ready")
@@ -167,7 +183,7 @@ func (a *App) PrivacyPurgeAllSecrets() error {
 		return errors.New("secrets not ready")
 	}
 	var refs []storage.SecretRef
-	if err := a.db.DB.Find(&refs).Error; err != nil {
+	if err := a.db.DB.Where("kind LIKE ?", customSecretPrefix+"%").Find(&refs).Error; err != nil {
 		return err
 	}
 	for _, r := range refs {
@@ -175,7 +191,7 @@ func (a *App) PrivacyPurgeAllSecrets() error {
 			return err
 		}
 	}
-	return a.db.DB.Where("1 = 1").Delete(&storage.SecretRef{}).Error
+	return a.db.DB.Where("kind LIKE ?", customSecretPrefix+"%").Delete(&storage.SecretRef{}).Error
 }
 
 // PrivacyDockerLogBucketDTO aggregates imported log data stored for one Docker container key (local or remote).
@@ -414,6 +430,50 @@ func (a *App) PrivacyPurgeDockerRemoteLogs(profileId string, containerName strin
 	}
 	for _, s := range sources {
 		if err := a.DeleteLogSource(s.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PrivacyDeleteAllDataSources removes every saved Data tab data source row and clears data_source_password secret refs.
+func (a *App) PrivacyDeleteAllDataSources() error {
+	if a.db == nil || a.db.DB == nil || a.secrets == nil {
+		return errors.New("app not ready")
+	}
+	var list []storage.DataSource
+	if err := a.db.DB.Find(&list).Error; err != nil {
+		return err
+	}
+	for _, m := range list {
+		_ = a.secrets.PutSecretValue(m.ID, secrets.KindDataSourcePassword, secrets.StorageNone, "", secrets.SecretValue{}, "{}")
+	}
+	return a.db.DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&storage.DataSource{}).Error
+}
+
+// PrivacyDeleteDataSourcesForProfile deletes Data tab sources scoped to this SSH profile (direct SSH or Docker remote on this host).
+func (a *App) PrivacyDeleteDataSourcesForProfile(profileId string) error {
+	if a.db == nil || a.db.DB == nil || a.secrets == nil {
+		return errors.New("app not ready")
+	}
+	pid := strings.TrimSpace(profileId)
+	if pid == "" {
+		return errors.New("profileId required")
+	}
+	var list []storage.DataSource
+	if err := a.db.DB.Find(&list).Error; err != nil {
+		return err
+	}
+	for _, m := range list {
+		sc, err := parseDataScopeJSON(m.ScopeJSON)
+		if err != nil {
+			continue
+		}
+		if (sc.Mode != "ssh" && sc.Mode != "docker_remote") || sc.SSHProfileID != pid {
+			continue
+		}
+		_ = a.secrets.PutSecretValue(m.ID, secrets.KindDataSourcePassword, secrets.StorageNone, "", secrets.SecretValue{}, "{}")
+		if err := a.db.DB.Delete(&storage.DataSource{}, "id = ?", m.ID).Error; err != nil {
 			return err
 		}
 	}

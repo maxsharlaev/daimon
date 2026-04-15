@@ -297,6 +297,10 @@ export function PrivacyClearAuthPrivateKey(arg1:string):Promise<void>;
 
 export function PrivacyDeleteAllCustomSecrets(arg1:string):Promise<void>;
 
+export function PrivacyDeleteAllDataSources():Promise<void>;
+
+export function PrivacyDeleteDataSourcesForProfile(arg1:string):Promise<void>;
+
 export function PrivacyPurgeAllSecrets():Promise<void>;
 
 export function PrivacyPurgeDockerLocalLogs(arg1:string):Promise<void>;

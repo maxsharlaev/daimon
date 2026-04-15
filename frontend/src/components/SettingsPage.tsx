@@ -15,6 +15,8 @@ import {
   ListPrivacyDockerRemoteLogBuckets,
   ListPrivacyDockerRemoteOrphanLogBuckets,
   PrivacyPurgeAllSecrets,
+  PrivacyDeleteAllDataSources,
+  PrivacyDeleteDataSourcesForProfile,
   PrivacyPurgeDockerLocalLogs,
   PrivacyPurgeDockerRemoteLogs,
   PrivacyPurgeProfileLogs,
@@ -32,6 +34,7 @@ import {
 import type { MacroDTO, ProfileDTO } from "../types/models";
 import { SETTINGS_REFRESH_ALL_EVENT } from "../settingsEvents";
 import { SettingsPlacesPanel } from "./SettingsPlacesPanel";
+import { SettingsDataPanel } from "./SettingsDataPanel";
 import { AiModePanel } from "./AiModePanel";
 import { DeveloperAiLogsPanel } from "./DeveloperAiLogsPanel";
 import { DeveloperModePanel } from "./DeveloperModePanel";
@@ -54,7 +57,7 @@ type Props = {
   onEditMacro: (m: MacroDTO) => void;
 };
 
-type SettingsTab = "logs" | "macros" | "places" | "ai" | "developer" | "privacy";
+type SettingsTab = "logs" | "macros" | "places" | "ai" | "developer" | "data" | "privacy";
 
 type PrivacyProfileDetail = {
   profileId: string;
@@ -67,6 +70,7 @@ type PrivacyProfileDetail = {
   logProfileSourceCount: number;
   logEntryCount: number;
   logLastSyncedUnixMs: number;
+  dataSourceCount: number;
 };
 
 type PrivacyScope = "connection" | "docker_local" | "docker_remote";
@@ -224,6 +228,8 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
   const [privacyMaintenanceBusy, setPrivacyMaintenanceBusy] = useState(false);
   const [privacyMaintenanceErr, setPrivacyMaintenanceErr] = useState<string | null>(null);
   const [privacyMaintenanceConfirm, setPrivacyMaintenanceConfirm] = useState<null | "layout" | "logs" | "secrets">(null);
+  const [privacyDeleteAllDataSourcesOpen, setPrivacyDeleteAllDataSourcesOpen] = useState(false);
+  const [privacyDeleteProfileDataSourcesOpen, setPrivacyDeleteProfileDataSourcesOpen] = useState(false);
 
   const [privacySub, setPrivacySub] = useState<PrivacySubPage>("home");
   const [dbStorage, setDbStorage] = useState<SettingsDatabaseStorageDTO | null>(null);
@@ -522,6 +528,38 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
     },
     [privacySelectedProfileId, loadPrivacyDetail, loadPrivacy, loadDbStorage]
   );
+
+  const runPrivacyDeleteAllDataSources = useCallback(async () => {
+    setPrivacyActionBusy(true);
+    setPrivacyError(null);
+    try {
+      await PrivacyDeleteAllDataSources();
+      setPrivacyDeleteAllDataSourcesOpen(false);
+      await loadPrivacy();
+      await loadDbStorage();
+    } catch (e: any) {
+      setPrivacyError(e?.message ?? String(e));
+    } finally {
+      setPrivacyActionBusy(false);
+    }
+  }, [loadPrivacy, loadDbStorage]);
+
+  const runPrivacyDeleteDataSourcesForProfile = useCallback(async () => {
+    if (!privacySelectedProfileId) return;
+    setPrivacyActionBusy(true);
+    setPrivacyDetailError(null);
+    try {
+      await PrivacyDeleteDataSourcesForProfile(privacySelectedProfileId);
+      setPrivacyDeleteProfileDataSourcesOpen(false);
+      await loadPrivacyDetail(privacySelectedProfileId);
+      await loadPrivacy();
+      await loadDbStorage();
+    } catch (e: any) {
+      setPrivacyDetailError(e?.message ?? String(e));
+    } finally {
+      setPrivacyActionBusy(false);
+    }
+  }, [privacySelectedProfileId, loadPrivacyDetail, loadPrivacy, loadDbStorage]);
 
   const runDockerPrivacyPurgeLocal = useCallback(
     async (containerName: string) => {
@@ -939,6 +977,15 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
             >
               AI Mode
             </button>
+            <button
+              type="button"
+              role="tab"
+              className={`settings-tab ${tab === "data" ? "active" : ""}`}
+              aria-selected={tab === "data"}
+              onClick={() => setTab("data")}
+            >
+              Data
+            </button>
             <div className="settings-nav-group settings-nav-group--developer" role="presentation">
               <button
                 type="button"
@@ -1033,6 +1080,8 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
         <div className="settings-body">
           {tab === "places" ? <SettingsPlacesPanel profiles={profiles} /> : null}
 
+          {tab === "data" ? <SettingsDataPanel profiles={profiles} /> : null}
+
           {tab === "ai" ? <AiModePanel onSettingsChanged={() => void loadAiModeGate()} /> : null}
           {tab === "developer" ? (
             <>
@@ -1059,6 +1108,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
                     <SettingCard label="Log sources" value={String(report?.logSourceCount ?? 0)} />
                     <SettingCard label="Log entries" value={String(report?.logEntryCount ?? 0)} />
                     <SettingCard label="Log formats" value={String(report?.logFormatCount ?? 0)} />
+                    <SettingCard label="Data sources" value={String(report?.dataSourceCount ?? 0)} />
                   </div>
                 </div>
               ) : null}
@@ -1285,6 +1335,24 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
                             }
                           >
                             Delete log data for this connection
+                          </button>
+                        </div>
+                      </div>
+                      <div className="settings-privacy-block">
+                        <div className="settings-privacy-block-main">
+                          <h4>Data tab (SQL sources)</h4>
+                          <p>
+                            {privacyDetail.dataSourceCount ?? 0} saved database source(s) reference this SSH connection in scope (direct SSH or Docker remote on this host).
+                          </p>
+                        </div>
+                        <div className="settings-privacy-block-actions">
+                          <button
+                            className="btn btn-ghost"
+                            type="button"
+                            disabled={privacyActionBusy || !((privacyDetail.dataSourceCount ?? 0) > 0)}
+                            onClick={() => setPrivacyDeleteProfileDataSourcesOpen(true)}
+                          >
+                            Delete these sources…
                           </button>
                         </div>
                       </div>
@@ -1659,7 +1727,20 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
                         disabled={privacyMaintenanceBusy}
                         onClick={() => setPrivacyMaintenanceConfirm("secrets")}
                       >
-                        Purge all secrets
+                        Purge Secrets dialog entries
+                      </button>
+                      <button
+                        className="btn btn-ghost"
+                        type="button"
+                        disabled={privacyMaintenanceBusy || !(Number(report?.dataSourceCount ?? 0) > 0)}
+                        onClick={() => setPrivacyDeleteAllDataSourcesOpen(true)}
+                        title={
+                          Number(report?.dataSourceCount ?? 0) > 0
+                            ? "Remove all saved Data tab connection profiles and stored DB passwords"
+                            : "No saved Data sources"
+                        }
+                      >
+                        Delete all Data sources
                       </button>
                     </div>
                   </div>
@@ -1959,6 +2040,67 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
         </div>
       </div>
 
+      {privacyDeleteAllDataSourcesOpen ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal">
+            <div className="modal-title">Delete all Data sources?</div>
+            <div className="modal-body">
+              <p>
+                Remove every saved Data tab connection ({report?.dataSourceCount ?? 0} record
+                {(report?.dataSourceCount ?? 0) === 1 ? "" : "s"}) and clear stored database passwords from the keyring / vault.
+              </p>
+              <p className="muted">Active Data sessions are not closed automatically; disconnect them from the Data tab if needed.</p>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={privacyActionBusy}
+                onClick={() => setPrivacyDeleteAllDataSourcesOpen(false)}
+              >
+                Cancel
+              </button>
+              <button type="button" className="btn btn-danger" disabled={privacyActionBusy} onClick={() => void runPrivacyDeleteAllDataSources()}>
+                {privacyActionBusy ? "Please wait…" : "Delete all"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {privacyDeleteProfileDataSourcesOpen ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal">
+            <div className="modal-title">Delete Data sources for this connection?</div>
+            <div className="modal-body">
+              <p>
+                Remove {privacyDetail?.dataSourceCount ?? 0} saved Data tab source
+                {(privacyDetail?.dataSourceCount ?? 0) === 1 ? "" : "s"} scoped to this SSH profile (including Docker remote sources that use this host).
+              </p>
+              <p className="muted">This cannot be undone.</p>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={privacyActionBusy}
+                onClick={() => setPrivacyDeleteProfileDataSourcesOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={privacyActionBusy}
+                onClick={() => void runPrivacyDeleteDataSourcesForProfile()}
+              >
+                {privacyActionBusy ? "Please wait…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {privacyMaintenanceConfirm ? (
         <div
           className="modal-overlay"
@@ -1975,7 +2117,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
                 ? "Clear UI layout?"
                 : privacyMaintenanceConfirm === "logs"
                   ? "Purge all logs?"
-                  : "Purge all secrets?"}
+                  : "Purge Secrets dialog entries?"}
             </div>
             <div className="modal-body">
               {privacyMaintenanceConfirm === "layout" ? (
@@ -1988,8 +2130,8 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
                 </p>
               ) : (
                 <p>
-                  Remove all stored credentials for every SSH profile: passwords, private keys, custom secrets, and keyring/vault copies. External key files and ssh-agent are
-                  not deleted. This cannot be undone.
+                  Remove every custom secret saved from the per-connection Secrets dialog (keyring / internal vault entries tied to those keys). SSH passwords, private keys, AI
+                  keys, and Data tab database passwords are not changed. This cannot be undone.
                 </p>
               )}
             </div>

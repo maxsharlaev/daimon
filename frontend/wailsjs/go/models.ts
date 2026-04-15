@@ -1702,6 +1702,7 @@ export namespace main {
 	    logProfileSourceCount: number;
 	    logEntryCount: number;
 	    logLastSyncedUnixMs: number;
+	    dataSourceCount: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new SettingsPrivacyProfileDetailDTO(source);
@@ -1719,6 +1720,7 @@ export namespace main {
 	        this.logProfileSourceCount = source["logProfileSourceCount"];
 	        this.logEntryCount = source["logEntryCount"];
 	        this.logLastSyncedUnixMs = source["logLastSyncedUnixMs"];
+	        this.dataSourceCount = source["dataSourceCount"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1750,6 +1752,7 @@ export namespace main {
 	    logSourceCount: number;
 	    logEntryCount: number;
 	    logFormatCount: number;
+	    dataSourceCount: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new SettingsPrivacyReportDTO(source);
@@ -1767,6 +1770,7 @@ export namespace main {
 	        this.logSourceCount = source["logSourceCount"];
 	        this.logEntryCount = source["logEntryCount"];
 	        this.logFormatCount = source["logFormatCount"];
+	        this.dataSourceCount = source["dataSourceCount"];
 	    }
 	}
 	export class TestDataSourceConnectionRequest {

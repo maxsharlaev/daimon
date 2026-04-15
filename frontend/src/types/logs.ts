@@ -71,6 +71,7 @@ export type SettingsPrivacyReportDTO = {
   logSourceCount: number;
   logEntryCount: number;
   logFormatCount: number;
+  dataSourceCount: number;
 };
 
 export type SettingsDatabaseTableStatDTO = {

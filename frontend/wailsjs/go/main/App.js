@@ -590,6 +590,14 @@ export function PrivacyDeleteAllCustomSecrets(arg1) {
   return window['go']['main']['App']['PrivacyDeleteAllCustomSecrets'](arg1);
 }
 
+export function PrivacyDeleteAllDataSources() {
+  return window['go']['main']['App']['PrivacyDeleteAllDataSources']();
+}
+
+export function PrivacyDeleteDataSourcesForProfile(arg1) {
+  return window['go']['main']['App']['PrivacyDeleteDataSourcesForProfile'](arg1);
+}
+
 export function PrivacyPurgeAllSecrets() {
   return window['go']['main']['App']['PrivacyPurgeAllSecrets']();
 }
