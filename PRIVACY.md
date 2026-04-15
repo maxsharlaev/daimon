@@ -32,6 +32,13 @@ The app may process:
 - **AI settings** (non-secret): integration type, base URL, model name, token/context
   limits; the **API key** is stored only through the secret storage backends (see below),
   not as plaintext in settings JSON
+- **Data tab**: saved **data source** metadata (engine, host, port, username, scope JSON)
+  in SQLite; **database passwords** stored like other secrets (`keyring` / `internal`).
+  **SSH mode** opens a **separate** SSH client from Connections and uses a localhost port
+  forward to the remote DB endpoint. **Docker** modes run client tools against the DB
+  **inside the container network** (including ephemeral sidecar images), which may pull
+  images and run containers on the local or remote Docker engine you already use elsewhere
+  in the app.
 
 ## Secret Storage Modes
 
@@ -53,6 +60,7 @@ Project state is stored locally in SQLite under the user config directory
 Database may include:
 
 - profiles and UI state
+- **Data sources** (connection profiles for the Data tab; passwords only via secret refs)
 - secret references (`storage` mode + reference metadata)
 - encrypted vault blobs (when `internal` storage mode is used)
 - log formats, log sources, and log entry rows

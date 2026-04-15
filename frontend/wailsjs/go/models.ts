@@ -490,6 +490,112 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class DataConnectRequest {
+	    dataSourceId: string;
+	    remoteDockerSessionId?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DataConnectRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dataSourceId = source["dataSourceId"];
+	        this.remoteDockerSessionId = source["remoteDockerSessionId"];
+	    }
+	}
+	export class DataQueryResultDTO {
+	    columns: string[];
+	    rows: string[][];
+	
+	    static createFrom(source: any = {}) {
+	        return new DataQueryResultDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.columns = source["columns"];
+	        this.rows = source["rows"];
+	    }
+	}
+	export class DataRowMutationRequest {
+	    sessionId: string;
+	    database: string;
+	    table: string;
+	    columns: string[];
+	    values: string[];
+	    pkColumns: string[];
+	    pkValues: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DataRowMutationRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sessionId = source["sessionId"];
+	        this.database = source["database"];
+	        this.table = source["table"];
+	        this.columns = source["columns"];
+	        this.values = source["values"];
+	        this.pkColumns = source["pkColumns"];
+	        this.pkValues = source["pkValues"];
+	    }
+	}
+	export class DataSessionDTO {
+	    sessionId: string;
+	    dataSourceId: string;
+	    engine: string;
+	    mode: string;
+	    ok: boolean;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DataSessionDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sessionId = source["sessionId"];
+	        this.dataSourceId = source["dataSourceId"];
+	        this.engine = source["engine"];
+	        this.mode = source["mode"];
+	        this.ok = source["ok"];
+	        this.error = source["error"];
+	    }
+	}
+	export class DataSourceDTO {
+	    id: string;
+	    name: string;
+	    engine: string;
+	    host: string;
+	    port: number;
+	    username: string;
+	    database: string;
+	    scopeJson: string;
+	    createdAt: string;
+	    updatedAt: string;
+	    hasSecret: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DataSourceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.engine = source["engine"];
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.username = source["username"];
+	        this.database = source["database"];
+	        this.scopeJson = source["scopeJson"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	        this.hasSecret = source["hasSecret"];
+	    }
+	}
 	export class DockerContainerDTO {
 	    id: string;
 	    name: string;
@@ -1661,6 +1767,62 @@ export namespace main {
 	        this.logSourceCount = source["logSourceCount"];
 	        this.logEntryCount = source["logEntryCount"];
 	        this.logFormatCount = source["logFormatCount"];
+	    }
+	}
+	export class TestDataSourceConnectionRequest {
+	    engine: string;
+	    host: string;
+	    port: number;
+	    username: string;
+	    database: string;
+	    password: string;
+	    scopeJson: string;
+	    remoteDockerSessionId?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TestDataSourceConnectionRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.engine = source["engine"];
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.username = source["username"];
+	        this.database = source["database"];
+	        this.password = source["password"];
+	        this.scopeJson = source["scopeJson"];
+	        this.remoteDockerSessionId = source["remoteDockerSessionId"];
+	    }
+	}
+	export class UpsertDataSourceRequest {
+	    id?: string;
+	    name: string;
+	    engine: string;
+	    host: string;
+	    port: number;
+	    username: string;
+	    database: string;
+	    scopeJson: string;
+	    password?: string;
+	    passwordStorage?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpsertDataSourceRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.engine = source["engine"];
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.username = source["username"];
+	        this.database = source["database"];
+	        this.scopeJson = source["scopeJson"];
+	        this.password = source["password"];
+	        this.passwordStorage = source["passwordStorage"];
 	    }
 	}
 	export class UpsertLogFormatRequest {

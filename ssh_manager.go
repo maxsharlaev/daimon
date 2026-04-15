@@ -57,6 +57,9 @@ type sshConn struct {
 	session *ssh.Session
 	stdin   io.WriteCloser
 
+	// suppressStateEvents avoids emitting ssh:state for Data tab transports (isolated from Connections UI).
+	suppressStateEvents bool
+
 	closed chan struct{}
 	once   sync.Once
 }
@@ -280,6 +283,28 @@ func (m *SSHManager) ConnectExecOnly(ctx context.Context, cfg SSHConfig) (string
 	return id, nil
 }
 
+// ConnectExecOnlySilent is like ConnectExecOnly but does not emit ssh:state events (Data tab only).
+func (m *SSHManager) ConnectExecOnlySilent(ctx context.Context, cfg SSHConfig) (string, error) {
+	client, err := dialSSH(cfg)
+	if err != nil {
+		return "", err
+	}
+
+	id := randomID()
+	c := &sshConn{
+		id:                  id,
+		client:              client,
+		closed:              make(chan struct{}),
+		suppressStateEvents: true,
+	}
+
+	m.mu.Lock()
+	m.conns[id] = c
+	m.mu.Unlock()
+
+	return id, nil
+}
+
 func (m *SSHManager) Disconnect(ctx context.Context, id string) error {
 	return m.disconnect(ctx, id, nil)
 }
@@ -443,10 +468,12 @@ func (m *SSHManager) disconnect(ctx context.Context, id string, stateEvent *SSHS
 		_ = c.client.Close()
 	}
 
-	if stateEvent != nil {
-		runtime.EventsEmit(ctx, "ssh:state", *stateEvent)
-	} else {
-		runtime.EventsEmit(ctx, "ssh:state", SSHStateEvent{ID: id, State: "disconnected"})
+	if !c.suppressStateEvents {
+		if stateEvent != nil {
+			runtime.EventsEmit(ctx, "ssh:state", *stateEvent)
+		} else {
+			runtime.EventsEmit(ctx, "ssh:state", SSHStateEvent{ID: id, State: "disconnected"})
+		}
 	}
 	return nil
 }

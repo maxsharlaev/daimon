@@ -19,7 +19,27 @@ export function CopySecretToClipboard(arg1:string,arg2:string):Promise<void>;
 
 export function CreateAiConversation(arg1:string):Promise<string>;
 
+export function DataConnect(arg1:main.DataConnectRequest):Promise<main.DataSessionDTO>;
+
+export function DataDeleteRow(arg1:main.DataRowMutationRequest):Promise<void>;
+
+export function DataDisconnect(arg1:string):Promise<void>;
+
+export function DataExecSQL(arg1:string,arg2:string,arg3:string):Promise<main.DataQueryResultDTO>;
+
+export function DataListDatabases(arg1:string):Promise<Array<string>>;
+
+export function DataListTables(arg1:string,arg2:string):Promise<Array<string>>;
+
+export function DataPrimaryKeyColumns(arg1:string,arg2:string,arg3:string):Promise<Array<string>>;
+
+export function DataTablePreview(arg1:string,arg2:string,arg3:string,arg4:number,arg5:number):Promise<main.DataQueryResultDTO>;
+
+export function DataUpdateRow(arg1:main.DataRowMutationRequest):Promise<void>;
+
 export function DeleteAiConversation(arg1:string):Promise<void>;
+
+export function DeleteDataSource(arg1:string):Promise<void>;
 
 export function DeleteLogFormat(arg1:string):Promise<void>;
 
@@ -211,6 +231,8 @@ export function ListAiUsageEvents(arg1:main.ListAiUsageEventsRequest):Promise<ma
 
 export function ListAllPlaces():Promise<Array<main.PlaceDTO>>;
 
+export function ListDataSources(arg1:string,arg2:string,arg3:string):Promise<Array<main.DataSourceDTO>>;
+
 export function ListDockerRemoteLogTargets(arg1:string):Promise<Array<main.DockerContainerDTO>>;
 
 export function ListLogFormats():Promise<Array<main.LogFormatDTO>>;
@@ -356,6 +378,10 @@ export function SettingsDatabaseStorageReport():Promise<main.SettingsDatabaseSto
 export function SettingsPrivacyProfileDetail(arg1:string):Promise<main.SettingsPrivacyProfileDetailDTO>;
 
 export function SettingsPrivacyReport():Promise<main.SettingsPrivacyReportDTO>;
+
+export function TestDataSourceConnection(arg1:main.TestDataSourceConnectionRequest):Promise<void>;
+
+export function UpsertDataSource(arg1:main.UpsertDataSourceRequest):Promise<main.DataSourceDTO>;
 
 export function UpsertLogFormat(arg1:main.UpsertLogFormatRequest):Promise<main.LogFormatDTO>;
 

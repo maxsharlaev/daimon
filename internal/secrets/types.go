@@ -7,6 +7,8 @@ const (
 	KindPrivateKey Kind = "private_key"
 	// KindAIAPIKey stores the OpenAI-compatible API key (SecretValue.Password) for app-level AI integration.
 	KindAIAPIKey Kind = "ai_api_key"
+	// KindDataSourcePassword stores the database password for a Data tab source (SecretValue.Password).
+	KindDataSourcePassword Kind = "data_source_password"
 )
 
 type Storage string

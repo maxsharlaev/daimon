@@ -36,6 +36,7 @@ import { WindowControls } from "./components/WindowControls";
 import { SecretsModal } from "./components/SecretsModal";
 import { SettingsPage } from "./components/SettingsPage";
 import { LogsWorkspace } from "./components/LogsWorkspace";
+import { DataWorkspace } from "./components/DataWorkspace";
 
 type FilesLastPathsByProfile = Record<string, { localPath: string; remotePath: string }>;
 
@@ -55,7 +56,7 @@ function shellQuote(p: string) {
 }
 
 function App() {
-  const [appMode, setAppMode] = useState<"connections" | "docker" | "logs" | "settings">("connections");
+  const [appMode, setAppMode] = useState<"connections" | "docker" | "logs" | "data" | "settings">("connections");
   const [groups, setGroups] = useState<ProfileGroupDTO[]>([]);
   const [profiles, setProfiles] = useState<ProfileDTO[]>([]);
   const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>([]);
@@ -313,7 +314,7 @@ function App() {
       try {
         const v = JSON.parse(raw);
         const nextMode = v?.appMode;
-        if (nextMode === "connections" || nextMode === "docker" || nextMode === "logs" || nextMode === "settings") {
+        if (nextMode === "connections" || nextMode === "docker" || nextMode === "logs" || nextMode === "data" || nextMode === "settings") {
           setAppMode(nextMode);
         }
         if (Array.isArray(v?.expandedGroupIds)) {
@@ -788,6 +789,7 @@ function App() {
     </div>
   );
   const logsContent = <LogsWorkspace profiles={profiles} />;
+  const dataContent = <DataWorkspace profiles={profiles} groups={groups} />;
   const settingsContent = (
     <SettingsPage
       profiles={profiles}
@@ -835,6 +837,15 @@ function App() {
             >
               Logs
             </button>
+            <button
+              className={`topbar-tab ${appMode === "data" ? "active" : ""}`}
+              type="button"
+              role="tab"
+              aria-selected={appMode === "data"}
+              onClick={() => setAppMode("data")}
+            >
+              Data
+            </button>
           </div>
         </div>
         <div className="topbar-actions">
@@ -878,6 +889,12 @@ function App() {
             style={{ display: appMode === "logs" ? undefined : "none" }}
           >
             {logsContent}
+          </div>
+          <div
+            className="app-mode-pane"
+            style={{ display: appMode === "data" ? undefined : "none" }}
+          >
+            {dataContent}
           </div>
           <div
             className="app-mode-pane"

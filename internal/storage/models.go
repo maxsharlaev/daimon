@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -356,5 +358,57 @@ func (m *AiUsageEvent) BeforeCreate(tx *gorm.DB) error {
 	if m.ID == "" {
 		m.ID = uuid.NewString()
 	}
+	return nil
+}
+
+// DataSource is a saved DB connection profile for the Data tab (non-secret fields only).
+// ScopeJSON: {"mode":"ssh"|"docker_local"|"docker_remote","sshProfileId":"","containerId":"","containerName":""}
+type DataSource struct {
+	ID   string `gorm:"primaryKey;size:36"`
+	Name string `gorm:"not null"`
+
+	Engine   string `gorm:"index;size:16;not null"` // postgres | mysql
+	Host     string `gorm:"not null;default:'127.0.0.1'"`
+	Port     int    `gorm:"not null"`
+	Username string `gorm:"not null"`
+	// Database optional default database name when connecting.
+	Database string `gorm:"not null;default:''"`
+
+	ScopeJSON string `gorm:"not null;default:'{}'"`
+
+	// SSHProfileID mirrors json scope "sshProfileId" for legacy DBs that still have NOT NULL data_sources.ssh_profile_id.
+	SSHProfileID string `gorm:"column:ssh_profile_id;size:36;not null;default:''"`
+	// RemotePort mirrors Port for legacy DBs with NOT NULL data_sources.remote_port.
+	RemotePort int `gorm:"column:remote_port;not null;default:0"`
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (DataSource) TableName() string {
+	return "data_sources"
+}
+
+func (m *DataSource) syncSSHProfileIDFromScope() {
+	m.SSHProfileID = ""
+	s := strings.TrimSpace(m.ScopeJSON)
+	if s == "" || s == "{}" {
+		return
+	}
+	var aux struct {
+		SSHProfileID string `json:"sshProfileId"`
+	}
+	if err := json.Unmarshal([]byte(s), &aux); err != nil {
+		return
+	}
+	m.SSHProfileID = strings.TrimSpace(aux.SSHProfileID)
+}
+
+func (m *DataSource) BeforeSave(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	m.syncSSHProfileIDFromScope()
+	m.RemotePort = m.Port
 	return nil
 }

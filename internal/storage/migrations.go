@@ -102,6 +102,33 @@ func (s *Store) Migrate() error {
 				return nil
 			},
 		},
+		{
+			ID: "2026-04-15-0008-data-sources",
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&DataSource{})
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return nil
+			},
+		},
+		{
+			ID: "2026-04-16-0009-data-sources-schema-repair",
+			Migrate: func(tx *gorm.DB) error {
+				return RepairDataSourcesTable(tx)
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return nil
+			},
+		},
+		{
+			ID: "2026-04-17-0010-data-sources-remote-port-repair",
+			Migrate: func(tx *gorm.DB) error {
+				return RepairDataSourcesTable(tx)
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return nil
+			},
+		},
 	})
 
 	return m.Migrate()

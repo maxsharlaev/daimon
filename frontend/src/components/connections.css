@@ -3,7 +3,7 @@
 }
 
 .connections-list {
-  padding: 10px 12px 12px;
+  padding: 10px 0 12px;
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.18) rgba(255, 255, 255, 0.04);
@@ -205,6 +205,10 @@
 
 .marker-yellow {
   background: rgba(255, 210, 110, 0.95);
+}
+
+.marker-orange {
+  background: rgba(255, 155, 75, 0.95);
 }
 
 .marker-blue {

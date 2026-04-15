@@ -1,0 +1,391 @@
+/* Fills app-mode pane; two separate .panel columns inside SplitView (like Connections). */
+.data-workspace {
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Right pane: tab bar (terminaltabs) above workspace panel, like Connections. */
+.data-workspace-tabs {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.data-workspace-tabs .data-panel--workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Session tabs: a bit of space under the bar (Connections-style strip). */
+.data-workspace-tabs .terminaltabs-bar {
+  margin-bottom: 8px;
+  padding: 10px 0 8px;
+}
+
+/* SSH / Docker mode pills: gaps + space below before filters. */
+.data-owner-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.data-owner-mode-row .settings-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.data-owner-mode-icon {
+  font-size: 12px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.data-panel {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.data-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.data-panel--sources .data-panel-body {
+  padding: 10px 12px 12px;
+}
+
+.data-panel--workspace .data-panel-body {
+  padding: 8px 12px 12px;
+}
+
+.data-workspace-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  flex: 1;
+}
+
+.data-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+/* Select/input shell: global styles in forms.scss (`.data-field select`, `.data-field input`). */
+
+/* Same row layout as Docker remote (group + second control). */
+.data-conn-filters {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.data-conn-filters .data-field {
+  flex: 1;
+  min-width: min(160px, 100%);
+}
+
+.data-conn-filters .docker-select {
+  min-width: 140px;
+  width: 100%;
+}
+
+.data-remote-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.data-card-list {
+  flex: 1;
+  overflow: auto;
+}
+
+.data-source-card {
+  margin-bottom: 8px;
+}
+
+.data-footer-actions {
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.data-inner-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.data-inner-tabs button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+}
+
+.data-inner-tabs button.active {
+  background: rgba(100, 140, 220, 0.3);
+}
+
+.data-placeholder {
+  opacity: 0.7;
+  font-size: 13px;
+  padding: 24px;
+}
+
+.data-table-workspace {
+  display: grid;
+  grid-template-columns: 160px 160px 1fr;
+  gap: 10px;
+  min-height: 200px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.data-db-col {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.data-col-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  opacity: 0.65;
+  margin-bottom: 6px;
+}
+
+.data-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.data-list li button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.data-list li button.active {
+  background: rgba(80, 120, 200, 0.35);
+}
+
+.data-grid-wrap {
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  min-height: 0;
+}
+
+.data-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.data-grid th,
+.data-grid td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 8px;
+  max-width: 220px;
+  vertical-align: top;
+}
+
+.data-cell-clip {
+  display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-row-click {
+  cursor: pointer;
+}
+
+.data-row-click:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.data-sql-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.data-sql-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 120px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+}
+
+.data-empty {
+  padding: 16px;
+  opacity: 0.75;
+  font-size: 13px;
+}
+
+.data-hint {
+  font-size: 11px;
+  opacity: 0.75;
+  margin: 0;
+}
+
+.data-modal {
+  max-width: 600px;
+}
+
+.data-new-source-body {
+  gap: 14px;
+}
+
+.data-new-source-scope {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.data-new-source-scope-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.data-new-source-scope-value {
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.92);
+  word-break: break-word;
+}
+
+/* New data source modal footer (aligned with Profile editor: Test + inline status | Cancel Save) */
+.data-modal .data-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.data-modal .data-modal-footer-right {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.data-modal .data-modal-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.data-modal .data-test-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
+
+.data-modal .data-test-indicator {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.data-modal .data-test-running {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.data-modal .data-test-success {
+  color: rgba(110, 231, 255, 0.95);
+  border-color: rgba(110, 231, 255, 0.45);
+  background: rgba(110, 231, 255, 0.1);
+}
+
+.data-modal .data-test-error {
+  color: rgba(255, 120, 120, 0.95);
+  border-color: rgba(255, 120, 120, 0.45);
+  background: rgba(255, 120, 120, 0.1);
+}
+
+.data-modal .data-test-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.data-modal .data-test-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+}
+
+.data-modal .data-test-text-success {
+  color: rgba(110, 231, 255, 0.95);
+}
+
+.data-modal .data-test-text-error {
+  color: rgba(255, 120, 120, 0.95);
+}
+
+.data-modal .data-test-text-running {
+  color: rgba(255, 255, 255, 0.75);
+}

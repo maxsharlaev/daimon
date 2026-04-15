@@ -4,8 +4,10 @@ Lightweight database access for **PostgreSQL** and **MySQL/MariaDB**, integrated
 
 ## Principles
 
-- **Tunnel-only**: the app connects to the database **only through an active SSH session** using **local port forwarding** (`ssh -L` semantics). No direct TCP from the workstation to the database host/port except via that tunnel.
-- **Same trust model as SSH**: DB credentials use existing secret storage (`keyring` / `internal` vault) where applicable.
+- **SSH mode (tunnel-only)**: for **Data + SSH**, the app connects to the database **only through a dedicated SSH session** used by the Data tab (not shared with Connections terminal sessions), using **local port forwarding** (`ssh -L` semantics) to reach `host:port` on the remote side.
+- **Docker modes**: **Docker local** and **Docker remote** reach the DB **from inside the target container’s network namespace** via `docker exec` and/or ephemeral **sidecar** containers (`docker run --network container:…`), so a published host port (`-p`) is **not** required.
+- **Isolation from Connections**: Data SSH transports do **not** reuse or surface Connections terminal/SFTP/Dashboard session IDs; profile records are shared only as **saved connection metadata** for picking host/user and building SSH config.
+- **Same trust model as SSH profiles for secrets**: DB passwords use existing secret storage (`keyring` / `internal` vault) with a dedicated secret kind (`data_source_password`).
 - **Small scope**: browse schema, inspect and edit rows where safe, run ad-hoc read/write SQL with clear warnings — not migrations, ER diagrams, or full admin suites.
 
 ## Goals
@@ -17,7 +19,7 @@ Lightweight database access for **PostgreSQL** and **MySQL/MariaDB**, integrated
 
 ## Non-goals
 
-- Direct database connections without SSH tunnel.
+- Direct database connections from the workstation for **SSH mode** without an SSH tunnel (Docker modes use in-container access as above, not host TCP to unpublished ports).
 - SQL Server, Oracle, SQLite in this roadmap (can be revisited later).
 - Visual schema designer, query plan UI comparable to heavy clients.
 - Long-running monitoring / APM (see optional future: snapshot “slow queries” only as a separate doc).

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -20,13 +21,17 @@ type App struct {
 	sftp          *sftp.Manager
 	sftpTransfers *sftp.TransferManager
 	dockerStreams *DockerStreamManager
+
+	dataMu       sync.Mutex
+	dataSessions map[string]*dataSession
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
-		ssh:           NewSSHManager(),
-		dockerStreams: NewDockerStreamManager(),
+		ssh:            NewSSHManager(),
+		dockerStreams:  NewDockerStreamManager(),
+		dataSessions:   make(map[string]*dataSession),
 	}
 }
 
@@ -49,6 +54,7 @@ func (a *App) startup(ctx context.Context) {
 }
 
 func (a *App) shutdown(ctx context.Context) {
+	a.dataCloseAllSessions()
 	if a.db != nil {
 		_ = a.db.Close()
 	}

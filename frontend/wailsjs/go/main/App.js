@@ -34,8 +34,48 @@ export function CreateAiConversation(arg1) {
   return window['go']['main']['App']['CreateAiConversation'](arg1);
 }
 
+export function DataConnect(arg1) {
+  return window['go']['main']['App']['DataConnect'](arg1);
+}
+
+export function DataDeleteRow(arg1) {
+  return window['go']['main']['App']['DataDeleteRow'](arg1);
+}
+
+export function DataDisconnect(arg1) {
+  return window['go']['main']['App']['DataDisconnect'](arg1);
+}
+
+export function DataExecSQL(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DataExecSQL'](arg1, arg2, arg3);
+}
+
+export function DataListDatabases(arg1) {
+  return window['go']['main']['App']['DataListDatabases'](arg1);
+}
+
+export function DataListTables(arg1, arg2) {
+  return window['go']['main']['App']['DataListTables'](arg1, arg2);
+}
+
+export function DataPrimaryKeyColumns(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DataPrimaryKeyColumns'](arg1, arg2, arg3);
+}
+
+export function DataTablePreview(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['DataTablePreview'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function DataUpdateRow(arg1) {
+  return window['go']['main']['App']['DataUpdateRow'](arg1);
+}
+
 export function DeleteAiConversation(arg1) {
   return window['go']['main']['App']['DeleteAiConversation'](arg1);
+}
+
+export function DeleteDataSource(arg1) {
+  return window['go']['main']['App']['DeleteDataSource'](arg1);
 }
 
 export function DeleteLogFormat(arg1) {
@@ -418,6 +458,10 @@ export function ListAllPlaces() {
   return window['go']['main']['App']['ListAllPlaces']();
 }
 
+export function ListDataSources(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ListDataSources'](arg1, arg2, arg3);
+}
+
 export function ListDockerRemoteLogTargets(arg1) {
   return window['go']['main']['App']['ListDockerRemoteLogTargets'](arg1);
 }
@@ -708,6 +752,14 @@ export function SettingsPrivacyProfileDetail(arg1) {
 
 export function SettingsPrivacyReport() {
   return window['go']['main']['App']['SettingsPrivacyReport']();
+}
+
+export function TestDataSourceConnection(arg1) {
+  return window['go']['main']['App']['TestDataSourceConnection'](arg1);
+}
+
+export function UpsertDataSource(arg1) {
+  return window['go']['main']['App']['UpsertDataSource'](arg1);
 }
 
 export function UpsertLogFormat(arg1) {
