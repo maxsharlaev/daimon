@@ -50,6 +50,8 @@ type DataSess = {
   dataSourceId: string;
   name: string;
   engine: string;
+  /** Matches backend `DataSessionDTO.mode` (e.g. `ssh`, `docker_local`). */
+  scopeMode: string;
   /** Transport label for tabs (SSH profile, container, …) — like Connections “connection”. */
   scopeSummary: string;
 };
@@ -71,6 +73,11 @@ type DataTabSnapshot = {
   /** Table preview ORDER BY (last applied). */
   previewSortColumn?: string;
   previewSortDir?: string;
+  /** Table view filter bar. */
+  tableFilterBarOpen?: boolean;
+  /** Last applied filter JSON (`[]` or non-empty array JSON). */
+  previewFilterJSON?: string;
+  tableFilterClauses?: TableFilterClause[];
 };
 
 type PreviewSort = { column: string | null; dir: "asc" | "desc" | null };
@@ -82,6 +89,78 @@ function previewSortToApi(s: PreviewSort): [string, string] {
 
 function previewSortEqual(a: PreviewSort, b: PreviewSort): boolean {
   return a.column === b.column && a.dir === b.dir;
+}
+
+type TableFilterOp = "eq" | "ne" | "is" | "is_not" | "like" | "gt" | "lt" | "in";
+
+type TableFilterClause = {
+  join: "" | "AND" | "OR";
+  column: string;
+  op: TableFilterOp;
+  value: string;
+};
+
+const TABLE_FILTER_OPS: { op: TableFilterOp; label: string }[] = [
+  { op: "eq", label: "Equals" },
+  { op: "ne", label: "Not equals" },
+  { op: "is", label: "Is" },
+  { op: "is_not", label: "Is not" },
+  { op: "like", label: "Like" },
+  { op: "gt", label: "Greater" },
+  { op: "lt", label: "Less" },
+  { op: "in", label: "In" },
+];
+
+function opNeedsValue(op: TableFilterOp): boolean {
+  return op !== "is" && op !== "is_not";
+}
+
+function clauseValueOk(c: TableFilterClause): boolean {
+  if (!opNeedsValue(c.op)) return true;
+  if (c.op === "in") {
+    return c.value.split(",").some((p) => p.trim() !== "");
+  }
+  return c.value.trim() !== "";
+}
+
+/** Valid JSON for `DataTablePreview` filter arg, or `""` when no filter. Trailing empty rows are ignored. */
+function serializeTableFilterPayload(clauses: TableFilterClause[]): string | null {
+  const trimmed = [...clauses];
+  while (trimmed.length && !trimmed[trimmed.length - 1].column.trim()) {
+    trimmed.pop();
+  }
+  if (!trimmed.length) return "";
+  const out: { join: string; column: string; op: string; value: string }[] = [];
+  for (let i = 0; i < trimmed.length; i++) {
+    const c = trimmed[i];
+    if (!c.column.trim()) return null;
+    if (!clauseValueOk(c)) return null;
+    const join = i === 0 ? "" : c.join === "OR" ? "OR" : "AND";
+    out.push({
+      join,
+      column: c.column.trim(),
+      op: c.op,
+      value: c.value,
+    });
+  }
+  return JSON.stringify(out);
+}
+
+function parseTableFilterClauses(json: string): TableFilterClause[] {
+  const s = json.trim();
+  if (!s) return [];
+  try {
+    const raw = JSON.parse(s) as unknown;
+    if (!Array.isArray(raw)) return [];
+    return raw.map((row: any, i: number) => ({
+      join: i === 0 ? "" : row?.join === "OR" ? "OR" : "AND",
+      column: String(row?.column ?? ""),
+      op: (TABLE_FILTER_OPS.some((o) => o.op === row?.op) ? row.op : "eq") as TableFilterOp,
+      value: String(row?.value ?? ""),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 function scopeForMode(
@@ -145,6 +224,12 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   /** SQL tab: sidebar with table picker + column types. */
   const [sqlSchemaBrowserOpen, setSqlSchemaBrowserOpen] = useState(false);
   const [sqlRailColumns, setSqlRailColumns] = useState<main.DataColumnMetaDTO[]>([]);
+  /** Table view: filter row (SSH / direct SQL only). */
+  const [tableFilterBarOpen, setTableFilterBarOpen] = useState(false);
+  const [tableFilterClauses, setTableFilterClauses] = useState<TableFilterClause[]>([]);
+  const [previewFilterCommitted, setPreviewFilterCommitted] = useState("");
+  const [filterPickerColumns, setFilterPickerColumns] = useState<main.DataColumnMetaDTO[]>([]);
+  const [filterUiMenu, setFilterUiMenu] = useState<null | { kind: "col" | "op" | "join"; clauseIndex: number }>(null);
   const [busy, setBusy] = useState(false);
   /** Data source currently in DataConnect — card marker shows orange until success or error. */
   const [connectingDataSourceId, setConnectingDataSourceId] = useState<string | null>(null);
@@ -182,6 +267,11 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   } | null>(null);
 
   const dataTabSnapshotsRef = useRef<Record<string, DataTabSnapshot>>({});
+  const prevFilterCtxRef = useRef<{ sid: string | null; db: string; tbl: string }>({
+    sid: null,
+    db: "",
+    tbl: "",
+  });
   const tablePreviewScrollRef = useRef<HTMLDivElement | null>(null);
   /** Skip one sort reset when `selectedTable`/`activeSessionId` updates after session restore from snapshot. */
   const skipPreviewSortResetRef = useRef(false);
@@ -386,6 +476,9 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
           previewPage,
           previewSortColumn: psc,
           previewSortDir: psd,
+          tableFilterBarOpen,
+          previewFilterJSON: previewFilterCommitted,
+          tableFilterClauses,
         };
       }
       setRowModal(null);
@@ -401,6 +494,10 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         setPreviewPage(1);
         setPreviewSort({ column: null, dir: null });
         setPreviewSortQuery({ column: null, dir: null });
+        setTableFilterBarOpen(false);
+        setTableFilterClauses([]);
+        setPreviewFilterCommitted("");
+        setFilterUiMenu(null);
         setPreviewLoading(false);
         setPreviewError(null);
         setActiveSessionId(null);
@@ -424,6 +521,15 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       skipPreviewSortResetRef.current = true;
       setPreviewSort(rsort);
       setPreviewSortQuery(rsort);
+      const pjson = snap?.previewFilterJSON ?? "";
+      setPreviewFilterCommitted(pjson);
+      if (snap?.tableFilterClauses && snap.tableFilterClauses.length > 0) {
+        setTableFilterClauses(snap.tableFilterClauses);
+      } else {
+        setTableFilterClauses(parseTableFilterClauses(pjson));
+      }
+      setTableFilterBarOpen(snap?.tableFilterBarOpen ?? false);
+      setFilterUiMenu(null);
       setActiveSessionId(sessionId);
     },
     [
@@ -437,6 +543,9 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       sqlSchemaBrowserOpen,
       previewPage,
       previewSortQuery,
+      tableFilterBarOpen,
+      previewFilterCommitted,
+      tableFilterClauses,
     ]
   );
 
@@ -460,6 +569,7 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
             dataSourceId: src.id,
             name: src.name,
             engine: src.engine,
+            scopeMode: (res.mode ?? "").trim(),
             scopeSummary,
           },
         ];
@@ -477,6 +587,11 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
 
   const activeEngine = useMemo(() => (activeSession?.engine ?? "").toLowerCase(), [activeSession?.engine]);
 
+  const tableFilterSqlSupported = useMemo(
+    () => (activeSession?.scopeMode ?? "") === "ssh",
+    [activeSession?.scopeMode]
+  );
+
   const filteredTableNames = useMemo(() => {
     const q = tableListFilter.trim().toLowerCase();
     if (!q) return tables;
@@ -492,6 +607,21 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
 
   const previewTotalRows = Number(preview?.totalRows ?? 0);
   const previewTotalPages = Math.max(1, Math.ceil(previewTotalRows / PREVIEW_PAGE_SIZE) || 1);
+
+  const tableFilterPayload = useMemo(
+    () => serializeTableFilterPayload(tableFilterClauses),
+    [tableFilterClauses]
+  );
+  const committedFilterTrim = previewFilterCommitted.trim();
+  const tableFilterDirty = useMemo(() => {
+    if (tableFilterPayload === null) return true;
+    return tableFilterPayload !== committedFilterTrim;
+  }, [tableFilterPayload, committedFilterTrim]);
+  const tableFilterShowCancel = committedFilterTrim !== "" && !tableFilterDirty;
+  const tableFilterApplyDisabled =
+    tableFilterShowCancel ||
+    tableFilterPayload === null ||
+    (!tableFilterDirty && committedFilterTrim === "");
 
   const commitPageJump = useCallback(() => {
     const maxPage = preview && selectedTable ? previewTotalPages : 1;
@@ -667,12 +797,22 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
     const offset = (previewPage - 1) * PREVIEW_PAGE_SIZE;
     let cancelled = false;
     const [sc, sd] = previewSortToApi(previewSortQuery);
+    const fj = previewFilterCommitted.trim();
     setPreviewLoading(true);
     setPreviewError(null);
     setPreview(null);
     void (async () => {
       try {
-        const r = (await DataTablePreview(sid, db, tbl, PREVIEW_PAGE_SIZE, offset, sc, sd)) as main.DataQueryResultDTO;
+        const r = (await DataTablePreview(
+          sid,
+          db,
+          tbl,
+          PREVIEW_PAGE_SIZE,
+          offset,
+          sc,
+          sd,
+          fj
+        )) as main.DataQueryResultDTO;
         if (cancelled) return;
         if (r && Array.isArray(r.columns) && Array.isArray(r.rows)) {
           setPreview(r);
@@ -692,7 +832,56 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, selectedDb, selectedTable, previewPage, previewSortQuery]);
+  }, [activeSessionId, selectedDb, selectedTable, previewPage, previewSortQuery, previewFilterCommitted]);
+
+  useEffect(() => {
+    const sid = activeSessionId;
+    const db = selectedDb;
+    const tbl = selectedTable;
+    const prev = prevFilterCtxRef.current;
+    const sameSession = prev.sid !== null && sid === prev.sid;
+    if (sameSession && (db !== prev.db || tbl !== prev.tbl)) {
+      setTableFilterBarOpen(false);
+      setPreviewFilterCommitted("");
+      setTableFilterClauses([]);
+      setFilterUiMenu(null);
+    }
+    prevFilterCtxRef.current = { sid, db, tbl };
+  }, [activeSessionId, selectedDb, selectedTable]);
+
+  useEffect(() => {
+    if (!activeSessionId || !selectedTable || !tableFilterBarOpen) {
+      setFilterPickerColumns([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const raw = await DataListTableColumns(activeSessionId, selectedDb, selectedTable);
+        if (!cancelled) setFilterPickerColumns(Array.isArray(raw) ? raw : []);
+      } catch {
+        if (!cancelled) setFilterPickerColumns([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSessionId, selectedDb, selectedTable, tableFilterBarOpen]);
+
+  useEffect(() => {
+    if (!filterUiMenu) return;
+    const curKey = `${filterUiMenu.kind}:${filterUiMenu.clauseIndex}`;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target;
+      if (!(t instanceof Element)) return;
+      if (t.closest(".tf-dropdown")) return;
+      const trigger = t.closest("[data-tf-menu-key]");
+      if (trigger?.getAttribute("data-tf-menu-key") === curKey) return;
+      setFilterUiMenu(null);
+    };
+    document.addEventListener("mousedown", onDown, true);
+    return () => document.removeEventListener("mousedown", onDown, true);
+  }, [filterUiMenu]);
 
   const handlePreviewSortClick = useCallback((col: string) => {
     setPreviewSort((prev) => {
@@ -799,7 +988,8 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
           PREVIEW_PAGE_SIZE,
           off,
           sc,
-          sd
+          sd,
+          previewFilterCommitted.trim()
         )) as main.DataQueryResultDTO;
         setPreview(r);
       }
@@ -837,7 +1027,8 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
           PREVIEW_PAGE_SIZE,
           off,
           sc,
-          sd
+          sd,
+          previewFilterCommitted.trim()
         )) as main.DataQueryResultDTO;
         setPreview(r);
       }
@@ -1430,8 +1621,321 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                         </span>
                       </button>
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="data-table-filter-toolbar">
+                      <button
+                        type="button"
+                        className={`data-sql-editor-toggle data-table-filter-toggle ${tableFilterBarOpen ? "is-on" : "is-off"}`}
+                        disabled={!tableFilterSqlSupported}
+                        aria-label="Table filter"
+                        aria-pressed={tableFilterBarOpen}
+                        title={
+                          !tableFilterSqlSupported
+                            ? "Table filters require an SSH-connected data source"
+                            : tableFilterBarOpen
+                              ? "Hide filter"
+                              : "Filter rows"
+                        }
+                        onClick={() => {
+                          if (!tableFilterSqlSupported) return;
+                          setTableFilterBarOpen((v) => !v);
+                          setFilterUiMenu(null);
+                        }}
+                      >
+                        <span className="data-sql-editor-toggle-icon" aria-hidden>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                              d="M5 7h14M8 12h8M10 17h4"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </span>
+                      </button>
+                    </div>
+                  )}
                 </div>
+                {innerTab === "table" && tableFilterBarOpen ? (
+                  <div className="data-table-filter-panel">
+                    {!tableFilterSqlSupported ? (
+                      <div className="data-table-filter-unsupported">
+                        Table filters are available only for data sources opened over SSH (direct SQL driver). Use Table view
+                        without filters in Docker mode, or run SQL in the SQL tab.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="data-table-filter-panel-main">
+                          {tableFilterClauses.length === 0 ? (
+                            <button
+                              type="button"
+                              className="tf-compact tf-plus"
+                              title="Add condition"
+                              onClick={() =>
+                                setTableFilterClauses([{ join: "", column: "", op: "eq", value: "" }])
+                              }
+                            >
+                              +
+                            </button>
+                          ) : (
+                            <>
+                              {tableFilterClauses.map((clause, ci) => (
+                                <div key={ci} className="tf-clause">
+                                  <div className="tf-clause-inner">
+                                    {ci > 0 ? (
+                                      <div className="tf-join-wrap">
+                                        <button
+                                          type="button"
+                                          className="tf-join-chip"
+                                          title="Change AND / OR"
+                                          data-tf-menu-key={`join:${ci}`}
+                                          onClick={() =>
+                                            setFilterUiMenu((m) => {
+                                              const key = `join:${ci}`;
+                                              const open = m ? `${m.kind}:${m.clauseIndex}` : "";
+                                              return open === key ? null : { kind: "join", clauseIndex: ci };
+                                            })
+                                          }
+                                        >
+                                          {clause.join === "OR" ? "OR" : "AND"}
+                                        </button>
+                                        {filterUiMenu?.kind === "join" && filterUiMenu.clauseIndex === ci ? (
+                                          <div className="tf-dropdown tf-dropdown-join-repick">
+                                            <button
+                                              type="button"
+                                              className="tf-dropdown-item"
+                                              onClick={() => {
+                                                setTableFilterClauses((prev) =>
+                                                  prev.map((row, i) =>
+                                                    i === ci ? { ...row, join: "AND" } : row
+                                                  )
+                                                );
+                                                setFilterUiMenu(null);
+                                              }}
+                                            >
+                                              AND
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="tf-dropdown-item"
+                                              onClick={() => {
+                                                setTableFilterClauses((prev) =>
+                                                  prev.map((row, i) =>
+                                                    i === ci ? { ...row, join: "OR" } : row
+                                                  )
+                                                );
+                                                setFilterUiMenu(null);
+                                              }}
+                                            >
+                                              OR
+                                            </button>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+                                    <div className="tf-clause-body">
+                                    <div className="tf-seg">
+                                      <button
+                                        type="button"
+                                        className="tf-compact tf-pill"
+                                        data-tf-menu-key={`col:${ci}`}
+                                        onClick={() =>
+                                          setFilterUiMenu((m) => {
+                                            const key = `col:${ci}`;
+                                            const open = m ? `${m.kind}:${m.clauseIndex}` : "";
+                                            return open === key ? null : { kind: "col", clauseIndex: ci };
+                                          })
+                                        }
+                                      >
+                                        {clause.column.trim() ? clause.column : "ANY"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="tf-compact tf-pill tf-pill-op"
+                                        data-tf-menu-key={`op:${ci}`}
+                                        onClick={() =>
+                                          setFilterUiMenu((m) => {
+                                            const key = `op:${ci}`;
+                                            const open = m ? `${m.kind}:${m.clauseIndex}` : "";
+                                            return open === key ? null : { kind: "op", clauseIndex: ci };
+                                          })
+                                        }
+                                      >
+                                        {TABLE_FILTER_OPS.find((o) => o.op === clause.op)?.label ?? "Equals"}
+                                      </button>
+                                      {opNeedsValue(clause.op) ? (
+                                        <input
+                                          className="tf-input"
+                                          value={clause.value}
+                                          placeholder={clause.op === "in" ? "a, b, c" : "…"}
+                                          spellCheck={false}
+                                          onChange={(e) => {
+                                            const v = e.target.value;
+                                            setTableFilterClauses((prev) =>
+                                              prev.map((row, i) => (i === ci ? { ...row, value: v } : row))
+                                            );
+                                          }}
+                                        />
+                                      ) : (
+                                        <span className="tf-value-placeholder" aria-hidden>
+                                          —
+                                        </span>
+                                      )}
+                                      {filterUiMenu?.kind === "col" && filterUiMenu.clauseIndex === ci ? (
+                                        <div className="tf-dropdown">
+                                          <div className="tf-dropdown-hdr">ANY</div>
+                                          {filterPickerColumns.length === 0 ? (
+                                            <div className="tf-dropdown-empty">No columns</div>
+                                          ) : (
+                                            filterPickerColumns.map((col) => (
+                                              <button
+                                                key={col.name}
+                                                type="button"
+                                                className="tf-dropdown-item"
+                                                onClick={() => {
+                                                  setTableFilterClauses((prev) =>
+                                                    prev.map((row, i) =>
+                                                      i === ci ? { ...row, column: col.name ?? "" } : row
+                                                    )
+                                                  );
+                                                  setFilterUiMenu(null);
+                                                }}
+                                              >
+                                                {col.name}
+                                              </button>
+                                            ))
+                                          )}
+                                        </div>
+                                      ) : null}
+                                      {filterUiMenu?.kind === "op" && filterUiMenu.clauseIndex === ci ? (
+                                        <div className="tf-dropdown">
+                                          {TABLE_FILTER_OPS.map((o) => (
+                                            <button
+                                              key={o.op}
+                                              type="button"
+                                              className="tf-dropdown-item"
+                                              onClick={() => {
+                                                setTableFilterClauses((prev) =>
+                                                  prev.map((row, i) =>
+                                                    i === ci
+                                                      ? {
+                                                          ...row,
+                                                          op: o.op,
+                                                          value:
+                                                            o.op === "is" || o.op === "is_not" ? "" : row.value,
+                                                        }
+                                                      : row
+                                                  )
+                                                );
+                                                setFilterUiMenu(null);
+                                              }}
+                                            >
+                                              {o.label}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="tf-remove"
+                                      title="Remove condition"
+                                      aria-label="Remove condition"
+                                      onClick={() => {
+                                        setFilterUiMenu(null);
+                                        setTableFilterClauses((prev) => {
+                                          const next = prev.filter((_, i) => i !== ci);
+                                          if (next.length === 0) return next;
+                                          return next.map((row, i) =>
+                                            i === 0 ? { ...row, join: "" } : row
+                                          );
+                                        });
+                                      }}
+                                    >
+                                      ×
+                                    </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                              <div className="tf-dotted-and-wrap">
+                                <span className="tf-dotted-line" aria-hidden />
+                                <button
+                                  type="button"
+                                  className="tf-and-pill"
+                                  data-tf-menu-key={`join:${tableFilterClauses.length}`}
+                                  onClick={() =>
+                                    setFilterUiMenu((m) => {
+                                      const n = tableFilterClauses.length;
+                                      const key = `join:${n}`;
+                                      const open = m ? `${m.kind}:${m.clauseIndex}` : "";
+                                      return open === key ? null : { kind: "join", clauseIndex: n };
+                                    })
+                                  }
+                                >
+                                  AND
+                                </button>
+                                <span className="tf-dotted-line" aria-hidden />
+                                {filterUiMenu?.kind === "join" &&
+                                filterUiMenu.clauseIndex === tableFilterClauses.length ? (
+                                  <div className="tf-dropdown tf-dropdown-join">
+                                    <button
+                                      type="button"
+                                      className="tf-dropdown-item"
+                                      onClick={() => {
+                                        setTableFilterClauses((prev) => [
+                                          ...prev,
+                                          { join: "AND", column: "", op: "eq", value: "" },
+                                        ]);
+                                        setFilterUiMenu(null);
+                                      }}
+                                    >
+                                      AND
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="tf-dropdown-item"
+                                      onClick={() => {
+                                        setTableFilterClauses((prev) => [
+                                          ...prev,
+                                          { join: "OR", column: "", op: "eq", value: "" },
+                                        ]);
+                                        setFilterUiMenu(null);
+                                      }}
+                                    >
+                                      OR
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        <div className="data-table-filter-apply-wrap">
+                          <button
+                            type="button"
+                            className="tf-apply"
+                            disabled={tableFilterShowCancel ? false : tableFilterApplyDisabled}
+                            onClick={() => {
+                              if (tableFilterShowCancel) {
+                                setPreviewFilterCommitted("");
+                                setTableFilterClauses([]);
+                                setFilterUiMenu(null);
+                                setPreviewPage(1);
+                                return;
+                              }
+                              if (tableFilterPayload === null) return;
+                              setPreviewFilterCommitted(tableFilterPayload);
+                              setPreviewPage(1);
+                            }}
+                          >
+                            {tableFilterShowCancel ? "Cancel" : "Apply"}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : null}
                 {innerTab === "table" ? (
                   <div className="data-table-workspace">
                     <div className="data-db-col">

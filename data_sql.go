@@ -298,7 +298,7 @@ func dataResolveSortColumn(engine string, db *sql.DB, schemaOrDB, table, candida
 	}
 }
 
-func dataTablePreview(engine string, db *sql.DB, schemaOrDB, table string, limit, offset int, sortColumn, sortDir string) (cols []string, rowsOut [][]string, err error) {
+func dataTablePreview(engine string, db *sql.DB, schemaOrDB, table string, limit, offset int, sortColumn, sortDir, filterJSON string) (cols []string, rowsOut [][]string, err error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -328,27 +328,45 @@ func dataTablePreview(engine string, db *sql.DB, schemaOrDB, table string, limit
 		}
 	}
 
+	clauses, err := parseTableFilterJSON(filterJSON)
+	if err != nil {
+		return nil, nil, err
+	}
+	whereSQL, fargs, err := buildTablePreviewWhere(engine, db, schemaOrDB, table, clauses)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var q string
+	var tn string
 	switch engine {
 	case "postgres":
 		sch := schemaOrDB
 		if sch == "" {
 			sch = "public"
 		}
-		tn := quotePGIdent(sch, table)
-		q = fmt.Sprintf(`SELECT * FROM %s%s LIMIT %d OFFSET %d`, tn, orderClause, limit, offset)
+		tn = quotePGIdent(sch, table)
 	case "mysql":
 		dbn := schemaOrDB
 		if dbn == "" {
 			return nil, nil, errors.New("database required")
 		}
-		tn := quoteMySQLIdent(dbn, table)
-		q = fmt.Sprintf(`SELECT * FROM %s%s LIMIT %d OFFSET %d`, tn, orderClause, limit, offset)
+		tn = quoteMySQLIdent(dbn, table)
 	default:
 		return nil, nil, fmt.Errorf("unknown engine")
 	}
+	var b strings.Builder
+	b.WriteString("SELECT * FROM ")
+	b.WriteString(tn)
+	if whereSQL != "" {
+		b.WriteString(" WHERE ")
+		b.WriteString(whereSQL)
+	}
+	b.WriteString(orderClause)
+	b.WriteString(fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset))
+	q = b.String()
 
-	rows, err := db.QueryContext(ctx, q)
+	rows, err := db.QueryContext(ctx, q, fargs...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -375,30 +393,49 @@ func dataTablePreview(engine string, db *sql.DB, schemaOrDB, table string, limit
 	return cols, rowsOut, rows.Err()
 }
 
-func dataTableRowCount(engine string, db *sql.DB, schemaOrDB, table string) (int64, error) {
+func dataTableRowCount(engine string, db *sql.DB, schemaOrDB, table, filterJSON string) (int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	var q string
+	clauses, err := parseTableFilterJSON(filterJSON)
+	if err != nil {
+		return 0, err
+	}
+	whereSQL, fargs, err := buildTablePreviewWhere(engine, db, schemaOrDB, table, clauses)
+	if err != nil {
+		return 0, err
+	}
+	var tn string
 	switch engine {
 	case "postgres":
 		sch := schemaOrDB
 		if sch == "" {
 			sch = "public"
 		}
-		tn := quotePGIdent(sch, table)
-		q = fmt.Sprintf(`SELECT COUNT(*)::bigint FROM %s`, tn)
+		tn = quotePGIdent(sch, table)
 	case "mysql":
 		dbn := schemaOrDB
 		if dbn == "" {
 			return 0, errors.New("database required")
 		}
-		tn := quoteMySQLIdent(dbn, table)
-		q = fmt.Sprintf(`SELECT COUNT(*) FROM %s`, tn)
+		tn = quoteMySQLIdent(dbn, table)
 	default:
 		return 0, fmt.Errorf("unknown engine %q", engine)
 	}
+	var b strings.Builder
+	switch engine {
+	case "postgres":
+		b.WriteString("SELECT COUNT(*)::bigint FROM ")
+	case "mysql":
+		b.WriteString("SELECT COUNT(*) FROM ")
+	}
+	b.WriteString(tn)
+	if whereSQL != "" {
+		b.WriteString(" WHERE ")
+		b.WriteString(whereSQL)
+	}
+	q := b.String()
 	var n int64
-	err := db.QueryRowContext(ctx, q).Scan(&n)
+	err = db.QueryRowContext(ctx, q, fargs...).Scan(&n)
 	return n, err
 }
 

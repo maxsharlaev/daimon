@@ -37,7 +37,7 @@ export function DataListTables(arg1:string,arg2:string):Promise<Array<string>>;
 
 export function DataPrimaryKeyColumns(arg1:string,arg2:string,arg3:string):Promise<Array<string>>;
 
-export function DataTablePreview(arg1:string,arg2:string,arg3:string,arg4:number,arg5:number,arg6:string,arg7:string):Promise<main.DataQueryResultDTO>;
+export function DataTablePreview(arg1:string,arg2:string,arg3:string,arg4:number,arg5:number,arg6:string,arg7:string,arg8:string):Promise<main.DataQueryResultDTO>;
 
 export function DataUpdateRow(arg1:main.DataRowMutationRequest):Promise<void>;
 

@@ -953,7 +953,7 @@ ORDER BY ORDINAL_POSITION`, strings.ReplaceAll(db, "'", "''"), strings.ReplaceAl
 	return out, nil
 }
 
-func (a *App) DataTablePreview(sessionID, database, table string, limit, offset int, sortColumn, sortDir string) (DataQueryResultDTO, error) {
+func (a *App) DataTablePreview(sessionID, database, table string, limit, offset int, sortColumn, sortDir, filterJSON string) (DataQueryResultDTO, error) {
 	var out DataQueryResultDTO
 	sess, err := a.getDataSession(sessionID)
 	if err != nil {
@@ -978,15 +978,18 @@ func (a *App) DataTablePreview(sessionID, database, table string, limit, offset 
 		} else {
 			schemaOrDB = db
 		}
-		total, err := dataTableRowCount(src.Engine, sess.db, schemaOrDB, tbl)
+		total, err := dataTableRowCount(src.Engine, sess.db, schemaOrDB, tbl, filterJSON)
 		if err != nil {
 			return out, err
 		}
-		cols, rows, err := dataTablePreview(src.Engine, sess.db, schemaOrDB, tbl, limit, offset, sortColumn, sortDir)
+		cols, rows, err := dataTablePreview(src.Engine, sess.db, schemaOrDB, tbl, limit, offset, sortColumn, sortDir, filterJSON)
 		if err != nil {
 			return out, err
 		}
 		return DataQueryResultDTO{Columns: cols, Rows: rows, TotalRows: total}, nil
+	}
+	if strings.TrimSpace(filterJSON) != "" {
+		return out, errors.New("table filters require a direct database connection")
 	}
 	var q string
 	var countQ string
