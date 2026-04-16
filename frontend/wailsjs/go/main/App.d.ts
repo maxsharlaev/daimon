@@ -25,7 +25,7 @@ export function DataDeleteRow(arg1:main.DataRowMutationRequest):Promise<void>;
 
 export function DataDisconnect(arg1:string):Promise<void>;
 
-export function DataExecSQL(arg1:string,arg2:string,arg3:string):Promise<main.DataQueryResultDTO>;
+export function DataExecSQL(arg1:string,arg2:string,arg3:string,arg4:number):Promise<main.DataQueryResultDTO>;
 
 export function DataListDatabases(arg1:string):Promise<Array<string>>;
 

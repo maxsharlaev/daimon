@@ -46,8 +46,8 @@ export function DataDisconnect(arg1) {
   return window['go']['main']['App']['DataDisconnect'](arg1);
 }
 
-export function DataExecSQL(arg1, arg2, arg3) {
-  return window['go']['main']['App']['DataExecSQL'](arg1, arg2, arg3);
+export function DataExecSQL(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DataExecSQL'](arg1, arg2, arg3, arg4);
 }
 
 export function DataListDatabases(arg1) {

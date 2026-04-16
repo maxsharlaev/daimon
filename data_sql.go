@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,89 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+// sqlEndsWithLimit matches a trailing LIMIT … (optional OFFSET) on the outer statement (not inside subqueries).
+var sqlEndsWithLimit = regexp.MustCompile(`(?is)\blimit\s+(all|\d+|[?])\s*(?:offset\s+\d+)?\s*$`)
+
+// sqlEndsWithMySQLLimitComma matches MySQL/MariaDB "LIMIT offset, row_count" at the end.
+var sqlEndsWithMySQLLimitComma = regexp.MustCompile(`(?is)\blimit\s+\d+\s*,\s*\d+\s*$`)
+
+// sqlEndsWithFetchFirst matches FETCH FIRST n ROWS ONLY (SQL standard / PostgreSQL).
+var sqlEndsWithFetchFirst = regexp.MustCompile(`(?is)\bfetch\s+first\s+(\d+|\?)\s+rows\s+only\s*$`)
+
+// sqlSelectLikePrefix matches statements we can wrap in SELECT COUNT(*) FROM (…) for a row total.
+var sqlSelectLikePrefix = regexp.MustCompile(`(?is)^\s*(with|select)\b`)
+
+func isSelectLikeSQL(s string) bool {
+	return sqlSelectLikePrefix.MatchString(strings.TrimSpace(s))
+}
+
+// hasTrailingRowLimit reports whether the outer statement already ends with LIMIT / FETCH FIRST.
+func hasTrailingRowLimit(sqlText string) bool {
+	s := strings.TrimSpace(sqlText)
+	if s == "" {
+		return false
+	}
+	core := strings.TrimSpace(strings.TrimSuffix(s, ";"))
+	return sqlEndsWithLimit.MatchString(core) || sqlEndsWithMySQLLimitComma.MatchString(core) || sqlEndsWithFetchFirst.MatchString(core)
+}
+
+// buildPagedSelect wraps the user SELECT in an outer LIMIT/OFFSET slice (when the user did not set LIMIT).
+func buildPagedSelect(userSQL string, limit, offset int) string {
+	inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(userSQL), ";"))
+	return fmt.Sprintf("SELECT * FROM (%s) AS _daimon_p LIMIT %d OFFSET %d", inner, limit, offset)
+}
+
+// buildSQLCountQuery wraps the user's SELECT (or WITH … SELECT) in a COUNT(*) subquery.
+func buildSQLCountQuery(userSQL string) string {
+	inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(userSQL), ";"))
+	return "SELECT COUNT(*) FROM (" + inner + ") AS _daimon_cnt"
+}
+
+// dataCountUserSQL runs a single-row COUNT query on a direct DB session (same search_path / USE as dataExecUserSQL).
+func dataCountUserSQL(engine string, db *sql.DB, schemaOrDB, countQuery string) (int64, error) {
+	countQuery = strings.TrimSpace(countQuery)
+	if countQuery == "" {
+		return 0, errors.New("empty SQL")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	if engine == "postgres" && schemaOrDB != "" && schemaOrDB != "public" {
+		_, _ = db.ExecContext(ctx, `SET search_path TO `+quotePGIdent(schemaOrDB))
+	}
+	if engine == "mysql" && schemaOrDB != "" {
+		_, e := db.ExecContext(ctx, "USE "+quoteMySQLIdent(schemaOrDB))
+		if e != nil {
+			return 0, e
+		}
+	}
+
+	var n int64
+	err := db.QueryRowContext(ctx, countQuery).Scan(&n)
+	return n, err
+}
+
+// ensureSQLDefaultLimit appends LIMIT n when the query has no trailing row limit clause.
+func ensureSQLDefaultLimit(sqlText string, defaultLimit int) string {
+	s := strings.TrimSpace(sqlText)
+	if s == "" {
+		return s
+	}
+	hadSemi := strings.HasSuffix(s, ";")
+	if hasTrailingRowLimit(sqlText) {
+		return sqlText
+	}
+	core := strings.TrimSpace(strings.TrimSuffix(s, ";"))
+	if core == "" {
+		return sqlText
+	}
+	lim := fmt.Sprintf(" LIMIT %d", defaultLimit)
+	if hadSemi {
+		return core + lim + ";"
+	}
+	return core + lim
+}
 
 func openPostgresFromTunnel(host string, port int, user, password, database string) (*sql.DB, error) {
 	u := url.URL{

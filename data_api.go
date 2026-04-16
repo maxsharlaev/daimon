@@ -784,7 +784,8 @@ func (a *App) DataListDatabases(sessionID string) ([]string, error) {
 		return nil, err
 	}
 	if sess.db != nil {
-		return dataListDatabases(src.Engine, sess.db)
+		out, err := dataListDatabases(src.Engine, sess.db)
+		return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 	}
 	var q string
 	switch src.Engine {
@@ -797,7 +798,7 @@ func (a *App) DataListDatabases(sessionID string) ([]string, error) {
 	}
 	cols, rows, err := a.dataRunQuery(sess, src, q)
 	if err != nil {
-		return nil, err
+		return nil, a.dataErrAfterMaybeInvalidate(sessionID, err)
 	}
 	_ = cols
 	out := make([]string, 0, len(rows))
@@ -825,9 +826,11 @@ func (a *App) DataListTables(sessionID, database string) ([]string, error) {
 			if sch == "" {
 				sch = "public"
 			}
-			return dataListTables("postgres", sess.db, sch)
+			out, err := dataListTables("postgres", sess.db, sch)
+			return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 		}
-		return dataListTables("mysql", sess.db, dbName)
+		out, err := dataListTables("mysql", sess.db, dbName)
+		return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 	}
 	var q string
 	switch src.Engine {
@@ -846,7 +849,7 @@ func (a *App) DataListTables(sessionID, database string) ([]string, error) {
 	}
 	cols, rows, err := a.dataRunQuery(sess, src, q)
 	if err != nil {
-		return nil, err
+		return nil, a.dataErrAfterMaybeInvalidate(sessionID, err)
 	}
 	_ = cols
 	out := make([]string, 0, len(rows))
@@ -872,7 +875,8 @@ func (a *App) DataListSchemas(sessionID string) ([]string, error) {
 		return []string{}, nil
 	}
 	if sess.db != nil {
-		return dataListPostgresSchemas(sess.db)
+		out, err := dataListPostgresSchemas(sess.db)
+		return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 	}
 	q := `SELECT nspname FROM pg_catalog.pg_namespace
 WHERE nspname NOT IN ('pg_catalog', 'information_schema')
@@ -881,7 +885,7 @@ AND nspname NOT LIKE 'pg_temp\_%' ESCAPE '\'
 ORDER BY nspname`
 	cols, rows, err := a.dataRunQuery(sess, src, q)
 	if err != nil {
-		return nil, err
+		return nil, a.dataErrAfterMaybeInvalidate(sessionID, err)
 	}
 	_ = cols
 	out := make([]string, 0, len(rows))
@@ -913,7 +917,8 @@ func (a *App) DataListTableColumns(sessionID, database, table string) ([]DataCol
 		if src.Engine == "postgres" && schemaOrDB == "" {
 			schemaOrDB = "public"
 		}
-		return dataListTableColumns(src.Engine, sess.db, schemaOrDB, tbl)
+		out, err := dataListTableColumns(src.Engine, sess.db, schemaOrDB, tbl)
+		return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 	}
 	var q string
 	switch src.Engine {
@@ -939,7 +944,7 @@ ORDER BY ORDINAL_POSITION`, strings.ReplaceAll(db, "'", "''"), strings.ReplaceAl
 	}
 	cols, rows, err := a.dataRunQuery(sess, src, q)
 	if err != nil {
-		return nil, err
+		return nil, a.dataErrAfterMaybeInvalidate(sessionID, err)
 	}
 	_ = cols
 	out := make([]DataColumnMetaDTO, 0, len(rows))
@@ -980,11 +985,11 @@ func (a *App) DataTablePreview(sessionID, database, table string, limit, offset 
 		}
 		total, err := dataTableRowCount(src.Engine, sess.db, schemaOrDB, tbl, filterJSON)
 		if err != nil {
-			return out, err
+			return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 		}
 		cols, rows, err := dataTablePreview(src.Engine, sess.db, schemaOrDB, tbl, limit, offset, sortColumn, sortDir, filterJSON)
 		if err != nil {
-			return out, err
+			return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 		}
 		return DataQueryResultDTO{Columns: cols, Rows: rows, TotalRows: total}, nil
 	}
@@ -1002,7 +1007,7 @@ func (a *App) DataTablePreview(sessionID, database, table string, limit, offset 
 		tn := quotePGIdent(sch, tbl)
 		ord, err := a.remotePreviewOrderClause(sess, src, sch, tbl, sortColumn, sortDir)
 		if err != nil {
-			return out, err
+			return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 		}
 		q = fmt.Sprintf(`SELECT * FROM %s%s LIMIT %d OFFSET %d`, tn, ord, max1(limit, 200), max0(offset))
 		countQ = fmt.Sprintf(`SELECT COUNT(*)::bigint FROM %s`, tn)
@@ -1013,7 +1018,7 @@ func (a *App) DataTablePreview(sessionID, database, table string, limit, offset 
 		tn := quoteMySQLIdent(db, tbl)
 		ord, err := a.remotePreviewOrderClause(sess, src, db, tbl, sortColumn, sortDir)
 		if err != nil {
-			return out, err
+			return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 		}
 		q = fmt.Sprintf(`SELECT * FROM %s%s LIMIT %d OFFSET %d`, tn, ord, max1(limit, 200), max0(offset))
 		countQ = fmt.Sprintf(`SELECT COUNT(*) FROM %s`, tn)
@@ -1022,16 +1027,16 @@ func (a *App) DataTablePreview(sessionID, database, table string, limit, offset 
 	}
 	total, err := a.dataRunQueryCountScalar(sess, src, countQ)
 	if err != nil {
-		return out, err
+		return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 	}
 	cols, rows, err := a.dataRunQuery(sess, src, q)
 	if err != nil {
-		return out, err
+		return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 	}
 	return DataQueryResultDTO{Columns: cols, Rows: rows, TotalRows: total}, nil
 }
 
-func (a *App) DataExecSQL(sessionID, database, sqlText string) (DataQueryResultDTO, error) {
+func (a *App) DataExecSQL(sessionID, database, sqlText string, offset int) (DataQueryResultDTO, error) {
 	var out DataQueryResultDTO
 	sess, err := a.getDataSession(sessionID)
 	if err != nil {
@@ -1041,26 +1046,67 @@ func (a *App) DataExecSQL(sessionID, database, sqlText string) (DataQueryResultD
 	if err != nil {
 		return out, err
 	}
+	if offset < 0 {
+		offset = 0
+	}
+	original := strings.TrimSpace(sqlText)
+	var execSQL string
+	if isSelectLikeSQL(original) && !hasTrailingRowLimit(original) {
+		execSQL = buildPagedSelect(original, 100, offset)
+	} else {
+		execSQL = ensureSQLDefaultLimit(original, 100)
+	}
+
+	var cols []string
+	var rows [][]string
 	if sess.db != nil {
 		schemaOrDB := strings.TrimSpace(database)
 		if src.Engine == "postgres" && schemaOrDB == "" {
 			schemaOrDB = "public"
 		}
-		cols, rows, err := dataExecUserSQL(src.Engine, sess.db, schemaOrDB, sqlText)
+		cols, rows, err = dataExecUserSQL(src.Engine, sess.db, schemaOrDB, execSQL)
 		if err != nil {
-			return out, err
+			return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 		}
-		return DataQueryResultDTO{Columns: cols, Rows: rows}, nil
+	} else {
+		db := strings.TrimSpace(database)
+		if src.Engine == "mysql" && db != "" {
+			src.Database = db
+		}
+		cols, rows, err = a.dataRunQuery(sess, src, execSQL)
+		if err != nil {
+			return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
+		}
 	}
-	db := strings.TrimSpace(database)
-	if src.Engine == "mysql" && db != "" {
-		src.Database = db
+
+	total := int64(len(rows))
+	if isSelectLikeSQL(original) {
+		needCount := offset == 0 || hasTrailingRowLimit(original)
+		if needCount {
+			countQ := buildSQLCountQuery(original)
+			if sess.db != nil {
+				schemaOrDB := strings.TrimSpace(database)
+				if src.Engine == "postgres" && schemaOrDB == "" {
+					schemaOrDB = "public"
+				}
+				if n, e := dataCountUserSQL(src.Engine, sess.db, schemaOrDB, countQ); e == nil {
+					total = n
+				}
+			} else {
+				db := strings.TrimSpace(database)
+				if src.Engine == "mysql" && db != "" {
+					src.Database = db
+				}
+				if n, e := a.dataRunQueryCountScalar(sess, src, countQ); e == nil {
+					total = n
+				}
+			}
+		} else if offset > 0 {
+			total = -1
+		}
 	}
-	cols, rows, err := a.dataRunQuery(sess, src, sqlText)
-	if err != nil {
-		return out, err
-	}
-	return DataQueryResultDTO{Columns: cols, Rows: rows}, nil
+
+	return DataQueryResultDTO{Columns: cols, Rows: rows, TotalRows: total}, nil
 }
 
 func max1(a, b int) int {
@@ -1096,7 +1142,8 @@ func (a *App) DataPrimaryKeyColumns(sessionID, database, table string) ([]string
 		if src.Engine == "postgres" && schemaOrDB == "" {
 			schemaOrDB = "public"
 		}
-		return dataPrimaryKeyColumns(src.Engine, sess.db, schemaOrDB, tbl)
+		out, err := dataPrimaryKeyColumns(src.Engine, sess.db, schemaOrDB, tbl)
+		return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
 	}
 	var q string
 	switch src.Engine {
@@ -1123,7 +1170,7 @@ ORDER BY ORDINAL_POSITION`, strings.ReplaceAll(db, "'", "''"), strings.ReplaceAl
 	}
 	cols, rows, err := a.dataRunQuery(sess, src, q)
 	if err != nil {
-		return nil, err
+		return nil, a.dataErrAfterMaybeInvalidate(sessionID, err)
 	}
 	_ = cols
 	out := make([]string, 0, len(rows))
@@ -1161,7 +1208,8 @@ func (a *App) DataUpdateRow(req DataRowMutationRequest) error {
 	if src.Engine == "postgres" && schemaOrDB == "" {
 		schemaOrDB = "public"
 	}
-	return dataUpdateRow(src.Engine, sess.db, schemaOrDB, strings.TrimSpace(req.Table), req.Columns, req.Values, req.PKColumns, req.PKValues)
+	err = dataUpdateRow(src.Engine, sess.db, schemaOrDB, strings.TrimSpace(req.Table), req.Columns, req.Values, req.PKColumns, req.PKValues)
+	return a.dataErrAfterMaybeInvalidate(req.SessionID, err)
 }
 
 func (a *App) DataDeleteRow(req DataRowMutationRequest) error {
@@ -1180,5 +1228,6 @@ func (a *App) DataDeleteRow(req DataRowMutationRequest) error {
 	if src.Engine == "postgres" && schemaOrDB == "" {
 		schemaOrDB = "public"
 	}
-	return dataDeleteRow(src.Engine, sess.db, schemaOrDB, strings.TrimSpace(req.Table), req.PKColumns, req.PKValues)
+	err = dataDeleteRow(src.Engine, sess.db, schemaOrDB, strings.TrimSpace(req.Table), req.PKColumns, req.PKValues)
+	return a.dataErrAfterMaybeInvalidate(req.SessionID, err)
 }

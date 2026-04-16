@@ -25,6 +25,11 @@ import {
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
+import {
+  DataGridPaginationFooter,
+  DataSortableTable,
+  sortDataRowsByColumn,
+} from "./DataResultGrid";
 import "./dataworkspace.css";
 import "./connections.css";
 import "./terminaltabs.css";
@@ -54,6 +59,8 @@ type DataSess = {
   scopeMode: string;
   /** Transport label for tabs (SSH profile, container, …) — like Connections “connection”. */
   scopeSummary: string;
+  /** `false` when the server dropped the session (dead DB/SSH); tab stays until user closes it. */
+  connectionAlive?: boolean;
 };
 
 type DataTabSnapshot = {
@@ -78,6 +85,10 @@ type DataTabSnapshot = {
   /** Last applied filter JSON (`[]` or non-empty array JSON). */
   previewFilterJSON?: string;
   tableFilterClauses?: TableFilterClause[];
+  /** SQL tab: result pagination / sort (client-side on loaded rows). */
+  sqlPage?: number;
+  sqlSortColumn?: string;
+  sqlSortDir?: string;
 };
 
 type PreviewSort = { column: string | null; dir: "asc" | "desc" | null };
@@ -146,6 +157,13 @@ function serializeTableFilterPayload(clauses: TableFilterClause[]): string | nul
   return JSON.stringify(out);
 }
 
+/** Backend dropped the session or transport died — mark tab inactive; user closes manually. */
+function isStaleDataSessionError(e: unknown): boolean {
+  const m = e instanceof Error ? e.message : String(e);
+  const s = m.toLowerCase();
+  return s.includes("data connection lost") || s.includes("data session not found");
+}
+
 function parseTableFilterClauses(json: string): TableFilterClause[] {
   const s = json.trim();
   if (!s) return [];
@@ -211,7 +229,6 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   const [selectedTable, setSelectedTable] = useState("");
   const [tableListFilter, setTableListFilter] = useState("");
   const [previewPage, setPreviewPage] = useState(1);
-  const [pageJumpInput, setPageJumpInput] = useState("1");
   const [previewSort, setPreviewSort] = useState<PreviewSort>({ column: null, dir: null });
   const [previewSortQuery, setPreviewSortQuery] = useState<PreviewSort>({ column: null, dir: null });
   const [preview, setPreview] = useState<main.DataQueryResultDTO | null>(null);
@@ -219,6 +236,8 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [sqlText, setSqlText] = useState("SELECT 1");
   const [sqlResult, setSqlResult] = useState<main.DataQueryResultDTO | null>(null);
+  const [sqlPage, setSqlPage] = useState(1);
+  const [sqlSort, setSqlSort] = useState<PreviewSort>({ column: null, dir: null });
   /** SQL workspace: show script + Run above results (default on). */
   const [sqlEditorExpanded, setSqlEditorExpanded] = useState(true);
   /** SQL tab: sidebar with table picker + column types. */
@@ -273,6 +292,9 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
     tbl: "",
   });
   const tablePreviewScrollRef = useRef<HTMLDivElement | null>(null);
+  const sqlResultsScrollRef = useRef<HTMLDivElement | null>(null);
+  /** Last known SQL result row count from server (page fetches may omit totalRows = -1). */
+  const lastSqlTotalRef = useRef<number | null>(null);
   /** Skip one sort reset when `selectedTable`/`activeSessionId` updates after session restore from snapshot. */
   const skipPreviewSortResetRef = useRef(false);
 
@@ -464,6 +486,7 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
     (sessionId: string | null) => {
       if (activeSessionId) {
         const [psc, psd] = previewSortToApi(previewSortQuery);
+        const [ssc, ssd] = previewSortToApi(sqlSort);
         dataTabSnapshotsRef.current[activeSessionId] = {
           selectedDb,
           selectedTable,
@@ -476,6 +499,9 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
           previewPage,
           previewSortColumn: psc,
           previewSortDir: psd,
+          sqlPage,
+          sqlSortColumn: ssc,
+          sqlSortDir: ssd,
           tableFilterBarOpen,
           previewFilterJSON: previewFilterCommitted,
           tableFilterClauses,
@@ -500,6 +526,8 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         setFilterUiMenu(null);
         setPreviewLoading(false);
         setPreviewError(null);
+        setSqlPage(1);
+        setSqlSort({ column: null, dir: null });
         setActiveSessionId(null);
         return;
       }
@@ -521,6 +549,13 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       skipPreviewSortResetRef.current = true;
       setPreviewSort(rsort);
       setPreviewSortQuery(rsort);
+      setSqlPage(snap?.sqlPage ?? 1);
+      const sqlRs = snap?.sqlSortDir;
+      const sqlRc = (snap?.sqlSortColumn ?? "").trim();
+      const sqlRdir = sqlRs === "asc" || sqlRs === "desc" ? sqlRs : null;
+      const sqlRsort: PreviewSort =
+        sqlRc && sqlRdir ? { column: sqlRc, dir: sqlRdir } : { column: null, dir: null };
+      setSqlSort(sqlRsort);
       const pjson = snap?.previewFilterJSON ?? "";
       setPreviewFilterCommitted(pjson);
       if (snap?.tableFilterClauses && snap.tableFilterClauses.length > 0) {
@@ -543,6 +578,8 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       sqlSchemaBrowserOpen,
       previewPage,
       previewSortQuery,
+      sqlPage,
+      sqlSort,
       tableFilterBarOpen,
       previewFilterCommitted,
       tableFilterClauses,
@@ -571,6 +608,7 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
             engine: src.engine,
             scopeMode: (res.mode ?? "").trim(),
             scopeSummary,
+            connectionAlive: true,
           },
         ];
       });
@@ -583,7 +621,19 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
     }
   };
 
+  const markSessionDisconnected = useCallback((sid: string) => {
+    setSessions((p) =>
+      p.map((s) => (s.sessionId === sid ? { ...s, connectionAlive: false } : s))
+    );
+  }, []);
+
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId) ?? null;
+
+  const activeSessionAlive = useMemo(() => {
+    if (!activeSessionId) return true;
+    const s = sessions.find((x) => x.sessionId === activeSessionId);
+    return s?.connectionAlive !== false;
+  }, [sessions, activeSessionId]);
 
   const activeEngine = useMemo(() => (activeSession?.engine ?? "").toLowerCase(), [activeSession?.engine]);
 
@@ -608,6 +658,53 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   const previewTotalRows = Number(preview?.totalRows ?? 0);
   const previewTotalPages = Math.max(1, Math.ceil(previewTotalRows / PREVIEW_PAGE_SIZE) || 1);
 
+  const sqlSortedRows = useMemo(() => {
+    if (!hasSqlResultTable || !sqlResult?.rows || !sqlResult.columns) return [];
+    return sortDataRowsByColumn(sqlResult.rows, sqlResult.columns, sqlSort);
+  }, [hasSqlResultTable, sqlResult, sqlSort]);
+
+  const sqlLoadedCount = sqlSortedRows.length;
+
+  useEffect(() => {
+    if (!sqlResult) {
+      lastSqlTotalRef.current = null;
+      return;
+    }
+    const t =
+      typeof sqlResult.totalRows === "number"
+        ? sqlResult.totalRows
+        : Number(sqlResult.totalRows ?? NaN);
+    if (Number.isFinite(t) && t >= 0) {
+      lastSqlTotalRef.current = t;
+    }
+  }, [sqlResult]);
+
+  const sqlDisplayTotal = useMemo(() => {
+    if (!sqlResult) return 0;
+    const t =
+      typeof sqlResult.totalRows === "number"
+        ? sqlResult.totalRows
+        : Number(sqlResult.totalRows ?? NaN);
+    if (Number.isFinite(t) && t >= 0) return t;
+    return lastSqlTotalRef.current ?? sqlLoadedCount;
+  }, [sqlResult, sqlLoadedCount]);
+
+  const sqlServerPaging = useMemo(() => {
+    if (!hasSqlResultTable || !sqlResult?.rows) return false;
+    return sqlDisplayTotal > sqlResult.rows.length;
+  }, [hasSqlResultTable, sqlResult, sqlDisplayTotal]);
+
+  const sqlPageBasis = sqlServerPaging ? sqlDisplayTotal : sqlLoadedCount;
+  const sqlTotalPages = Math.max(1, Math.ceil(sqlPageBasis / PREVIEW_PAGE_SIZE) || 1);
+
+  const sqlPageRows = useMemo(() => {
+    if (sqlServerPaging) {
+      return sqlSortedRows;
+    }
+    const off = (sqlPage - 1) * PREVIEW_PAGE_SIZE;
+    return sqlSortedRows.slice(off, off + PREVIEW_PAGE_SIZE);
+  }, [sqlSortedRows, sqlServerPaging, sqlPage]);
+
   const tableFilterPayload = useMemo(
     () => serializeTableFilterPayload(tableFilterClauses),
     [tableFilterClauses]
@@ -623,18 +720,9 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
     tableFilterPayload === null ||
     (!tableFilterDirty && committedFilterTrim === "");
 
-  const commitPageJump = useCallback(() => {
-    const maxPage = preview && selectedTable ? previewTotalPages : 1;
-    let n = parseInt(pageJumpInput.trim(), 10);
-    if (!Number.isFinite(n) || n < 1) n = 1;
-    if (n > maxPage) n = maxPage;
-    setPreviewPage(n);
-    setPageJumpInput(String(n));
-  }, [pageJumpInput, preview, selectedTable, previewTotalPages]);
-
-  useEffect(() => {
-    setPageJumpInput(String(previewPage));
-  }, [previewPage]);
+  /** Toolbar toggle looks “on” when the bar is open or a filter is already applied (even if the bar is collapsed). */
+  const tableFilterToggleActive =
+    tableFilterBarOpen || committedFilterTrim !== "";
 
   useEffect(() => {
     setTableListFilter("");
@@ -668,6 +756,15 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   }, [preview, previewPage, previewTotalPages, selectedTable]);
 
   useEffect(() => {
+    if (sqlPage > sqlTotalPages) setSqlPage(sqlTotalPages);
+  }, [sqlPage, sqlTotalPages]);
+
+  useEffect(() => {
+    const el = sqlResultsScrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, [sqlResult, sqlPage, sqlSort]);
+
+  useEffect(() => {
     if (activeSessionId && !sessions.some((s) => s.sessionId === activeSessionId)) {
       activateDataSession(sessions[0]?.sessionId ?? null);
       return;
@@ -689,6 +786,13 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       setPreviewPage(1);
       setPreviewLoading(false);
       setPreviewError(null);
+      return;
+    }
+    if (!activeSessionAlive) {
+      setDatabases([]);
+      setPostgresClusterDBs([]);
+      setTables([]);
+      setSelectedDb("");
       return;
     }
     setDatabases([]);
@@ -720,21 +824,28 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
             return list[0] ?? "";
           });
         }
-      } catch {
-        if (!cancelled) {
-          setDatabases([]);
-          setPostgresClusterDBs([]);
-          setSelectedDb("");
+      } catch (e: unknown) {
+        if (cancelled) return;
+        if (isStaleDataSessionError(e)) {
+          markSessionDisconnected(sid);
+          return;
         }
+        setDatabases([]);
+        setPostgresClusterDBs([]);
+        setSelectedDb("");
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, activeEngine]);
+  }, [activeSessionId, activeEngine, activeSessionAlive, markSessionDisconnected]);
 
   useEffect(() => {
     if (!activeSessionId || !selectedTable || !sqlSchemaBrowserOpen || innerTab !== "sql") {
+      setSqlRailColumns([]);
+      return;
+    }
+    if (!activeSessionAlive) {
       setSqlRailColumns([]);
       return;
     }
@@ -748,17 +859,26 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         if (cancelled) return;
         const list = Array.isArray(raw) ? raw : [];
         setSqlRailColumns(list.map((row) => new main.DataColumnMetaDTO(row as any)));
-      } catch {
-        if (!cancelled) setSqlRailColumns([]);
+      } catch (e: unknown) {
+        if (cancelled) return;
+        if (isStaleDataSessionError(e)) {
+          markSessionDisconnected(sid);
+          return;
+        }
+        setSqlRailColumns([]);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, selectedDb, selectedTable, sqlSchemaBrowserOpen, innerTab]);
+  }, [activeSessionId, selectedDb, selectedTable, sqlSchemaBrowserOpen, innerTab, activeSessionAlive, markSessionDisconnected]);
 
   useEffect(() => {
     if (!activeSessionId || !selectedDb) {
+      setTables([]);
+      return;
+    }
+    if (!activeSessionAlive) {
       setTables([]);
       return;
     }
@@ -772,17 +892,20 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         const t = Array.isArray(raw) ? raw : [];
         setTables(t);
         setSelectedTable((prev) => (prev && t.includes(prev) ? prev : ""));
-      } catch {
-        if (!cancelled) {
-          setTables([]);
-          setSelectedTable("");
+      } catch (e: unknown) {
+        if (cancelled) return;
+        if (isStaleDataSessionError(e)) {
+          markSessionDisconnected(sid);
+          return;
         }
+        setTables([]);
+        setSelectedTable("");
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, selectedDb]);
+  }, [activeSessionId, selectedDb, activeSessionAlive, markSessionDisconnected]);
 
   useEffect(() => {
     if (!activeSessionId || !selectedTable) {
@@ -821,10 +944,13 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
           setPreviewError("Unexpected preview response.");
         }
       } catch (e: unknown) {
-        if (!cancelled) {
-          setPreview(null);
-          setPreviewError(e instanceof Error ? e.message : String(e));
+        if (cancelled) return;
+        if (isStaleDataSessionError(e)) {
+          markSessionDisconnected(sid);
+          return;
         }
+        setPreview(null);
+        setPreviewError(e instanceof Error ? e.message : String(e));
       } finally {
         if (!cancelled) setPreviewLoading(false);
       }
@@ -832,7 +958,7 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, selectedDb, selectedTable, previewPage, previewSortQuery, previewFilterCommitted]);
+  }, [activeSessionId, selectedDb, selectedTable, previewPage, previewSortQuery, previewFilterCommitted, activeSessionAlive, markSessionDisconnected]);
 
   useEffect(() => {
     const sid = activeSessionId;
@@ -854,19 +980,28 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       setFilterPickerColumns([]);
       return;
     }
+    if (!activeSessionAlive) {
+      setFilterPickerColumns([]);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {
         const raw = await DataListTableColumns(activeSessionId, selectedDb, selectedTable);
         if (!cancelled) setFilterPickerColumns(Array.isArray(raw) ? raw : []);
-      } catch {
-        if (!cancelled) setFilterPickerColumns([]);
+      } catch (e: unknown) {
+        if (cancelled) return;
+        if (isStaleDataSessionError(e)) {
+          markSessionDisconnected(activeSessionId);
+          return;
+        }
+        setFilterPickerColumns([]);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, selectedDb, selectedTable, tableFilterBarOpen]);
+  }, [activeSessionId, selectedDb, selectedTable, tableFilterBarOpen, activeSessionAlive, markSessionDisconnected]);
 
   useEffect(() => {
     if (!filterUiMenu) return;
@@ -891,21 +1026,76 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
     });
   }, []);
 
+  const handleSqlSortClick = useCallback(
+    (col: string) => {
+      if (!sqlServerPaging) {
+        setSqlPage(1);
+      }
+      setSqlSort((prev) => {
+        if (prev.column !== col) return { column: col, dir: "asc" };
+        if (prev.dir === "asc") return { column: col, dir: "desc" };
+        return { column: null, dir: null };
+      });
+    },
+    [sqlServerPaging]
+  );
+
+  const handleSqlPageChange = useCallback(
+    async (p: number) => {
+      if (!sqlServerPaging) {
+        setSqlPage(p);
+        return;
+      }
+      if (!activeSessionId || !activeSessionAlive) return;
+      setBusy(true);
+      try {
+        const off = (p - 1) * PREVIEW_PAGE_SIZE;
+        const r = (await DataExecSQL(activeSessionId, selectedDb, sqlText, off)) as main.DataQueryResultDTO;
+        if (r && Array.isArray(r.columns) && Array.isArray(r.rows)) {
+          setSqlResult(r);
+          setSqlPage(p);
+        }
+      } catch (e: unknown) {
+        if (isStaleDataSessionError(e) && activeSessionId) {
+          markSessionDisconnected(activeSessionId);
+          return;
+        }
+        alert(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [sqlServerPaging, activeSessionId, activeSessionAlive, sqlText, selectedDb, markSessionDisconnected]
+  );
+
   const runSql = async () => {
-    if (!activeSessionId) return;
+    if (!activeSessionId || !activeSessionAlive) return;
     setBusy(true);
     try {
-      const r = (await DataExecSQL(activeSessionId, selectedDb, sqlText)) as main.DataQueryResultDTO;
-      if (r && Array.isArray(r.columns) && Array.isArray(r.rows)) setSqlResult(r);
-      else setSqlResult(null);
-    } catch (e: any) {
-      alert(e?.message ?? String(e));
+      const r = (await DataExecSQL(activeSessionId, selectedDb, sqlText, 0)) as main.DataQueryResultDTO;
+      if (r && Array.isArray(r.columns) && Array.isArray(r.rows)) {
+        setSqlResult(r);
+        setSqlPage(1);
+        setSqlSort({ column: null, dir: null });
+      } else setSqlResult(null);
+    } catch (e: unknown) {
+      if (isStaleDataSessionError(e) && activeSessionId) {
+        markSessionDisconnected(activeSessionId);
+        return;
+      }
+      alert(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
   };
 
   const disconnectSession = async (sid: string) => {
+    const sess = sessions.find((s) => s.sessionId === sid);
+    if (sess?.connectionAlive === false) {
+      delete dataTabSnapshotsRef.current[sid];
+      setSessions((p) => p.filter((x) => x.sessionId !== sid));
+      return;
+    }
     setBusy(true);
     try {
       await DataDisconnect(sid);
@@ -955,7 +1145,11 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       const pk = (await DataPrimaryKeyColumns(activeSessionId, selectedDb, selectedTable)) as string[];
       const pkVals = pk.map((c) => obj[c] ?? "");
       setRowModal({ open: true, row: { ...obj }, pkCols: pk, pkVals });
-    } catch {
+    } catch (e: unknown) {
+      if (isStaleDataSessionError(e)) {
+        markSessionDisconnected(activeSessionId);
+        return;
+      }
       alert("Could not resolve primary key for this table.");
     }
   };
@@ -993,8 +1187,12 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         )) as main.DataQueryResultDTO;
         setPreview(r);
       }
-    } catch (e: any) {
-      alert(e?.message ?? String(e));
+    } catch (e: unknown) {
+      if (isStaleDataSessionError(e) && activeSessionId) {
+        markSessionDisconnected(activeSessionId);
+        return;
+      }
+      alert(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -1032,8 +1230,12 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         )) as main.DataQueryResultDTO;
         setPreview(r);
       }
-    } catch (e: any) {
-      alert(e?.message ?? String(e));
+    } catch (e: unknown) {
+      if (isStaleDataSessionError(e) && activeSessionId) {
+        markSessionDisconnected(activeSessionId);
+        return;
+      }
+      alert(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -1350,12 +1552,21 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                 sources.map((src) => {
                   const sessOpen = sessions.filter((s) => s.dataSourceId === src.id);
                   const isConnecting = connectingDataSourceId === src.id;
-                  const topMarker = isConnecting ? "orange" : sessOpen.length > 0 ? "green" : "none";
+                  const anySessionAlive = sessOpen.some((s) => s.connectionAlive !== false);
+                  const topMarker = isConnecting
+                    ? "orange"
+                    : anySessionAlive
+                      ? "green"
+                      : sessOpen.length > 0
+                        ? "gray"
+                        : "none";
                   const markerTitle = isConnecting
                     ? "Connecting…"
-                    : sessOpen.length > 0
+                    : anySessionAlive
                       ? "Connected"
-                      : "Not connected";
+                      : sessOpen.length > 0
+                        ? "Connection lost"
+                        : "Not connected";
                   return (
                     <div key={src.id} className="profile data-source-card">
                       <div className="profile-row">
@@ -1392,15 +1603,17 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                         <span className={`marker marker-${topMarker} profile-marker`} title={markerTitle} />
                       </div>
                       <div className="sessions">
-                        {sessOpen.map((s) => (
+                        {sessOpen.map((s) => {
+                          const alive = s.connectionAlive !== false;
+                          return (
                           <div key={s.sessionId} className="session">
                             <button
                               type="button"
-                              className={`session-btn ${activeSessionId === s.sessionId ? "active" : ""}`}
+                              className={`session-btn ${activeSessionId === s.sessionId ? "active" : ""}${alive ? "" : " session-btn--inactive"}`}
                               onClick={() => activateDataSession(s.sessionId)}
-                              title={`${s.name} · ${dataEngineDisplay(s.engine)} · ${s.scopeSummary}`}
+                              title={`${s.name} · ${dataEngineDisplay(s.engine)} · ${s.scopeSummary}${alive ? "" : " (inactive)"}`}
                             >
-                              <span className="dot dot-green" />
+                              <span className={`dot ${alive ? "dot-green" : "dot-gray"}`} />
                               <span>
                                 {dataEngineIcon(s.engine)} {dataEngineDisplay(s.engine)}: {s.scopeSummary}
                               </span>
@@ -1409,12 +1622,13 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                               type="button"
                               className="session-close"
                               onClick={() => void disconnectSession(s.sessionId)}
-                              title="Disconnect"
+                              title={alive ? "Disconnect" : "Close tab"}
                             >
-                              Disconnect
+                              {alive ? "Disconnect" : "Close"}
                             </button>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -1436,16 +1650,17 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
               <div className="terminaltabs-bar">
                 {sessions.map((s) => {
                   const isActive = s.sessionId === activeSessionId;
+                  const alive = s.connectionAlive !== false;
                   const label = `${dataEngineIcon(s.engine)} ${dataEngineDisplay(s.engine)}: ${s.scopeSummary}`;
                   return (
                     <button
                       key={s.sessionId}
                       type="button"
-                      className={`tab ${isActive ? "active" : ""}`}
-                      title={`${s.name} · ${label}`}
+                      className={`tab ${isActive ? "active" : ""}${alive ? "" : " tab--inactive"}`}
+                      title={`${s.name} · ${label}${alive ? "" : " (inactive)"}`}
                       onClick={() => activateDataSession(s.sessionId)}
                     >
-                      <span className="dot dot-green" />
+                      <span className={`dot ${alive ? "dot-green" : "dot-gray"}`} />
                       <span className="tab-label">{label}</span>
                       <span
                         className="tab-close"
@@ -1453,7 +1668,7 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                           e.stopPropagation();
                           void disconnectSession(s.sessionId);
                         }}
-                        title="Disconnect"
+                        title={alive ? "Disconnect" : "Close tab"}
                       >
                         ×
                       </span>
@@ -1625,16 +1840,18 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                     <div className="data-table-filter-toolbar">
                       <button
                         type="button"
-                        className={`data-sql-editor-toggle data-table-filter-toggle ${tableFilterBarOpen ? "is-on" : "is-off"}`}
+                        className={`data-sql-editor-toggle data-table-filter-toggle ${tableFilterToggleActive ? "is-on" : "is-off"}${committedFilterTrim !== "" ? " filter-toggle--committed" : ""}`}
                         disabled={!tableFilterSqlSupported}
                         aria-label="Table filter"
-                        aria-pressed={tableFilterBarOpen}
+                        aria-pressed={tableFilterToggleActive}
                         title={
                           !tableFilterSqlSupported
                             ? "Table filters require an SSH-connected data source"
                             : tableFilterBarOpen
                               ? "Hide filter"
-                              : "Filter rows"
+                              : committedFilterTrim !== ""
+                                ? "Filter is applied — click to show filter bar"
+                                : "Filter rows"
                         }
                         onClick={() => {
                           if (!tableFilterSqlSupported) return;
@@ -1656,7 +1873,12 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                     </div>
                   )}
                 </div>
-                {innerTab === "table" && tableFilterBarOpen ? (
+                {innerTab === "table" ? (
+                  <div
+                    className={`data-table-filter-panel-wrap ${tableFilterBarOpen ? "is-open" : ""}`}
+                    aria-hidden={!tableFilterBarOpen}
+                  >
+                    <div className="data-table-filter-panel-inner">
                   <div className="data-table-filter-panel">
                     {!tableFilterSqlSupported ? (
                       <div className="data-table-filter-unsupported">
@@ -1935,6 +2157,8 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                       </>
                     )}
                   </div>
+                    </div>
+                  </div>
                 ) : null}
                 {innerTab === "table" ? (
                   <div className="data-table-workspace">
@@ -1991,52 +2215,15 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                         ) : previewError ? (
                           <div className="data-placeholder data-placeholder-error">{previewError}</div>
                         ) : preview && Array.isArray(preview.columns) && Array.isArray(preview.rows) ? (
-                          <table className="data-grid data-grid--preview">
-                            <thead>
-                              <tr>
-                                {preview.columns.map((c) => (
-                                  <th key={c}>
-                                    <button
-                                      type="button"
-                                      className="data-grid-th-sort"
-                                      onClick={() => handlePreviewSortClick(c)}
-                                      title="Sort: ascending → descending → off"
-                                    >
-                                      <span className="data-grid-th-sort-label">{c}</span>
-                                      {previewSort.column === c && previewSort.dir === "asc" ? (
-                                        <span className="data-grid-th-sort-ind" aria-hidden>
-                                          ▲
-                                        </span>
-                                      ) : previewSort.column === c && previewSort.dir === "desc" ? (
-                                        <span className="data-grid-th-sort-ind" aria-hidden>
-                                          ▼
-                                        </span>
-                                      ) : null}
-                                    </button>
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {preview.rows.length === 0 ? (
-                                <tr>
-                                  <td colSpan={Math.max(1, preview.columns.length)} className="data-grid-empty-cell">
-                                    This table has no rows.
-                                  </td>
-                                </tr>
-                              ) : (
-                                preview.rows.map((row, ri) => (
-                                  <tr key={ri} onClick={() => void openRow(row)} className="data-row-click">
-                                    {(row ?? []).map((cell, ci) => (
-                                      <td key={ci} title={cell}>
-                                        <span className="data-cell-clip">{cell}</span>
-                                      </td>
-                                    ))}
-                                  </tr>
-                                ))
-                              )}
-                            </tbody>
-                          </table>
+                          <DataSortableTable
+                            className="data-grid data-grid--preview"
+                            columns={preview.columns}
+                            rows={preview.rows}
+                            sort={previewSort}
+                            onSortClick={handlePreviewSortClick}
+                            emptyMessage="This table has no rows."
+                            onRowClick={(row) => void openRow(row)}
+                          />
                         ) : (
                           <div className="data-placeholder data-placeholder-muted">
                             Could not load data for this table.
@@ -2044,47 +2231,13 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                         )}
                       </div>
                       {preview && !previewLoading && selectedTable && Array.isArray(preview.columns) ? (
-                        <div className="data-preview-pagination">
-                          <span className="data-preview-pagination-meta mono">
-                            {previewTotalRows.toLocaleString()} rows · page {previewPage} / {previewTotalPages}
-                          </span>
-                          <div className="data-preview-pagination-controls">
-                            <button
-                              type="button"
-                              className="btn"
-                              disabled={previewPage <= 1 || busy}
-                              onClick={() => setPreviewPage((p) => Math.max(1, p - 1))}
-                            >
-                              Prev
-                            </button>
-                            <label className="data-preview-page-jump">
-                              <span className="data-preview-page-jump-label">Page</span>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                className="data-preview-page-input mono"
-                                value={pageJumpInput}
-                                onChange={(e) => setPageJumpInput(e.target.value)}
-                                onBlur={() => void commitPageJump()}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    void commitPageJump();
-                                  }
-                                }}
-                                aria-label="Page number"
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              className="btn"
-                              disabled={previewPage >= previewTotalPages || busy}
-                              onClick={() => setPreviewPage((p) => Math.min(previewTotalPages, p + 1))}
-                            >
-                              Next
-                            </button>
-                          </div>
-                        </div>
+                        <DataGridPaginationFooter
+                          page={previewPage}
+                          pageSize={PREVIEW_PAGE_SIZE}
+                          totalRows={previewTotalRows}
+                          onPageChange={setPreviewPage}
+                          paginationDisabled={busy}
+                        />
                       ) : null}
                     </div>
                   </div>
@@ -2133,33 +2286,44 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                       {sqlEditorExpanded ? (
                         <div className="data-sql-script-block">
                           <textarea className="data-sql-input mono" value={sqlText} onChange={(e) => setSqlText(e.target.value)} rows={8} />
-                          <button type="button" className="btn" disabled={busy} onClick={() => void runSql()}>
+                          <button
+                            type="button"
+                            className="btn"
+                            disabled={busy || !activeSessionAlive}
+                            title={!activeSessionAlive ? "Connection lost" : undefined}
+                            onClick={() => void runSql()}
+                          >
                             Run
                           </button>
                         </div>
                       ) : null}
-                      <div className="data-sql-results">
-                        {sqlResult && Array.isArray(sqlResult.columns) && Array.isArray(sqlResult.rows) ? (
-                          <table className="data-grid">
-                            <thead>
-                              <tr>
-                                {sqlResult.columns.map((c) => (
-                                  <th key={c}>{c}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {sqlResult.rows.map((row, ri) => (
-                                <tr key={ri}>
-                                  {(row ?? []).map((cell, ci) => (
-                                    <td key={ci} title={cell}>
-                                      <span className="data-cell-clip">{cell}</span>
-                                    </td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                      <div
+                        className={`data-sql-results${hasSqlResultTable ? " data-sql-results--split" : ""}`}
+                      >
+                        {hasSqlResultTable && sqlResult ? (
+                          <div className="data-grid-wrap">
+                            <div className="data-grid-scroll" ref={sqlResultsScrollRef}>
+                              <DataSortableTable
+                                className="data-grid"
+                                columns={sqlResult.columns ?? []}
+                                rows={sqlPageRows}
+                                sort={sqlSort}
+                                onSortClick={handleSqlSortClick}
+                                emptyMessage="No rows."
+                              />
+                            </div>
+                            <DataGridPaginationFooter
+                              page={sqlPage}
+                              pageSize={PREVIEW_PAGE_SIZE}
+                              totalRows={sqlDisplayTotal}
+                              paginationRowCount={sqlPageBasis}
+                              loadedRowCount={
+                                sqlDisplayTotal > sqlLoadedCount ? sqlLoadedCount : undefined
+                              }
+                              onPageChange={handleSqlPageChange}
+                              paginationDisabled={busy}
+                            />
+                          </div>
                         ) : (
                           <div className="data-placeholder data-sql-results-placeholder">Run a query to see results here.</div>
                         )}
