@@ -9,7 +9,9 @@ import {
   DataConnect,
   DataDisconnect,
   DataListDatabases,
+  DataListSchemas,
   DataListTables,
+  DataListTableColumns,
   DataTablePreview,
   DataExecSQL,
   DataPrimaryKeyColumns,
@@ -28,6 +30,8 @@ import "./connections.css";
 import "./terminaltabs.css";
 
 type OwnerMode = "ssh" | "docker_local" | "docker_remote";
+
+const PREVIEW_PAGE_SIZE = 100;
 
 function profileLabelSortKey(p: ProfileDTO): string {
   return (p.name?.trim() ? p.name : `${p.username}@${p.host}`).toLowerCase();
@@ -55,9 +59,30 @@ type DataTabSnapshot = {
   selectedTable: string;
   sqlText: string;
   innerTab: "table" | "sql";
-  preview: main.DataQueryResultDTO | null;
+  /** Not persisted; refetched on session switch. */
+  preview?: main.DataQueryResultDTO | null;
   sqlResult: main.DataQueryResultDTO | null;
+  /** SQL tab: textarea + Run visible (default true). */
+  sqlEditorExpanded?: boolean;
+  /** SQL tab: right rail with table + column list. */
+  sqlSchemaBrowserOpen?: boolean;
+  /** Table view: current page (1-based). */
+  previewPage?: number;
+  /** Table preview ORDER BY (last applied). */
+  previewSortColumn?: string;
+  previewSortDir?: string;
 };
+
+type PreviewSort = { column: string | null; dir: "asc" | "desc" | null };
+
+function previewSortToApi(s: PreviewSort): [string, string] {
+  if (!s.column || !s.dir) return ["", ""];
+  return [s.column, s.dir];
+}
+
+function previewSortEqual(a: PreviewSort, b: PreviewSort): boolean {
+  return a.column === b.column && a.dir === b.dir;
+}
 
 function scopeForMode(
   mode: OwnerMode,
@@ -100,12 +125,26 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   const [innerTab, setInnerTab] = useState<"table" | "sql">("table");
 
   const [databases, setDatabases] = useState<string[]>([]);
+  /** PostgreSQL: cluster database names (read-only in header). Selectable namespaces live in `databases`. */
+  const [postgresClusterDBs, setPostgresClusterDBs] = useState<string[]>([]);
   const [selectedDb, setSelectedDb] = useState("");
   const [tables, setTables] = useState<string[]>([]);
   const [selectedTable, setSelectedTable] = useState("");
+  const [tableListFilter, setTableListFilter] = useState("");
+  const [previewPage, setPreviewPage] = useState(1);
+  const [pageJumpInput, setPageJumpInput] = useState("1");
+  const [previewSort, setPreviewSort] = useState<PreviewSort>({ column: null, dir: null });
+  const [previewSortQuery, setPreviewSortQuery] = useState<PreviewSort>({ column: null, dir: null });
   const [preview, setPreview] = useState<main.DataQueryResultDTO | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [sqlText, setSqlText] = useState("SELECT 1");
   const [sqlResult, setSqlResult] = useState<main.DataQueryResultDTO | null>(null);
+  /** SQL workspace: show script + Run above results (default on). */
+  const [sqlEditorExpanded, setSqlEditorExpanded] = useState(true);
+  /** SQL tab: sidebar with table picker + column types. */
+  const [sqlSchemaBrowserOpen, setSqlSchemaBrowserOpen] = useState(false);
+  const [sqlRailColumns, setSqlRailColumns] = useState<main.DataColumnMetaDTO[]>([]);
   const [busy, setBusy] = useState(false);
   /** Data source currently in DataConnect — card marker shows orange until success or error. */
   const [connectingDataSourceId, setConnectingDataSourceId] = useState<string | null>(null);
@@ -143,6 +182,25 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   } | null>(null);
 
   const dataTabSnapshotsRef = useRef<Record<string, DataTabSnapshot>>({});
+  const tablePreviewScrollRef = useRef<HTMLDivElement | null>(null);
+  /** Skip one sort reset when `selectedTable`/`activeSessionId` updates after session restore from snapshot. */
+  const skipPreviewSortResetRef = useRef(false);
+
+  const hasSqlResultTable = useMemo(() => {
+    return (
+      sqlResult != null &&
+      Array.isArray(sqlResult.columns) &&
+      sqlResult.columns.length > 0 &&
+      Array.isArray(sqlResult.rows)
+    );
+  }, [sqlResult]);
+
+  /** Allow hiding the SQL editor only after non-empty query and a tabular result. */
+  const canHideSqlEditor = useMemo(() => sqlText.trim() !== "" && hasSqlResultTable, [sqlText, hasSqlResultTable]);
+
+  useEffect(() => {
+    if (!canHideSqlEditor) setSqlEditorExpanded(true);
+  }, [canHideSqlEditor]);
 
   const sortedGroups = useMemo(
     () =>
@@ -315,13 +373,19 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   const activateDataSession = useCallback(
     (sessionId: string | null) => {
       if (activeSessionId) {
+        const [psc, psd] = previewSortToApi(previewSortQuery);
         dataTabSnapshotsRef.current[activeSessionId] = {
           selectedDb,
           selectedTable,
           sqlText,
           innerTab,
-          preview,
+          preview: null,
           sqlResult,
+          sqlEditorExpanded,
+          sqlSchemaBrowserOpen,
+          previewPage,
+          previewSortColumn: psc,
+          previewSortDir: psd,
         };
       }
       setRowModal(null);
@@ -332,6 +396,13 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         setSqlResult(null);
         setSqlText("SELECT 1");
         setInnerTab("table");
+        setSqlEditorExpanded(true);
+        setSqlSchemaBrowserOpen(false);
+        setPreviewPage(1);
+        setPreviewSort({ column: null, dir: null });
+        setPreviewSortQuery({ column: null, dir: null });
+        setPreviewLoading(false);
+        setPreviewError(null);
         setActiveSessionId(null);
         return;
       }
@@ -340,11 +411,33 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       setSelectedTable(snap?.selectedTable ?? "");
       setSqlText(snap?.sqlText ?? "SELECT 1");
       setInnerTab(snap?.innerTab ?? "table");
-      setPreview(snap?.preview ?? null);
+      setPreview(null);
       setSqlResult(snap?.sqlResult ?? null);
+      setSqlEditorExpanded(snap?.sqlEditorExpanded ?? true);
+      setSqlSchemaBrowserOpen(snap?.sqlSchemaBrowserOpen ?? false);
+      setPreviewPage(snap?.previewPage ?? 1);
+      const rs = snap?.previewSortDir;
+      const rc = (snap?.previewSortColumn ?? "").trim();
+      const rdir = rs === "asc" || rs === "desc" ? rs : null;
+      const rsort: PreviewSort =
+        rc && rdir ? { column: rc, dir: rdir } : { column: null, dir: null };
+      skipPreviewSortResetRef.current = true;
+      setPreviewSort(rsort);
+      setPreviewSortQuery(rsort);
       setActiveSessionId(sessionId);
     },
-    [activeSessionId, selectedDb, selectedTable, sqlText, innerTab, preview, sqlResult]
+    [
+      activeSessionId,
+      selectedDb,
+      selectedTable,
+      sqlText,
+      innerTab,
+      sqlResult,
+      sqlEditorExpanded,
+      sqlSchemaBrowserOpen,
+      previewPage,
+      previewSortQuery,
+    ]
   );
 
   const handleConnectSource = async (src: main.DataSourceDTO) => {
@@ -382,6 +475,68 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
 
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId) ?? null;
 
+  const activeEngine = useMemo(() => (activeSession?.engine ?? "").toLowerCase(), [activeSession?.engine]);
+
+  const filteredTableNames = useMemo(() => {
+    const q = tableListFilter.trim().toLowerCase();
+    if (!q) return tables;
+    return tables.filter((t) => t.toLowerCase().includes(q));
+  }, [tables, tableListFilter]);
+
+  const visibleTableNames = useMemo(() => {
+    if (selectedTable && !filteredTableNames.includes(selectedTable)) {
+      return [selectedTable, ...filteredTableNames];
+    }
+    return filteredTableNames;
+  }, [filteredTableNames, selectedTable]);
+
+  const previewTotalRows = Number(preview?.totalRows ?? 0);
+  const previewTotalPages = Math.max(1, Math.ceil(previewTotalRows / PREVIEW_PAGE_SIZE) || 1);
+
+  const commitPageJump = useCallback(() => {
+    const maxPage = preview && selectedTable ? previewTotalPages : 1;
+    let n = parseInt(pageJumpInput.trim(), 10);
+    if (!Number.isFinite(n) || n < 1) n = 1;
+    if (n > maxPage) n = maxPage;
+    setPreviewPage(n);
+    setPageJumpInput(String(n));
+  }, [pageJumpInput, preview, selectedTable, previewTotalPages]);
+
+  useEffect(() => {
+    setPageJumpInput(String(previewPage));
+  }, [previewPage]);
+
+  useEffect(() => {
+    setTableListFilter("");
+  }, [activeSessionId, selectedDb]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setPreviewSortQuery((q) => (previewSortEqual(q, previewSort) ? q : previewSort));
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [previewSort]);
+
+  useEffect(() => {
+    if (skipPreviewSortResetRef.current) {
+      skipPreviewSortResetRef.current = false;
+      return;
+    }
+    const cleared: PreviewSort = { column: null, dir: null };
+    setPreviewSort((prev) => (previewSortEqual(prev, cleared) ? prev : cleared));
+    setPreviewSortQuery((prev) => (previewSortEqual(prev, cleared) ? prev : cleared));
+  }, [selectedTable, activeSessionId]);
+
+  useEffect(() => {
+    const el = tablePreviewScrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, [selectedTable, previewSortQuery]);
+
+  useEffect(() => {
+    if (!preview || !selectedTable) return;
+    if (previewPage > previewTotalPages) setPreviewPage(previewTotalPages);
+  }, [preview, previewPage, previewTotalPages, selectedTable]);
+
   useEffect(() => {
     if (activeSessionId && !sessions.some((s) => s.sessionId === activeSessionId)) {
       activateDataSession(sessions[0]?.sessionId ?? null);
@@ -395,30 +550,50 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   useEffect(() => {
     if (!activeSessionId) {
       setDatabases([]);
+      setPostgresClusterDBs([]);
       setTables([]);
       setPreview(null);
       setSqlResult(null);
       setSelectedDb("");
       setSelectedTable("");
+      setPreviewPage(1);
+      setPreviewLoading(false);
+      setPreviewError(null);
       return;
     }
     setDatabases([]);
+    setPostgresClusterDBs([]);
     setTables([]);
     const sid = activeSessionId;
     let cancelled = false;
     void (async () => {
       try {
-        const raw = await DataListDatabases(sid);
-        if (cancelled) return;
-        const list = Array.isArray(raw) ? raw : [];
-        setDatabases(list);
-        setSelectedDb((prev) => {
-          if (prev && list.includes(prev)) return prev;
-          return list[0] ?? "";
-        });
+        if (activeEngine === "postgres") {
+          const [rawSchemas, rawCluster] = await Promise.all([DataListSchemas(sid), DataListDatabases(sid)]);
+          if (cancelled) return;
+          const schemas = Array.isArray(rawSchemas) ? rawSchemas : [];
+          const cluster = Array.isArray(rawCluster) ? rawCluster : [];
+          setDatabases(schemas);
+          setPostgresClusterDBs(cluster.filter((d) => !schemas.includes(d)));
+          setSelectedDb((prev) => {
+            if (prev && schemas.includes(prev)) return prev;
+            return schemas[0] ?? "";
+          });
+        } else {
+          const raw = await DataListDatabases(sid);
+          if (cancelled) return;
+          const list = Array.isArray(raw) ? raw : [];
+          setDatabases(list);
+          setPostgresClusterDBs([]);
+          setSelectedDb((prev) => {
+            if (prev && list.includes(prev)) return prev;
+            return list[0] ?? "";
+          });
+        }
       } catch {
         if (!cancelled) {
           setDatabases([]);
+          setPostgresClusterDBs([]);
           setSelectedDb("");
         }
       }
@@ -426,7 +601,31 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId]);
+  }, [activeSessionId, activeEngine]);
+
+  useEffect(() => {
+    if (!activeSessionId || !selectedTable || !sqlSchemaBrowserOpen || innerTab !== "sql") {
+      setSqlRailColumns([]);
+      return;
+    }
+    const sid = activeSessionId;
+    const db = selectedDb;
+    const tbl = selectedTable;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const raw = await DataListTableColumns(sid, db, tbl);
+        if (cancelled) return;
+        const list = Array.isArray(raw) ? raw : [];
+        setSqlRailColumns(list.map((row) => new main.DataColumnMetaDTO(row as any)));
+      } catch {
+        if (!cancelled) setSqlRailColumns([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSessionId, selectedDb, selectedTable, sqlSchemaBrowserOpen, innerTab]);
 
   useEffect(() => {
     if (!activeSessionId || !selectedDb) {
@@ -458,26 +657,50 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   useEffect(() => {
     if (!activeSessionId || !selectedTable) {
       setPreview(null);
+      setPreviewLoading(false);
+      setPreviewError(null);
       return;
     }
     const sid = activeSessionId;
     const db = selectedDb;
     const tbl = selectedTable;
+    const offset = (previewPage - 1) * PREVIEW_PAGE_SIZE;
     let cancelled = false;
+    const [sc, sd] = previewSortToApi(previewSortQuery);
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreview(null);
     void (async () => {
       try {
-        const r = (await DataTablePreview(sid, db, tbl, 200, 0)) as main.DataQueryResultDTO;
+        const r = (await DataTablePreview(sid, db, tbl, PREVIEW_PAGE_SIZE, offset, sc, sd)) as main.DataQueryResultDTO;
         if (cancelled) return;
-        if (r && Array.isArray(r.columns) && Array.isArray(r.rows)) setPreview(r);
-        else setPreview(null);
-      } catch {
-        if (!cancelled) setPreview(null);
+        if (r && Array.isArray(r.columns) && Array.isArray(r.rows)) {
+          setPreview(r);
+        } else {
+          setPreview(null);
+          setPreviewError("Unexpected preview response.");
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setPreview(null);
+          setPreviewError(e instanceof Error ? e.message : String(e));
+        }
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, selectedDb, selectedTable]);
+  }, [activeSessionId, selectedDb, selectedTable, previewPage, previewSortQuery]);
+
+  const handlePreviewSortClick = useCallback((col: string) => {
+    setPreviewSort((prev) => {
+      if (prev.column !== col) return { column: col, dir: "asc" };
+      if (prev.dir === "asc") return { column: col, dir: "desc" };
+      return { column: null, dir: null };
+    });
+  }, []);
 
   const runSql = async () => {
     if (!activeSessionId) return;
@@ -567,7 +790,17 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       );
       setRowModal(null);
       if (selectedTable) {
-        const r = (await DataTablePreview(activeSessionId, selectedDb, selectedTable, 200, 0)) as main.DataQueryResultDTO;
+        const off = (previewPage - 1) * PREVIEW_PAGE_SIZE;
+        const [sc, sd] = previewSortToApi(previewSortQuery);
+        const r = (await DataTablePreview(
+          activeSessionId,
+          selectedDb,
+          selectedTable,
+          PREVIEW_PAGE_SIZE,
+          off,
+          sc,
+          sd
+        )) as main.DataQueryResultDTO;
         setPreview(r);
       }
     } catch (e: any) {
@@ -595,7 +828,17 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       );
       setRowModal(null);
       if (selectedTable) {
-        const r = (await DataTablePreview(activeSessionId, selectedDb, selectedTable, 200, 0)) as main.DataQueryResultDTO;
+        const off = (previewPage - 1) * PREVIEW_PAGE_SIZE;
+        const [sc, sd] = previewSortToApi(previewSortQuery);
+        const r = (await DataTablePreview(
+          activeSessionId,
+          selectedDb,
+          selectedTable,
+          PREVIEW_PAGE_SIZE,
+          off,
+          sc,
+          sd
+        )) as main.DataQueryResultDTO;
         setPreview(r);
       }
     } catch (e: any) {
@@ -1029,108 +1272,395 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
               </div>
             ) : null}
             <div className="panel data-panel data-panel--workspace">
-            <div className="panel-titlebar">
-              <div className="panel-title">Workspace</div>
-              <div className="panel-meta">
-                {activeSession
-                  ? `${activeSession.name} · ${dataEngineDisplay(activeSession.engine)} · ${activeSession.scopeSummary}`
-                  : "No active session"}
+            <div className="panel-titlebar data-workspace-titlebar">
+              <div className="data-workspace-titlebar-left">
+                <div className="panel-title">Workspace</div>
+                <div className="panel-meta data-workspace-meta">
+                  {activeSession
+                    ? `${activeSession.name} · ${activeSession.scopeSummary}`
+                    : "No active session"}
+                </div>
               </div>
+              {activeSession ? (
+                <div className="data-workspace-titlebar-right">
+                  <label className="data-header-namespace">
+                    <span className="data-header-namespace-caption">
+                      {activeSession.engine === "postgres" ? "Database / schema" : "Database"}
+                    </span>
+                    <select
+                      className="docker-select data-header-namespace-select"
+                      value={selectedDb}
+                      onChange={(e) => {
+                        setSelectedDb(e.target.value);
+                        setPreviewPage(1);
+                      }}
+                      disabled={busy || databases.length === 0}
+                      title={
+                        activeSession.engine === "postgres"
+                          ? "Schema for tables and SQL. Cluster databases are shown for reference only."
+                          : "Active database"
+                      }
+                    >
+                      {activeSession.engine === "postgres" ? (
+                        <>
+                          <optgroup label="Schemas">
+                            {databases.map((d) => (
+                              <option key={`sch:${d}`} value={d}>
+                                {d}
+                              </option>
+                            ))}
+                          </optgroup>
+                          {postgresClusterDBs.length > 0 ? (
+                            <optgroup label="Cluster databases">
+                              {postgresClusterDBs.map((d) => (
+                                <option key={`db:${d}`} value={d} disabled>
+                                  {d}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ) : null}
+                        </>
+                      ) : (
+                        databases.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </label>
+                </div>
+              ) : null}
             </div>
             <div className="data-panel-body data-workspace-main">
             {!activeSession ? (
               <div className="data-placeholder">Connect a data source to browse tables and run SQL.</div>
             ) : (
               <>
-                <div className="data-inner-tabs">
-                  <button type="button" className={innerTab === "table" ? "active" : ""} onClick={() => setInnerTab("table")}>
-                    Table view
-                  </button>
-                  <button type="button" className={innerTab === "sql" ? "active" : ""} onClick={() => setInnerTab("sql")}>
-                    SQL
-                  </button>
+                <div className="data-inner-tabs-row">
+                  <div className="data-inner-tabs">
+                    <button type="button" className={innerTab === "table" ? "active" : ""} onClick={() => setInnerTab("table")}>
+                      <span className="data-inner-tab-icon" aria-hidden>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <rect x="3" y="3" width="7" height="7" rx="1.25" stroke="currentColor" strokeWidth="1.6" />
+                          <rect x="14" y="3" width="7" height="7" rx="1.25" stroke="currentColor" strokeWidth="1.6" />
+                          <rect x="3" y="14" width="7" height="7" rx="1.25" stroke="currentColor" strokeWidth="1.6" />
+                          <rect x="14" y="14" width="7" height="7" rx="1.25" stroke="currentColor" strokeWidth="1.6" />
+                        </svg>
+                      </span>
+                      <span>Table view</span>
+                    </button>
+                    <button type="button" className={innerTab === "sql" ? "active" : ""} onClick={() => setInnerTab("sql")}>
+                      <span className="data-inner-tab-icon" aria-hidden>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path
+                            d="M8 8.5L4 12l4 3.5M16 8.5L20 12l-4 3.5"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path d="M13.5 6l-3 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                        </svg>
+                      </span>
+                      <span>SQL</span>
+                    </button>
+                  </div>
+                  {innerTab === "sql" ? (
+                    <div className="data-sql-toolbar-toggles">
+                      <button
+                        type="button"
+                        className={`data-sql-editor-toggle ${sqlEditorExpanded ? "is-on" : "is-off"}${!canHideSqlEditor ? " is-locked" : ""}`}
+                        disabled={!canHideSqlEditor && sqlEditorExpanded}
+                        aria-label="Toggle SQL script panel"
+                        aria-pressed={sqlEditorExpanded}
+                        title={
+                          !canHideSqlEditor
+                            ? "Enter SQL and run a query to get a result table before hiding the editor"
+                            : sqlEditorExpanded
+                              ? "Hide SQL editor"
+                              : "Show SQL editor"
+                        }
+                        onClick={() => {
+                          if (!canHideSqlEditor) return;
+                          setSqlEditorExpanded((v) => !v);
+                        }}
+                      >
+                        <span className="data-sql-editor-toggle-icon" aria-hidden>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect
+                              x="3"
+                              y="5"
+                              width="9"
+                              height="14"
+                              rx="1.5"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                              fill={sqlEditorExpanded ? "currentColor" : "none"}
+                              fillOpacity={sqlEditorExpanded ? 0.3 : 0}
+                            />
+                            <path d="M15 8h6M15 12h6M15 16h5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                          </svg>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`data-sql-editor-toggle data-sql-schema-toggle ${sqlSchemaBrowserOpen ? "is-on" : "is-off"}`}
+                        aria-label="Toggle table and columns reference"
+                        aria-pressed={sqlSchemaBrowserOpen}
+                        title={sqlSchemaBrowserOpen ? "Hide table reference" : "Show table and column list"}
+                        onClick={() => setSqlSchemaBrowserOpen((v) => !v)}
+                      >
+                        <span className="data-sql-editor-toggle-icon" aria-hidden>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect
+                              x="3"
+                              y="4"
+                              width="10"
+                              height="10"
+                              rx="1.25"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                              fill={sqlSchemaBrowserOpen ? "currentColor" : "none"}
+                              fillOpacity={sqlSchemaBrowserOpen ? 0.2 : 0}
+                            />
+                            <path d="M3 8h10M7 4v10" stroke="currentColor" strokeWidth="1.5" />
+                            <path d="M16 10h5M16 14h4M16 18h5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                          </svg>
+                        </span>
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
                 {innerTab === "table" ? (
                   <div className="data-table-workspace">
                     <div className="data-db-col">
-                      <div className="data-col-title">Databases</div>
-                      <ul className="data-list">
-                        {databases.map((d) => (
-                          <li key={d}>
-                            <button type="button" className={selectedDb === d ? "active" : ""} onClick={() => setSelectedDb(d)}>
-                              {d}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="data-db-col">
                       <div className="data-col-title">Tables</div>
+                      <input
+                        type="search"
+                        className="data-table-list-filter"
+                        value={tableListFilter}
+                        onChange={(e) => setTableListFilter(e.target.value)}
+                        placeholder="Filter tables…"
+                        aria-label="Filter tables"
+                        spellCheck={false}
+                      />
                       <ul className="data-list">
-                        {tables.map((t) => (
+                        {visibleTableNames.map((t) => (
                           <li key={t}>
-                            <button type="button" className={selectedTable === t ? "active" : ""} onClick={() => setSelectedTable(t)}>
-                              {t}
+                            <button
+                              type="button"
+                              className={`data-table-list-btn ${selectedTable === t ? "active" : ""}`}
+                              onClick={() => {
+                                setSelectedTable(t);
+                                setPreviewPage(1);
+                              }}
+                            >
+                              <span className="data-table-list-name">{t}</span>
+                              {previewLoading && selectedTable === t ? (
+                                <span className="data-table-list-spinner" aria-label="Loading" role="status">
+                                  <svg className="data-spinner-svg" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                    <circle
+                                      cx="12"
+                                      cy="12"
+                                      r="9"
+                                      stroke="currentColor"
+                                      strokeWidth="2.25"
+                                      strokeLinecap="round"
+                                      strokeDasharray="40 22"
+                                      opacity="0.9"
+                                    />
+                                  </svg>
+                                </span>
+                              ) : null}
                             </button>
                           </li>
                         ))}
                       </ul>
                     </div>
                     <div className="data-grid-wrap">
-                      {preview && Array.isArray(preview.columns) && Array.isArray(preview.rows) ? (
-                        <table className="data-grid">
-                          <thead>
-                            <tr>
-                              {preview.columns.map((c) => (
-                                <th key={c}>{c}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {preview.rows.map((row, ri) => (
-                              <tr key={ri} onClick={() => void openRow(row)} className="data-row-click">
-                                {(row ?? []).map((cell, ci) => (
-                                  <td key={ci} title={cell}>
-                                    <span className="data-cell-clip">{cell}</span>
-                                  </td>
+                      <div className="data-grid-scroll" ref={tablePreviewScrollRef}>
+                        {!selectedTable ? (
+                          <div className="data-placeholder">Select a table</div>
+                        ) : previewLoading ? (
+                          <div className="data-placeholder data-placeholder-muted">Loading table…</div>
+                        ) : previewError ? (
+                          <div className="data-placeholder data-placeholder-error">{previewError}</div>
+                        ) : preview && Array.isArray(preview.columns) && Array.isArray(preview.rows) ? (
+                          <table className="data-grid data-grid--preview">
+                            <thead>
+                              <tr>
+                                {preview.columns.map((c) => (
+                                  <th key={c}>
+                                    <button
+                                      type="button"
+                                      className="data-grid-th-sort"
+                                      onClick={() => handlePreviewSortClick(c)}
+                                      title="Sort: ascending → descending → off"
+                                    >
+                                      <span className="data-grid-th-sort-label">{c}</span>
+                                      {previewSort.column === c && previewSort.dir === "asc" ? (
+                                        <span className="data-grid-th-sort-ind" aria-hidden>
+                                          ▲
+                                        </span>
+                                      ) : previewSort.column === c && previewSort.dir === "desc" ? (
+                                        <span className="data-grid-th-sort-ind" aria-hidden>
+                                          ▼
+                                        </span>
+                                      ) : null}
+                                    </button>
+                                  </th>
                                 ))}
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      ) : (
-                        <div className="data-placeholder">Select a table</div>
-                      )}
+                            </thead>
+                            <tbody>
+                              {preview.rows.length === 0 ? (
+                                <tr>
+                                  <td colSpan={Math.max(1, preview.columns.length)} className="data-grid-empty-cell">
+                                    This table has no rows.
+                                  </td>
+                                </tr>
+                              ) : (
+                                preview.rows.map((row, ri) => (
+                                  <tr key={ri} onClick={() => void openRow(row)} className="data-row-click">
+                                    {(row ?? []).map((cell, ci) => (
+                                      <td key={ci} title={cell}>
+                                        <span className="data-cell-clip">{cell}</span>
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="data-placeholder data-placeholder-muted">
+                            Could not load data for this table.
+                          </div>
+                        )}
+                      </div>
+                      {preview && !previewLoading && selectedTable && Array.isArray(preview.columns) ? (
+                        <div className="data-preview-pagination">
+                          <span className="data-preview-pagination-meta mono">
+                            {previewTotalRows.toLocaleString()} rows · page {previewPage} / {previewTotalPages}
+                          </span>
+                          <div className="data-preview-pagination-controls">
+                            <button
+                              type="button"
+                              className="btn"
+                              disabled={previewPage <= 1 || busy}
+                              onClick={() => setPreviewPage((p) => Math.max(1, p - 1))}
+                            >
+                              Prev
+                            </button>
+                            <label className="data-preview-page-jump">
+                              <span className="data-preview-page-jump-label">Page</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                className="data-preview-page-input mono"
+                                value={pageJumpInput}
+                                onChange={(e) => setPageJumpInput(e.target.value)}
+                                onBlur={() => void commitPageJump()}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    void commitPageJump();
+                                  }
+                                }}
+                                aria-label="Page number"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              className="btn"
+                              disabled={previewPage >= previewTotalPages || busy}
+                              onClick={() => setPreviewPage((p) => Math.min(previewTotalPages, p + 1))}
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ) : (
-                  <div className="data-sql-pane">
-                    <textarea className="data-sql-input mono" value={sqlText} onChange={(e) => setSqlText(e.target.value)} rows={8} />
-                    <button type="button" className="btn" disabled={busy} onClick={() => void runSql()}>
-                      Run
-                    </button>
-                    {sqlResult && Array.isArray(sqlResult.columns) && Array.isArray(sqlResult.rows) ? (
-                      <table className="data-grid">
-                        <thead>
-                          <tr>
-                            {sqlResult.columns.map((c) => (
-                              <th key={c}>{c}</th>
+                  <div
+                    className={`data-sql-pane-outer${sqlSchemaBrowserOpen ? " data-sql-pane-outer--with-rail" : ""}`}
+                  >
+                    {sqlSchemaBrowserOpen ? (
+                      <aside className="data-sql-schema-rail" aria-label="Table reference">
+                        <div className="data-sql-rail-block">
+                          <div className="data-sql-rail-label">Table</div>
+                          <select
+                            className="docker-select data-sql-rail-select"
+                            value={selectedTable}
+                            onChange={(e) => setSelectedTable(e.target.value)}
+                            disabled={!selectedDb || tables.length === 0}
+                          >
+                            <option value="">—</option>
+                            {tables.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
                             ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sqlResult.rows.map((row, ri) => (
-                            <tr key={ri}>
-                              {(row ?? []).map((cell, ci) => (
-                                <td key={ci} title={cell}>
-                                  <span className="data-cell-clip">{cell}</span>
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </select>
+                        </div>
+                        <div className="data-sql-rail-block data-sql-rail-block--grow">
+                          <div className="data-sql-rail-label">Columns</div>
+                          <ul className="data-sql-rail-columns">
+                            {!selectedTable ? (
+                              <li className="data-sql-rail-hint">Select a table</li>
+                            ) : sqlRailColumns.length === 0 ? (
+                              <li className="data-sql-rail-hint">No columns</li>
+                            ) : (
+                              sqlRailColumns.map((c) => (
+                                <li key={c.name}>
+                                  <span className="mono data-sql-rail-col-name">{c.name}</span>
+                                  <span className="data-sql-rail-col-type">{c.dataType}</span>
+                                </li>
+                              ))
+                            )}
+                          </ul>
+                        </div>
+                      </aside>
                     ) : null}
+                    <div className={`data-sql-pane${sqlEditorExpanded ? "" : " data-sql-pane--editor-collapsed"}`}>
+                      {sqlEditorExpanded ? (
+                        <div className="data-sql-script-block">
+                          <textarea className="data-sql-input mono" value={sqlText} onChange={(e) => setSqlText(e.target.value)} rows={8} />
+                          <button type="button" className="btn" disabled={busy} onClick={() => void runSql()}>
+                            Run
+                          </button>
+                        </div>
+                      ) : null}
+                      <div className="data-sql-results">
+                        {sqlResult && Array.isArray(sqlResult.columns) && Array.isArray(sqlResult.rows) ? (
+                          <table className="data-grid">
+                            <thead>
+                              <tr>
+                                {sqlResult.columns.map((c) => (
+                                  <th key={c}>{c}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sqlResult.rows.map((row, ri) => (
+                                <tr key={ri}>
+                                  {(row ?? []).map((cell, ci) => (
+                                    <td key={ci} title={cell}>
+                                      <span className="data-cell-clip">{cell}</span>
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="data-placeholder data-sql-results-placeholder">Run a query to see results here.</div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </>

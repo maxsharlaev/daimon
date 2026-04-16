@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -74,8 +75,15 @@ type DataSessionDTO struct {
 }
 
 type DataQueryResultDTO struct {
-	Columns []string   `json:"columns"`
-	Rows    [][]string `json:"rows"`
+	Columns   []string   `json:"columns"`
+	Rows      [][]string `json:"rows"`
+	TotalRows int64      `json:"totalRows"`
+}
+
+// DataColumnMetaDTO is one column definition for SQL/schema browser UI.
+type DataColumnMetaDTO struct {
+	Name     string `json:"name"`
+	DataType string `json:"dataType"`
 }
 
 func mapDataSourceDTO(m storage.DataSource, hasSecret bool) DataSourceDTO {
@@ -670,6 +678,72 @@ func (a *App) dataRunQuery(sess *dataSession, src *storage.DataSource, sqlText s
 	}
 }
 
+func sqlStringLit(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
+}
+
+func (a *App) remoteResolveSortColumn(sess *dataSession, src *storage.DataSource, schOrDb, tbl, candidate string) (string, error) {
+	candidate = strings.TrimSpace(candidate)
+	if candidate == "" {
+		return "", nil
+	}
+	if len(candidate) > 128 {
+		return "", errors.New("sort column too long")
+	}
+	var q string
+	switch src.Engine {
+	case "postgres":
+		q = fmt.Sprintf(
+			`SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name = '%s' AND LOWER(column_name) = LOWER('%s') LIMIT 1`,
+			sqlStringLit(schOrDb), sqlStringLit(tbl), sqlStringLit(candidate))
+	case "mysql":
+		q = fmt.Sprintf(
+			`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s' AND LOWER(COLUMN_NAME) = LOWER('%s') LIMIT 1`,
+			sqlStringLit(schOrDb), sqlStringLit(tbl), sqlStringLit(candidate))
+	default:
+		return "", fmt.Errorf("unknown engine")
+	}
+	_, rows, err := a.dataRunQuery(sess, src, q)
+	if err != nil {
+		return "", err
+	}
+	if len(rows) == 0 || len(rows[0]) == 0 {
+		return "", nil
+	}
+	return rows[0][0], nil
+}
+
+func (a *App) remotePreviewOrderClause(sess *dataSession, src *storage.DataSource, schOrDb, tbl, sortColumn, sortDir string) (string, error) {
+	dir := strings.ToLower(strings.TrimSpace(sortDir))
+	if dir != "asc" && dir != "desc" {
+		return "", nil
+	}
+	cn, err := a.remoteResolveSortColumn(sess, src, schOrDb, tbl, sortColumn)
+	if err != nil || cn == "" {
+		return "", err
+	}
+	switch src.Engine {
+	case "postgres":
+		return " ORDER BY " + quotePGIdent(cn) + " " + strings.ToUpper(dir), nil
+	case "mysql":
+		return " ORDER BY " + quoteMySQLIdent(cn) + " " + strings.ToUpper(dir), nil
+	default:
+		return "", fmt.Errorf("unknown engine")
+	}
+}
+
+func (a *App) dataRunQueryCountScalar(sess *dataSession, src *storage.DataSource, sqlText string) (int64, error) {
+	cols, rows, err := a.dataRunQuery(sess, src, sqlText)
+	if err != nil {
+		return 0, err
+	}
+	_ = cols
+	if len(rows) == 0 || len(rows[0]) == 0 {
+		return 0, nil
+	}
+	return strconv.ParseInt(strings.TrimSpace(rows[0][0]), 10, 64)
+}
+
 func (a *App) DataDisconnect(sessionID string) error {
 	if sessionID == "" {
 		return errors.New("sessionId required")
@@ -784,7 +858,102 @@ func (a *App) DataListTables(sessionID, database string) ([]string, error) {
 	return out, nil
 }
 
-func (a *App) DataTablePreview(sessionID, database, table string, limit, offset int) (DataQueryResultDTO, error) {
+// DataListSchemas returns PostgreSQL schema names in the current database. MySQL returns an empty slice.
+func (a *App) DataListSchemas(sessionID string) ([]string, error) {
+	sess, err := a.getDataSession(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	src, err := a.loadDataSourceRow(sess.dataSourceID)
+	if err != nil {
+		return nil, err
+	}
+	if src.Engine != "postgres" {
+		return []string{}, nil
+	}
+	if sess.db != nil {
+		return dataListPostgresSchemas(sess.db)
+	}
+	q := `SELECT nspname FROM pg_catalog.pg_namespace
+WHERE nspname NOT IN ('pg_catalog', 'information_schema')
+AND nspname NOT LIKE 'pg_toast%'
+AND nspname NOT LIKE 'pg_temp\_%' ESCAPE '\'
+ORDER BY nspname`
+	cols, rows, err := a.dataRunQuery(sess, src, q)
+	if err != nil {
+		return nil, err
+	}
+	_ = cols
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		if len(r) > 0 {
+			out = append(out, r[0])
+		}
+	}
+	return out, nil
+}
+
+// DataListTableColumns returns column names and logical data types for browse / SQL sidebar.
+func (a *App) DataListTableColumns(sessionID, database, table string) ([]DataColumnMetaDTO, error) {
+	sess, err := a.getDataSession(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	src, err := a.loadDataSourceRow(sess.dataSourceID)
+	if err != nil {
+		return nil, err
+	}
+	db := strings.TrimSpace(database)
+	tbl := strings.TrimSpace(table)
+	if tbl == "" {
+		return nil, errors.New("table required")
+	}
+	if sess.db != nil {
+		schemaOrDB := db
+		if src.Engine == "postgres" && schemaOrDB == "" {
+			schemaOrDB = "public"
+		}
+		return dataListTableColumns(src.Engine, sess.db, schemaOrDB, tbl)
+	}
+	var q string
+	switch src.Engine {
+	case "postgres":
+		sch := "public"
+		if db != "" {
+			sch = db
+		}
+		q = fmt.Sprintf(`SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_schema = '%s' AND table_name = '%s'
+ORDER BY ordinal_position`, strings.ReplaceAll(sch, "'", "''"), strings.ReplaceAll(tbl, "'", "''"))
+	case "mysql":
+		if db == "" {
+			return nil, errors.New("database required")
+		}
+		q = fmt.Sprintf(`SELECT COLUMN_NAME, DATA_TYPE
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'
+ORDER BY ORDINAL_POSITION`, strings.ReplaceAll(db, "'", "''"), strings.ReplaceAll(tbl, "'", "''"))
+	default:
+		return nil, fmt.Errorf("unknown engine")
+	}
+	cols, rows, err := a.dataRunQuery(sess, src, q)
+	if err != nil {
+		return nil, err
+	}
+	_ = cols
+	out := make([]DataColumnMetaDTO, 0, len(rows))
+	for _, r := range rows {
+		if len(r) >= 2 {
+			out = append(out, DataColumnMetaDTO{Name: r[0], DataType: r[1]})
+		} else if len(r) == 1 {
+			out = append(out, DataColumnMetaDTO{Name: r[0], DataType: ""})
+		}
+	}
+	return out, nil
+}
+
+func (a *App) DataTablePreview(sessionID, database, table string, limit, offset int, sortColumn, sortDir string) (DataQueryResultDTO, error) {
 	var out DataQueryResultDTO
 	sess, err := a.getDataSession(sessionID)
 	if err != nil {
@@ -809,29 +978,54 @@ func (a *App) DataTablePreview(sessionID, database, table string, limit, offset 
 		} else {
 			schemaOrDB = db
 		}
-		cols, rows, err := dataTablePreview(src.Engine, sess.db, schemaOrDB, tbl, limit, offset)
+		total, err := dataTableRowCount(src.Engine, sess.db, schemaOrDB, tbl)
 		if err != nil {
 			return out, err
 		}
-		return DataQueryResultDTO{Columns: cols, Rows: rows}, nil
+		cols, rows, err := dataTablePreview(src.Engine, sess.db, schemaOrDB, tbl, limit, offset, sortColumn, sortDir)
+		if err != nil {
+			return out, err
+		}
+		return DataQueryResultDTO{Columns: cols, Rows: rows, TotalRows: total}, nil
 	}
 	var q string
+	var countQ string
 	switch src.Engine {
 	case "postgres":
-		q = fmt.Sprintf(`SELECT * FROM %s LIMIT %d OFFSET %d`, quotePGIdent("public", tbl), max1(limit, 200), max0(offset))
+		sch := "public"
+		if db != "" {
+			sch = db
+		}
+		tn := quotePGIdent(sch, tbl)
+		ord, err := a.remotePreviewOrderClause(sess, src, sch, tbl, sortColumn, sortDir)
+		if err != nil {
+			return out, err
+		}
+		q = fmt.Sprintf(`SELECT * FROM %s%s LIMIT %d OFFSET %d`, tn, ord, max1(limit, 200), max0(offset))
+		countQ = fmt.Sprintf(`SELECT COUNT(*)::bigint FROM %s`, tn)
 	case "mysql":
 		if db == "" {
 			return out, errors.New("database required")
 		}
-		q = fmt.Sprintf(`SELECT * FROM %s LIMIT %d OFFSET %d`, quoteMySQLIdent(db, tbl), max1(limit, 200), max0(offset))
+		tn := quoteMySQLIdent(db, tbl)
+		ord, err := a.remotePreviewOrderClause(sess, src, db, tbl, sortColumn, sortDir)
+		if err != nil {
+			return out, err
+		}
+		q = fmt.Sprintf(`SELECT * FROM %s%s LIMIT %d OFFSET %d`, tn, ord, max1(limit, 200), max0(offset))
+		countQ = fmt.Sprintf(`SELECT COUNT(*) FROM %s`, tn)
 	default:
 		return out, fmt.Errorf("unknown engine")
+	}
+	total, err := a.dataRunQueryCountScalar(sess, src, countQ)
+	if err != nil {
+		return out, err
 	}
 	cols, rows, err := a.dataRunQuery(sess, src, q)
 	if err != nil {
 		return out, err
 	}
-	return DataQueryResultDTO{Columns: cols, Rows: rows}, nil
+	return DataQueryResultDTO{Columns: cols, Rows: rows, TotalRows: total}, nil
 }
 
 func (a *App) DataExecSQL(sessionID, database, sqlText string) (DataQueryResultDTO, error) {

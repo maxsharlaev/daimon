@@ -490,6 +490,20 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class DataColumnMetaDTO {
+	    name: string;
+	    dataType: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DataColumnMetaDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.dataType = source["dataType"];
+	    }
+	}
 	export class DataConnectRequest {
 	    dataSourceId: string;
 	    remoteDockerSessionId?: string;
@@ -507,6 +521,7 @@ export namespace main {
 	export class DataQueryResultDTO {
 	    columns: string[];
 	    rows: string[][];
+	    totalRows: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new DataQueryResultDTO(source);
@@ -516,6 +531,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.columns = source["columns"];
 	        this.rows = source["rows"];
+	        this.totalRows = source["totalRows"];
 	    }
 	}
 	export class DataRowMutationRequest {

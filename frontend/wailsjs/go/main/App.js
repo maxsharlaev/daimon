@@ -54,6 +54,14 @@ export function DataListDatabases(arg1) {
   return window['go']['main']['App']['DataListDatabases'](arg1);
 }
 
+export function DataListSchemas(arg1) {
+  return window['go']['main']['App']['DataListSchemas'](arg1);
+}
+
+export function DataListTableColumns(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DataListTableColumns'](arg1, arg2, arg3);
+}
+
 export function DataListTables(arg1, arg2) {
   return window['go']['main']['App']['DataListTables'](arg1, arg2);
 }
@@ -62,8 +70,8 @@ export function DataPrimaryKeyColumns(arg1, arg2, arg3) {
   return window['go']['main']['App']['DataPrimaryKeyColumns'](arg1, arg2, arg3);
 }
 
-export function DataTablePreview(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['main']['App']['DataTablePreview'](arg1, arg2, arg3, arg4, arg5);
+export function DataTablePreview(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['DataTablePreview'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
 export function DataUpdateRow(arg1) {

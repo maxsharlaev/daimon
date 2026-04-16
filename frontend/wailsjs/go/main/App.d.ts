@@ -29,11 +29,15 @@ export function DataExecSQL(arg1:string,arg2:string,arg3:string):Promise<main.Da
 
 export function DataListDatabases(arg1:string):Promise<Array<string>>;
 
+export function DataListSchemas(arg1:string):Promise<Array<string>>;
+
+export function DataListTableColumns(arg1:string,arg2:string,arg3:string):Promise<Array<main.DataColumnMetaDTO>>;
+
 export function DataListTables(arg1:string,arg2:string):Promise<Array<string>>;
 
 export function DataPrimaryKeyColumns(arg1:string,arg2:string,arg3:string):Promise<Array<string>>;
 
-export function DataTablePreview(arg1:string,arg2:string,arg3:string,arg4:number,arg5:number):Promise<main.DataQueryResultDTO>;
+export function DataTablePreview(arg1:string,arg2:string,arg3:string,arg4:number,arg5:number,arg6:string,arg7:string):Promise<main.DataQueryResultDTO>;
 
 export function DataUpdateRow(arg1:main.DataRowMutationRequest):Promise<void>;
 
