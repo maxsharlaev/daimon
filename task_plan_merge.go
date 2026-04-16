@@ -264,45 +264,37 @@ func (a *App) finalizeAssistantReplyJSON(convID, raw string, parsed *aiParsedRep
 // planInjectionText returns a block to append to a synthetic user message so the model
 // sees the current task ids when the plan is not finished.
 func planInjectionText(tasks []aiTaskItemJSON) string {
-	if len(tasks) == 0 || !planNeedsContinuation(tasks) {
+	active := unfinishedTasks(tasks)
+	if len(active) == 0 {
 		return ""
 	}
-	b, err := json.Marshal(tasks)
+	b, err := json.Marshal(active)
 	if err != nil {
 		return ""
 	}
 	return "\n\nCurrent task plan (you MUST return the full tasks array in your JSON with the same ids; add new steps only with new unique ids at the end; do not drop an id without setting it to done or skipped first):\n" + string(b)
 }
 
+func unfinishedTasks(tasks []aiTaskItemJSON) []aiTaskItemJSON {
+	if len(tasks) == 0 {
+		return nil
+	}
+	out := make([]aiTaskItemJSON, 0, len(tasks))
+	for _, t := range tasks {
+		st := normTaskStatusGo(t.Status)
+		if st == "pending" || st == "in_progress" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 // userMessagePrefixIfUnfinishedPlan returns text to prepend to the last user message when
 // loading history, if the plan before that user turn was still active.
 func userMessagePrefixIfUnfinishedPlan(rows []AiMessageDTO) string {
-	if len(rows) < 2 {
-		return ""
-	}
-	last := rows[len(rows)-1]
-	if last.Role != "user" {
-		return ""
-	}
-	for i := len(rows) - 2; i >= 0; i-- {
-		if rows[i].Role == "tool" {
-			continue
-		}
-		if rows[i].Role != "assistant" {
-			break
-		}
-		tasks, hadKey, usable := extractTasksFromAssistantPayload(rows[i].PayloadJSON)
-		if !usable || !hadKey {
-			break
-		}
-		if planNeedsContinuation(tasks) {
-			b, err := json.Marshal(tasks)
-			if err != nil {
-				return ""
-			}
-			return "Reminder — unfinished task plan from your last reply (continue in your next JSON: full tasks array, same ids, update statuses):\n" + string(b) + "\n\n"
-		}
-		break
-	}
+	// Do not inject unfinished-plan reminders into organic user turns.
+	// The assistant already sees prior messages; injecting stale plan context into every
+	// new user prompt causes cross-incident contamination and noisy historical tasks.
+	// We only inject plan context in synthetic follow-ups via planInjectionText().
 	return ""
 }

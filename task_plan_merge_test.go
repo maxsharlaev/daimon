@@ -68,3 +68,29 @@ func TestMergeTaskPlans_stableOrderNewTasksAtEnd(t *testing.T) {
 		t.Fatalf("task 3 status=%q", out[2].Status)
 	}
 }
+
+func TestUnfinishedTasks_filtersDoneAndSkipped(t *testing.T) {
+	in := []aiTaskItemJSON{
+		{ID: "a", Title: "A", Status: "done"},
+		{ID: "b", Title: "B", Status: "in_progress"},
+		{ID: "c", Title: "C", Status: "pending"},
+		{ID: "d", Title: "D", Status: "skipped"},
+	}
+	out := unfinishedTasks(in)
+	if len(out) != 2 {
+		t.Fatalf("len=%d want 2", len(out))
+	}
+	if out[0].ID != "b" || out[1].ID != "c" {
+		t.Fatalf("unexpected ids: %+v", out)
+	}
+}
+
+func TestUserMessagePrefixIfUnfinishedPlan_disabledForOrganicTurns(t *testing.T) {
+	rows := []AiMessageDTO{
+		{Role: "assistant", PayloadJSON: `{"replyText":"x","tasks":[{"id":"a","title":"A","status":"in_progress"}]}`},
+		{Role: "user", PayloadJSON: `{"text":"new request"}`},
+	}
+	if p := userMessagePrefixIfUnfinishedPlan(rows); p != "" {
+		t.Fatalf("prefix must be empty, got: %q", p)
+	}
+}
