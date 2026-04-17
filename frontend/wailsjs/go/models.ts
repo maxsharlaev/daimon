@@ -522,6 +522,7 @@ export namespace main {
 	    columns: string[];
 	    rows: string[][];
 	    totalRows: number;
+	    rowsAffected?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new DataQueryResultDTO(source);
@@ -532,6 +533,7 @@ export namespace main {
 	        this.columns = source["columns"];
 	        this.rows = source["rows"];
 	        this.totalRows = source["totalRows"];
+	        this.rowsAffected = source["rowsAffected"];
 	    }
 	}
 	export class DataRowMutationRequest {

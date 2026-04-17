@@ -25,7 +25,11 @@ export function DataDeleteRow(arg1:main.DataRowMutationRequest):Promise<void>;
 
 export function DataDisconnect(arg1:string):Promise<void>;
 
+export function DataExecMutationSQL(arg1:string,arg2:string,arg3:string):Promise<main.DataQueryResultDTO>;
+
 export function DataExecSQL(arg1:string,arg2:string,arg3:string,arg4:number):Promise<main.DataQueryResultDTO>;
+
+export function DataExplainSQL(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<main.DataQueryResultDTO>;
 
 export function DataListDatabases(arg1:string):Promise<Array<string>>;
 
@@ -34,6 +38,8 @@ export function DataListSchemas(arg1:string):Promise<Array<string>>;
 export function DataListTableColumns(arg1:string,arg2:string,arg3:string):Promise<Array<main.DataColumnMetaDTO>>;
 
 export function DataListTables(arg1:string,arg2:string):Promise<Array<string>>;
+
+export function DataPreviewMutationSQL(arg1:string,arg2:string,arg3:string):Promise<main.DataQueryResultDTO>;
 
 export function DataPrimaryKeyColumns(arg1:string,arg2:string,arg3:string):Promise<Array<string>>;
 

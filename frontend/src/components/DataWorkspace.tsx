@@ -14,6 +14,9 @@ import {
   DataListTableColumns,
   DataTablePreview,
   DataExecSQL,
+  DataExecMutationSQL,
+  DataExplainSQL,
+  DataPreviewMutationSQL,
   DataPrimaryKeyColumns,
   DataUpdateRow,
   DataDeleteRow,
@@ -37,6 +40,41 @@ import "./terminaltabs.css";
 type OwnerMode = "ssh" | "docker_local" | "docker_remote";
 
 const PREVIEW_PAGE_SIZE = 100;
+/** Matches backend mutationPreviewSampleLimit for UI copy. */
+const MUTATION_PREVIEW_SAMPLE_LIMIT = 200;
+
+type SqlRunKind = "select" | "delete" | "update" | "insert" | "ddl" | "other";
+
+/** Mirrors backend ClassifyUserSQL for Run routing (preview vs direct execute). */
+function classifySqlKind(sql: string): SqlRunKind {
+  let s = sql.trim().replace(/;+\s*$/, "");
+  s = s.trim();
+  while (s.startsWith("--")) {
+    const nl = s.indexOf("\n");
+    if (nl < 0) return "other";
+    s = s.slice(nl + 1).trim();
+  }
+  while (s.startsWith("/*")) {
+    const end = s.indexOf("*/");
+    if (end < 0) break;
+    s = s.slice(end + 2).trim();
+  }
+  const low = s.toLowerCase();
+  if (low.startsWith("select")) return "select";
+  if (low.startsWith("with")) {
+    if (/\)\s*(delete|update|insert)\b/is.test(s)) {
+      if (/\bdelete\b/i.test(s)) return "delete";
+      if (/\bupdate\b/i.test(s)) return "update";
+      return "insert";
+    }
+    return "select";
+  }
+  if (low.startsWith("delete")) return "delete";
+  if (low.startsWith("update")) return "update";
+  if (low.startsWith("insert")) return "insert";
+  if (/^(drop|truncate|alter|create|grant|revoke)\b/i.test(low)) return "ddl";
+  return "other";
+}
 
 function profileLabelSortKey(p: ProfileDTO): string {
   return (p.name?.trim() ? p.name : `${p.username}@${p.host}`).toLowerCase();
@@ -67,7 +105,7 @@ type DataTabSnapshot = {
   selectedDb: string;
   selectedTable: string;
   sqlText: string;
-  innerTab: "table" | "sql";
+  innerTab: "table" | "sql" | "explain";
   /** Not persisted; refetched on session switch. */
   preview?: main.DataQueryResultDTO | null;
   sqlResult: main.DataQueryResultDTO | null;
@@ -219,7 +257,7 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
 
   const [sessions, setSessions] = useState<DataSess[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [innerTab, setInnerTab] = useState<"table" | "sql">("table");
+  const [innerTab, setInnerTab] = useState<"table" | "sql" | "explain">("table");
 
   const [databases, setDatabases] = useState<string[]>([]);
   /** PostgreSQL: cluster database names (read-only in header). Selectable namespaces live in `databases`. */
@@ -238,6 +276,14 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   const [sqlResult, setSqlResult] = useState<main.DataQueryResultDTO | null>(null);
   const [sqlPage, setSqlPage] = useState(1);
   const [sqlSort, setSqlSort] = useState<PreviewSort>({ column: null, dir: null });
+  const [pendingMutation, setPendingMutation] = useState<
+    | null
+    | { mode: "preview"; preview: main.DataQueryResultDTO; sql: string }
+    | { mode: "raw"; sql: string; title: string }
+  >(null);
+  const [explainResult, setExplainResult] = useState<main.DataQueryResultDTO | null>(null);
+  const [explainError, setExplainError] = useState<string | null>(null);
+  const [explainLoading, setExplainLoading] = useState(false);
   /** SQL workspace: show script + Run above results (default on). */
   const [sqlEditorExpanded, setSqlEditorExpanded] = useState(true);
   /** SQL tab: sidebar with table picker + column types. */
@@ -514,6 +560,10 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         setPreview(null);
         setSqlResult(null);
         setSqlText("SELECT 1");
+        setPendingMutation(null);
+        setExplainResult(null);
+        setExplainError(null);
+        setExplainLoading(false);
         setInnerTab("table");
         setSqlEditorExpanded(true);
         setSqlSchemaBrowserOpen(false);
@@ -535,7 +585,14 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       setSelectedDb(snap?.selectedDb ?? "");
       setSelectedTable(snap?.selectedTable ?? "");
       setSqlText(snap?.sqlText ?? "SELECT 1");
-      setInnerTab(snap?.innerTab ?? "table");
+      {
+        const it = snap?.innerTab;
+        setInnerTab(it === "table" || it === "sql" || it === "explain" ? it : "table");
+      }
+      setPendingMutation(null);
+      setExplainResult(null);
+      setExplainError(null);
+      setExplainLoading(false);
       setPreview(null);
       setSqlResult(snap?.sqlResult ?? null);
       setSqlEditorExpanded(snap?.sqlEditorExpanded ?? true);
@@ -841,7 +898,7 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   }, [activeSessionId, activeEngine, activeSessionAlive, markSessionDisconnected]);
 
   useEffect(() => {
-    if (!activeSessionId || !selectedTable || !sqlSchemaBrowserOpen || innerTab !== "sql") {
+    if (!activeSessionId || !selectedTable || !sqlSchemaBrowserOpen || (innerTab !== "sql" && innerTab !== "explain")) {
       setSqlRailColumns([]);
       return;
     }
@@ -1070,14 +1127,83 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
 
   const runSql = async () => {
     if (!activeSessionId || !activeSessionAlive) return;
+    setPendingMutation(null);
+    const kind = classifySqlKind(sqlText);
+    if (kind === "select") {
+      setBusy(true);
+      try {
+        const r = (await DataExecSQL(activeSessionId, selectedDb, sqlText, 0)) as main.DataQueryResultDTO;
+        if (r && Array.isArray(r.columns) && Array.isArray(r.rows)) {
+          setSqlResult(r);
+          setSqlPage(1);
+          setSqlSort({ column: null, dir: null });
+        } else setSqlResult(null);
+      } catch (e: unknown) {
+        if (isStaleDataSessionError(e) && activeSessionId) {
+          markSessionDisconnected(activeSessionId);
+          return;
+        }
+        alert(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    if (kind === "delete" || kind === "update") {
+      setBusy(true);
+      try {
+        const prev = (await DataPreviewMutationSQL(activeSessionId, selectedDb, sqlText)) as main.DataQueryResultDTO;
+        setPendingMutation({ mode: "preview", preview: prev, sql: sqlText.trim() });
+      } catch (e: unknown) {
+        if (isStaleDataSessionError(e) && activeSessionId) {
+          markSessionDisconnected(activeSessionId);
+          return;
+        }
+        setPendingMutation({
+          mode: "raw",
+          sql: sqlText.trim(),
+          title: "Could not build a row preview. Run this statement as written?",
+        });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    setPendingMutation({
+      mode: "raw",
+      sql: sqlText.trim(),
+      title: "Execute this statement?",
+    });
+  };
+
+  const cancelPendingMutation = useCallback(() => {
+    setPendingMutation(null);
+  }, []);
+
+  const proceedMutation = async () => {
+    if (!activeSessionId || !activeSessionAlive || !pendingMutation) return;
+    const sql = pendingMutation.sql;
     setBusy(true);
     try {
-      const r = (await DataExecSQL(activeSessionId, selectedDb, sqlText, 0)) as main.DataQueryResultDTO;
-      if (r && Array.isArray(r.columns) && Array.isArray(r.rows)) {
-        setSqlResult(r);
-        setSqlPage(1);
-        setSqlSort({ column: null, dir: null });
-      } else setSqlResult(null);
+      const r = (await DataExecMutationSQL(activeSessionId, selectedDb, sql)) as main.DataQueryResultDTO;
+      setPendingMutation(null);
+      const ra = r.rowsAffected;
+      let msg: string;
+      if (ra === undefined || ra === null) {
+        msg = "Statement completed.";
+      } else if (ra < 0) {
+        msg = "Statement completed (rows affected unknown for this connection).";
+      } else {
+        msg = `Rows affected: ${ra.toLocaleString()}`;
+      }
+      setSqlResult({
+        columns: ["result"],
+        rows: [[msg]],
+        totalRows: 1,
+      });
+      setSqlPage(1);
+      setSqlSort({ column: null, dir: null });
+      setInnerTab("sql");
     } catch (e: unknown) {
       if (isStaleDataSessionError(e) && activeSessionId) {
         markSessionDisconnected(activeSessionId);
@@ -1086,6 +1212,25 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       alert(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const runExplain = async (analyze: boolean) => {
+    if (!activeSessionId || !activeSessionAlive) return;
+    setExplainLoading(true);
+    setExplainError(null);
+    setExplainResult(null);
+    try {
+      const r = (await DataExplainSQL(activeSessionId, selectedDb, sqlText, analyze)) as main.DataQueryResultDTO;
+      setExplainResult(r && Array.isArray(r.columns) && Array.isArray(r.rows) ? r : null);
+    } catch (e: unknown) {
+      if (isStaleDataSessionError(e) && activeSessionId) {
+        markSessionDisconnected(activeSessionId);
+        return;
+      }
+      setExplainError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExplainLoading(false);
     }
   };
 
@@ -1771,8 +1916,21 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                       </span>
                       <span>SQL</span>
                     </button>
+                    <button type="button" className={innerTab === "explain" ? "active" : ""} onClick={() => setInnerTab("explain")}>
+                      <span className="data-inner-tab-icon" aria-hidden>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path
+                            d="M4 6h16M4 12h10M4 18h14"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </span>
+                      <span>Explain</span>
+                    </button>
                   </div>
-                  {innerTab === "sql" ? (
+                  {innerTab === "sql" || innerTab === "explain" ? (
                     <div className="data-sql-toolbar-toggles">
                       <button
                         type="button"
@@ -2241,7 +2399,7 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                       ) : null}
                     </div>
                   </div>
-                ) : (
+                ) : innerTab === "sql" ? (
                   <div
                     className={`data-sql-pane-outer${sqlSchemaBrowserOpen ? " data-sql-pane-outer--with-rail" : ""}`}
                   >
@@ -2297,6 +2455,71 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                           </button>
                         </div>
                       ) : null}
+                      {pendingMutation ? (
+                        <div className="data-mutation-banner" role="region" aria-label="Mutation confirmation">
+                          {pendingMutation.mode === "preview" ? (
+                            <>
+                              <div className="data-mutation-banner-title">Affected rows (estimate)</div>
+                              <p className="data-mutation-meta mono">
+                                {Number(pendingMutation.preview.totalRows ?? 0).toLocaleString()} row(s) match. Sample below
+                                (first {MUTATION_PREVIEW_SAMPLE_LIMIT}).
+                              </p>
+                              {Array.isArray(pendingMutation.preview.columns) &&
+                              Array.isArray(pendingMutation.preview.rows) &&
+                              pendingMutation.preview.columns.length > 0 ? (
+                                <div className="data-grid-wrap data-mutation-sample-wrap">
+                                  <div className="data-grid-scroll">
+                                    <table className="data-grid">
+                                      <thead>
+                                        <tr>
+                                          {pendingMutation.preview.columns.map((c) => (
+                                            <th key={c}>{c}</th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {(pendingMutation.preview.rows ?? []).map((row, ri) => (
+                                          <tr key={ri}>
+                                            {(row ?? []).map((cell, ci) => (
+                                              <td key={ci} title={cell}>
+                                                <span className="data-cell-clip">{cell}</span>
+                                              </td>
+                                            ))}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              ) : null}
+                            </>
+                          ) : (
+                            <pre className="data-mutation-sql-preview mono">{pendingMutation.sql}</pre>
+                          )}
+                          <p className="data-mutation-raw-title">
+                            {pendingMutation.mode === "raw"
+                              ? pendingMutation.title
+                              : "Proceed to execute this statement?"}
+                          </p>
+                          <div className="data-mutation-actions">
+                            <button
+                              type="button"
+                              className="btn data-mutation-proceed"
+                              disabled={busy || !activeSessionAlive}
+                              onClick={() => void proceedMutation()}
+                            >
+                              Proceed
+                            </button>
+                            <button type="button" className="btn" disabled={busy} onClick={cancelPendingMutation}>
+                              Cancel
+                            </button>
+                          </div>
+                          <p className="data-mutation-disclaimer data-hint">
+                            Preview and row counts are best-effort (simple DELETE/UPDATE shapes only). The real statement
+                            may affect a different number of rows because of triggers, permissions, or concurrent changes.
+                          </p>
+                        </div>
+                      ) : null}
                       <div
                         className={`data-sql-results${hasSqlResultTable ? " data-sql-results--split" : ""}`}
                       >
@@ -2304,7 +2527,7 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                           <div className="data-grid-wrap">
                             <div className="data-grid-scroll" ref={sqlResultsScrollRef}>
                               <DataSortableTable
-                                className="data-grid"
+                                className="data-grid data-grid--sql-results"
                                 columns={sqlResult.columns ?? []}
                                 rows={sqlPageRows}
                                 sort={sqlSort}
@@ -2326,6 +2549,114 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                           </div>
                         ) : (
                           <div className="data-placeholder data-sql-results-placeholder">Run a query to see results here.</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className={`data-sql-pane-outer${sqlSchemaBrowserOpen ? " data-sql-pane-outer--with-rail" : ""}`}
+                  >
+                    {sqlSchemaBrowserOpen ? (
+                      <aside className="data-sql-schema-rail" aria-label="Table reference">
+                        <div className="data-sql-rail-block">
+                          <div className="data-sql-rail-label">Table</div>
+                          <select
+                            className="docker-select data-sql-rail-select"
+                            value={selectedTable}
+                            onChange={(e) => setSelectedTable(e.target.value)}
+                            disabled={!selectedDb || tables.length === 0}
+                          >
+                            <option value="">—</option>
+                            {tables.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="data-sql-rail-block data-sql-rail-block--grow">
+                          <div className="data-sql-rail-label">Columns</div>
+                          <ul className="data-sql-rail-columns">
+                            {!selectedTable ? (
+                              <li className="data-sql-rail-hint">Select a table</li>
+                            ) : sqlRailColumns.length === 0 ? (
+                              <li className="data-sql-rail-hint">No columns</li>
+                            ) : (
+                              sqlRailColumns.map((c) => (
+                                <li key={c.name}>
+                                  <span className="mono data-sql-rail-col-name">{c.name}</span>
+                                  <span className="data-sql-rail-col-type">{c.dataType}</span>
+                                </li>
+                              ))
+                            )}
+                          </ul>
+                        </div>
+                      </aside>
+                    ) : null}
+                    <div className={`data-sql-pane${sqlEditorExpanded ? "" : " data-sql-pane--editor-collapsed"}`}>
+                      {sqlEditorExpanded ? (
+                        <div className="data-sql-script-block data-sql-explain-actions">
+                          <textarea className="data-sql-input mono" value={sqlText} onChange={(e) => setSqlText(e.target.value)} rows={8} />
+                          <div className="data-sql-explain-buttons">
+                            <button
+                              type="button"
+                              className="btn"
+                              disabled={busy || !activeSessionAlive || explainLoading}
+                              title={!activeSessionAlive ? "Connection lost" : "Query plan (estimated)"}
+                              onClick={() => void runExplain(false)}
+                            >
+                              Explain
+                            </button>
+                            <button
+                              type="button"
+                              className="btn"
+                              disabled={busy || !activeSessionAlive || explainLoading}
+                              title="Runs the query to measure actual timings"
+                              onClick={() => void runExplain(true)}
+                            >
+                              Explain analyze
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                      <div className={`data-sql-results data-sql-results--split data-explain-out`}>
+                        {explainLoading ? (
+                          <div className="data-placeholder data-placeholder-muted">Loading plan…</div>
+                        ) : explainError ? (
+                          <div className="data-placeholder data-placeholder-error">{explainError}</div>
+                        ) : explainResult &&
+                          Array.isArray(explainResult.columns) &&
+                          Array.isArray(explainResult.rows) &&
+                          explainResult.rows.length > 0 ? (
+                          <div className="data-grid-wrap">
+                            <div className="data-grid-scroll">
+                              <table className="data-grid data-grid--explain">
+                                <thead>
+                                  <tr>
+                                    {(explainResult.columns ?? []).map((c) => (
+                                      <th key={c}>{c}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {explainResult.rows.map((row, ri) => (
+                                    <tr key={ri}>
+                                      {(row ?? []).map((cell, ci) => (
+                                        <td key={ci} className="data-explain-cell">
+                                          <span className="data-cell-clip data-explain-cell-text">{cell}</span>
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="data-placeholder data-sql-results-placeholder">
+                            Use Explain or Explain analyze to show the plan for the query above.
+                          </div>
                         )}
                       </div>
                     </div>

@@ -46,8 +46,16 @@ export function DataDisconnect(arg1) {
   return window['go']['main']['App']['DataDisconnect'](arg1);
 }
 
+export function DataExecMutationSQL(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DataExecMutationSQL'](arg1, arg2, arg3);
+}
+
 export function DataExecSQL(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['DataExecSQL'](arg1, arg2, arg3, arg4);
+}
+
+export function DataExplainSQL(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DataExplainSQL'](arg1, arg2, arg3, arg4);
 }
 
 export function DataListDatabases(arg1) {
@@ -64,6 +72,10 @@ export function DataListTableColumns(arg1, arg2, arg3) {
 
 export function DataListTables(arg1, arg2) {
   return window['go']['main']['App']['DataListTables'](arg1, arg2);
+}
+
+export function DataPreviewMutationSQL(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DataPreviewMutationSQL'](arg1, arg2, arg3);
 }
 
 export function DataPrimaryKeyColumns(arg1, arg2, arg3) {

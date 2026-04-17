@@ -78,6 +78,8 @@ type DataQueryResultDTO struct {
 	Columns   []string   `json:"columns"`
 	Rows      [][]string `json:"rows"`
 	TotalRows int64      `json:"totalRows"`
+	// RowsAffected is set for mutation execution; -1 means unknown (e.g. docker transport).
+	RowsAffected *int64 `json:"rowsAffected,omitempty"`
 }
 
 // DataColumnMetaDTO is one column definition for SQL/schema browser UI.
@@ -1051,10 +1053,15 @@ func (a *App) DataExecSQL(sessionID, database, sqlText string, offset int) (Data
 	}
 	original := strings.TrimSpace(sqlText)
 	var execSQL string
-	if isSelectLikeSQL(original) && !hasTrailingRowLimit(original) {
-		execSQL = buildPagedSelect(original, 100, offset)
+	if isSelectLikeSQL(original) {
+		if !hasTrailingRowLimit(original) {
+			execSQL = buildPagedSelect(original, 100, offset)
+		} else {
+			execSQL = ensureSQLDefaultLimit(original, 100)
+		}
 	} else {
-		execSQL = ensureSQLDefaultLimit(original, 100)
+		// Mutations and non-SELECT: never append a read LIMIT.
+		execSQL = original
 	}
 
 	var cols []string
@@ -1106,6 +1113,148 @@ func (a *App) DataExecSQL(sessionID, database, sqlText string, offset int) (Data
 		}
 	}
 
+	return DataQueryResultDTO{Columns: cols, Rows: rows, TotalRows: total}, nil
+}
+
+// DataExecMutationSQL runs a DDL/DML statement as-is (no read LIMIT). Sets rowsAffected when known.
+func (a *App) DataExecMutationSQL(sessionID, database, sqlText string) (DataQueryResultDTO, error) {
+	var out DataQueryResultDTO
+	sess, err := a.getDataSession(sessionID)
+	if err != nil {
+		return out, err
+	}
+	src, err := a.loadDataSourceRow(sess.dataSourceID)
+	if err != nil {
+		return out, err
+	}
+	original := strings.TrimSpace(sqlText)
+	if original == "" {
+		return out, errors.New("empty SQL")
+	}
+	if sess.db != nil {
+		schemaOrDB := strings.TrimSpace(database)
+		if src.Engine == "postgres" && schemaOrDB == "" {
+			schemaOrDB = "public"
+		}
+		ra, err := dataExecUserMutation(src.Engine, sess.db, schemaOrDB, original)
+		if err != nil {
+			return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
+		}
+		out.RowsAffected = &ra
+		return out, nil
+	}
+	db := strings.TrimSpace(database)
+	if src.Engine == "mysql" && db != "" {
+		src.Database = db
+	}
+	_, _, err = a.dataRunQuery(sess, src, original)
+	if err != nil {
+		return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
+	}
+	neg := int64(-1)
+	out.RowsAffected = &neg
+	return out, nil
+}
+
+// DataExplainSQL returns EXPLAIN output as a tabular result (engine-specific).
+func (a *App) DataExplainSQL(sessionID, database, sqlText string, analyze bool) (DataQueryResultDTO, error) {
+	var out DataQueryResultDTO
+	sess, err := a.getDataSession(sessionID)
+	if err != nil {
+		return out, err
+	}
+	src, err := a.loadDataSourceRow(sess.dataSourceID)
+	if err != nil {
+		return out, err
+	}
+	original := strings.TrimSpace(sqlText)
+	if original == "" {
+		return out, errors.New("empty SQL")
+	}
+	q := buildExplainSQL(src.Engine, original, analyze)
+	var cols []string
+	var rows [][]string
+	if sess.db != nil {
+		schemaOrDB := strings.TrimSpace(database)
+		if src.Engine == "postgres" && schemaOrDB == "" {
+			schemaOrDB = "public"
+		}
+		cols, rows, err = dataExecUserSQL(src.Engine, sess.db, schemaOrDB, q)
+		if err != nil {
+			return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
+		}
+	} else {
+		db := strings.TrimSpace(database)
+		if src.Engine == "mysql" && db != "" {
+			src.Database = db
+		}
+		cols, rows, err = a.dataRunQuery(sess, src, q)
+		if err != nil {
+			return out, a.dataErrAfterMaybeInvalidate(sessionID, err)
+		}
+	}
+	return DataQueryResultDTO{Columns: cols, Rows: rows, TotalRows: int64(len(rows))}, nil
+}
+
+// DataPreviewMutationSQL returns a sample of rows that would match a simple DELETE/UPDATE and TotalRows = COUNT(*).
+func (a *App) DataPreviewMutationSQL(sessionID, database, sqlText string) (DataQueryResultDTO, error) {
+	var out DataQueryResultDTO
+	sess, err := a.getDataSession(sessionID)
+	if err != nil {
+		return out, err
+	}
+	src, err := a.loadDataSourceRow(sess.dataSourceID)
+	if err != nil {
+		return out, err
+	}
+	original := strings.TrimSpace(sqlText)
+	if original == "" {
+		return out, errors.New("empty SQL")
+	}
+	kind := ClassifyUserSQL(original)
+	var countQ, sampleQ string
+	var ok bool
+	switch kind {
+	case SQLKindDelete:
+		countQ, sampleQ, ok = mutationDeletePreviewSQL(original, mutationPreviewSampleLimit)
+	case SQLKindUpdate:
+		countQ, sampleQ, ok = mutationUpdatePreviewSQL(original, mutationPreviewSampleLimit)
+	default:
+		return out, errors.New("preview not supported for this statement")
+	}
+	if !ok {
+		return out, errors.New("could not derive preview SQL")
+	}
+	var total int64
+	if sess.db != nil {
+		schemaOrDB := strings.TrimSpace(database)
+		if src.Engine == "postgres" && schemaOrDB == "" {
+			schemaOrDB = "public"
+		}
+		n, e := dataCountUserSQL(src.Engine, sess.db, schemaOrDB, countQ)
+		if e != nil {
+			return out, a.dataErrAfterMaybeInvalidate(sessionID, e)
+		}
+		total = n
+		cols, rows, e := dataExecUserSQL(src.Engine, sess.db, schemaOrDB, sampleQ)
+		if e != nil {
+			return out, a.dataErrAfterMaybeInvalidate(sessionID, e)
+		}
+		return DataQueryResultDTO{Columns: cols, Rows: rows, TotalRows: total}, nil
+	}
+	db := strings.TrimSpace(database)
+	if src.Engine == "mysql" && db != "" {
+		src.Database = db
+	}
+	n, e := a.dataRunQueryCountScalar(sess, src, countQ)
+	if e != nil {
+		return out, a.dataErrAfterMaybeInvalidate(sessionID, e)
+	}
+	total = n
+	cols, rows, e := a.dataRunQuery(sess, src, sampleQ)
+	if e != nil {
+		return out, a.dataErrAfterMaybeInvalidate(sessionID, e)
+	}
 	return DataQueryResultDTO{Columns: cols, Rows: rows, TotalRows: total}, nil
 }
 

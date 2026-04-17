@@ -967,6 +967,21 @@
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
+/* SQL tab: same sticky header row as table preview while scrolling results */
+.data-grid--sql-results thead th {
+  text-align: left;
+  vertical-align: bottom;
+  padding: 0;
+}
+
+.data-grid-scroll .data-grid--sql-results thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(22, 26, 34, 0.98);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
 .data-grid-th-sort {
   display: inline-flex;
   align-items: center;
@@ -1154,8 +1169,9 @@
   border-radius: 0;
 }
 
+/* No padding here: sticky thead must span the full scrollport like Table view; cell padding comes from .data-grid th/td */
 .data-sql-results--split .data-grid-scroll {
-  padding: 8px;
+  padding: 0;
 }
 
 .data-sql-results--split .data-preview-pagination {
@@ -1310,4 +1326,111 @@
 
 .data-modal .data-test-text-running {
   color: rgba(255, 255, 255, 0.75);
+}
+
+/* SQL tab: mutation preview + Proceed */
+.data-mutation-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 180, 100, 0.35);
+  background: rgba(255, 140, 60, 0.08);
+}
+
+.data-mutation-banner-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255, 200, 150, 0.95);
+}
+
+.data-mutation-meta {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.data-mutation-sample-wrap {
+  max-height: min(40vh, 320px);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.data-mutation-sql-preview {
+  margin: 0;
+  padding: 10px;
+  max-height: min(35vh, 280px);
+  overflow: auto;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.data-mutation-raw-title {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.data-mutation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.data-mutation-proceed {
+  border-color: rgba(255, 160, 90, 0.55);
+  background: rgba(255, 140, 60, 0.18);
+}
+
+.data-mutation-proceed:hover:not(:disabled) {
+  background: rgba(255, 140, 60, 0.28);
+}
+
+.data-mutation-disclaimer {
+  margin: 0;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Explain tab: plan actions + wide plan text */
+.data-sql-explain-actions {
+  gap: 10px;
+}
+
+.data-sql-explain-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.data-explain-out {
+  font-size: 12px;
+}
+
+.data-grid--explain thead th {
+  text-align: left;
+  vertical-align: bottom;
+}
+
+.data-grid--explain .data-explain-cell {
+  vertical-align: top;
+}
+
+.data-grid--explain .data-explain-cell-text {
+  display: block;
+  max-width: none;
+  white-space: pre-wrap;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
 }

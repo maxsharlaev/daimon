@@ -25,13 +25,6 @@ var sqlEndsWithMySQLLimitComma = regexp.MustCompile(`(?is)\blimit\s+\d+\s*,\s*\d
 // sqlEndsWithFetchFirst matches FETCH FIRST n ROWS ONLY (SQL standard / PostgreSQL).
 var sqlEndsWithFetchFirst = regexp.MustCompile(`(?is)\bfetch\s+first\s+(\d+|\?)\s+rows\s+only\s*$`)
 
-// sqlSelectLikePrefix matches statements we can wrap in SELECT COUNT(*) FROM (…) for a row total.
-var sqlSelectLikePrefix = regexp.MustCompile(`(?is)^\s*(with|select)\b`)
-
-func isSelectLikeSQL(s string) bool {
-	return sqlSelectLikePrefix.MatchString(strings.TrimSpace(s))
-}
-
 // hasTrailingRowLimit reports whether the outer statement already ends with LIMIT / FETCH FIRST.
 func hasTrailingRowLimit(sqlText string) bool {
 	s := strings.TrimSpace(sqlText)
@@ -567,6 +560,36 @@ func dataExecUserSQL(engine string, db *sql.DB, schemaOrDB, sqlText string) (col
 		rowsOut = append(rowsOut, line)
 	}
 	return cols, rowsOut, rows.Err()
+}
+
+// dataExecUserMutation runs a non-SELECT statement with ExecContext (rows affected when supported).
+func dataExecUserMutation(engine string, db *sql.DB, schemaOrDB, sqlText string) (int64, error) {
+	sqlText = strings.TrimSpace(sqlText)
+	if sqlText == "" {
+		return 0, errors.New("empty SQL")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	if engine == "postgres" && schemaOrDB != "" && schemaOrDB != "public" {
+		_, _ = db.ExecContext(ctx, `SET search_path TO `+quotePGIdent(schemaOrDB))
+	}
+	if engine == "mysql" && schemaOrDB != "" {
+		_, e := db.ExecContext(ctx, "USE "+quoteMySQLIdent(schemaOrDB))
+		if e != nil {
+			return 0, e
+		}
+	}
+
+	res, err := db.ExecContext(ctx, sqlText)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, nil
+	}
+	return n, nil
 }
 
 func dataPrimaryKeyColumns(engine string, db *sql.DB, schemaOrDB, table string) ([]string, error) {
