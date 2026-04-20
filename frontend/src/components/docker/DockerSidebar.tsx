@@ -10,6 +10,7 @@ import type {
   DockerNetworkDTO,
 } from "../../types/docker";
 import "./docker.css";
+import { DropdownSelect } from "../ui";
 
 type View = "containers" | "images" | "volumes" | "networks" | "system";
 type Scope = "local" | "remote";
@@ -158,6 +159,17 @@ export function DockerSidebar({
   const hideRemoteViews = scope === "remote" && (!remoteConnected || activeRemote?.status?.available !== true);
   const groupNameById = useMemo(() => new Map(groups.map((g) => [g.id, g.name])), [groups]);
 
+  const remoteGroupSelectOptions = useMemo(
+    () => [
+      { value: "all", label: "All groups" },
+      ...groups
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((g) => ({ value: g.id, label: g.name })),
+    ],
+    [groups]
+  );
+
   const visibleRemoteProfiles = useMemo(() => {
     // When a concrete profile is selected, we show ONLY it (and hide filters anyway).
     if (!remoteListOpen && activeRemoteProfileId) {
@@ -285,22 +297,13 @@ export function DockerSidebar({
         <div className="docker-sidebar-section">
           {remoteListOpen ? (
             <div className="docker-remote-filters">
-              <select
+              <DropdownSelect
                 className="docker-select"
                 value={remoteGroupFilter}
-                onChange={(e) => setRemoteGroupFilter(e.target.value)}
+                onChange={setRemoteGroupFilter}
+                options={remoteGroupSelectOptions}
                 aria-label="Group filter"
-              >
-                <option value="all">All groups</option>
-                {groups
-                  .slice()
-                  .sort((a, b) => a.order - b.order)
-                  .map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-              </select>
+              />
               <input
                 className="docker-search"
                 placeholder="Search name or host"

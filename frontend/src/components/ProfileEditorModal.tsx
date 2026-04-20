@@ -12,6 +12,7 @@ import {
 import { main } from "../../wailsjs/go/models";
 import type { ProfileDTO, ProfileGroupDTO } from "../types/models";
 import { Tooltip } from "./Tooltip";
+import { DropdownSelect } from "./ui";
 import "./profile_editor.scss";
 
 type SecretStorage = "none" | "keyring" | "internal" | "external";
@@ -218,6 +219,17 @@ export function ProfileEditorModal({
     return keyPEM.trim().length > 0;
   }, [busy, host, username, port, authKind, password, keyStorage, keyPath, keyPEM]);
 
+  const groupSelectOptions = useMemo(
+    () => [
+      { value: "", label: "Select group…", disabled: true },
+      ...groups
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((g) => ({ value: g.id, label: g.name })),
+    ],
+    [groups]
+  );
+
   const testDisabledReason = useMemo(() => {
     if (busy) return "Busy";
     if (!host.trim()) return "Host is required";
@@ -416,19 +428,13 @@ export function ProfileEditorModal({
             <div className="section-title">Connection</div>
             <div className="row">
               <label>Group</label>
-              <select value={groupId} onChange={(e) => setGroupId(e.target.value)} disabled={busy}>
-                <option value="" disabled>
-                  Select group…
-                </option>
-                {groups
-                  .slice()
-                  .sort((a, b) => a.order - b.order)
-                  .map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-              </select>
+              <DropdownSelect
+                value={groupId}
+                onChange={setGroupId}
+                options={groupSelectOptions}
+                disabled={busy}
+                aria-label="Group"
+              />
             </div>
 
             <div className="row">
@@ -520,19 +526,21 @@ export function ProfileEditorModal({
                 <div className="row two">
                   <div className="row">
                     <label>Storage</label>
-                    <select
+                    <DropdownSelect
                       value={passwordStorage}
-                      onChange={(e) => {
-                        const next = e.target.value as any;
+                      onChange={(v) => {
+                        const next = v as Exclude<SecretStorage, "external">;
                         setPasswordStorage(next);
                         setSavePasswordToSecrets(next !== "none");
                       }}
                       disabled={busy || !savePasswordToSecrets}
-                    >
-                      <option value="none">none (ask each time)</option>
-                      <option value="keyring">keyring (OS)</option>
-                      <option value="internal">internal vault</option>
-                    </select>
+                      options={[
+                        { value: "none", label: "none (ask each time)" },
+                        { value: "keyring", label: "keyring (OS)" },
+                        { value: "internal", label: "internal vault" },
+                      ]}
+                      aria-label="Password storage"
+                    />
                   </div>
                   <div className="row">
                     <label>Password</label>
@@ -557,12 +565,18 @@ export function ProfileEditorModal({
                       </span>
                     </Tooltip>
                   </label>
-                  <select value={keyStorage} onChange={(e) => setKeyStorage(e.target.value as any)} disabled={busy}>
-                    <option value="none">none (ask each time)</option>
-                    <option value="external">external file path</option>
-                    <option value="keyring">keyring (OS) — PEM if it fits</option>
-                    <option value="internal">internal vault (stores PEM)</option>
-                  </select>
+                  <DropdownSelect
+                    value={keyStorage}
+                    onChange={(v) => setKeyStorage(v as SecretStorage)}
+                    disabled={busy}
+                    options={[
+                      { value: "none", label: "none (ask each time)" },
+                      { value: "external", label: "external file path" },
+                      { value: "keyring", label: "keyring (OS) — PEM if it fits" },
+                      { value: "internal", label: "internal vault (stores PEM)" },
+                    ]}
+                    aria-label="Private key storage"
+                  />
                 </div>
 
                 {keyStorage === "external" ? (

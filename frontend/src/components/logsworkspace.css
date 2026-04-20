@@ -257,7 +257,8 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* visible: log viewer DropdownSelect menus extend over the table */
+  overflow: visible;
 }
 
 .logs-workspace .logs-right-tab-panel {
@@ -268,6 +269,10 @@
   gap: 10px;
   overflow: hidden;
   padding-top: 0;
+}
+
+.logs-workspace .logs-right-tab-panel--viewer {
+  overflow: visible;
 }
 
 .logs-workspace .logs-right-tab-panel--sources {
@@ -367,6 +372,33 @@
   box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.12);
 }
 
+.logs-workspace .settings-logs-general .settings-field-input.ds-root {
+  width: 100%;
+}
+
+.logs-workspace .settings-logs-general .settings-field-input.ds-root .ds-trigger.ds-trigger--field {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 28px 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background-color: rgba(11, 18, 32, 0.55);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.55) 50%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.55) 50%, transparent 50%);
+  background-position: calc(100% - 16px) calc(50% - 3px), calc(100% - 11px) calc(50% - 3px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.logs-workspace .settings-logs-general .settings-field-input.ds-root .ds-trigger.ds-trigger--field:focus {
+  border-color: rgba(110, 231, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.12);
+}
+
 .logs-workspace .logs-viewer-filters-anim {
   flex-shrink: 0;
   overflow: hidden;
@@ -386,18 +418,32 @@
   pointer-events: auto;
 }
 
+/* Open filters: allow DropdownSelect panels to paint outside the animated wrapper (overflow:hidden was clipping the menu). */
+.logs-workspace .logs-viewer-filters-anim.is-open {
+  overflow: visible;
+  position: relative;
+  z-index: 4;
+}
+
+.logs-workspace .logs-viewer-filters-anim.is-open .logs-viewer-filters-anim-inner {
+  overflow: visible;
+}
+
 .logs-workspace .logs-viewer-filters {
   display: flex;
   flex-direction: column;
   gap: 12px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .logs-workspace .logs-filter-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
   gap: 12px;
-  align-items: end;
+  /* start: avoid bottom-aligned cells when one control grows (felt like fields “jumping up”) */
+  align-items: start;
   min-width: 0;
 }
 

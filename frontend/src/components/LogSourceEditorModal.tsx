@@ -17,6 +17,7 @@ import type { DockerContainerDTO } from "../types/docker";
 import type { LogFormatDTO, LogParsePreviewResultDTO } from "../types/logs";
 import { presetPathForFormat } from "./logSourceFormatPresets";
 import { parentUnix, pathToListSpec } from "./logSourcePathUtils";
+import { DropdownSelect } from "./ui";
 
 const TAIL_MAX_BYTES = 262144;
 
@@ -341,17 +342,13 @@ export function LogSourceEditorModal({
             </label>
             <label className="settings-field">
               <span className="settings-field-label">Format</span>
-              <select
+              <DropdownSelect
                 className="settings-field-input"
                 value={editor.formatId}
-                onChange={(e) => setEditor((prev) => ({ ...prev, formatId: e.target.value }))}
-              >
-                {formats.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setEditor((prev) => ({ ...prev, formatId: v }))}
+                options={formats.map((f) => ({ value: f.id, label: f.name }))}
+                aria-label="Log format"
+              />
             </label>
             <label className="settings-field">
               <span className="settings-field-label">Display name (optional)</span>

@@ -114,7 +114,8 @@
   min-width: 0;
 }
 
-.drive-select {
+/* Native drive select (legacy); DropdownSelect uses .ds-trigger inside .drive-select.ds-root */
+.drive-select:not(.ds-root) {
   height: 26px;
   border-radius: 8px;
   padding: 0 8px;
@@ -122,6 +123,15 @@
   background: rgba(0, 0, 0, 0.25);
   color: rgba(255, 255, 255, 0.9);
   font-size: 12px;
+}
+
+.pathbar .drive-select.ds-root .ds-trigger.ds-trigger--field {
+  height: 26px;
+  min-height: 26px;
+  font-size: 12px;
+  padding: 0 22px 0 8px;
+  border-radius: 8px;
+  background-color: rgba(0, 0, 0, 0.25);
 }
 
 .crumbs {

@@ -11,6 +11,7 @@ import {
   VaultUnlock,
 } from "../../wailsjs/go/main/App";
 import "./secretsmodal.css";
+import { DropdownSelect } from "./ui";
 
 type Props = {
   open: boolean;
@@ -286,11 +287,16 @@ export function SecretsModal({ open, profileId, profiles, onClose }: Props) {
               </div>
               <div className="row">
                 <label>Storage</label>
-                <select value={storage} onChange={(e) => setStorage(e.target.value as any)}>
-                  <option value="keyring">OS keyring</option>
-                  <option value="internal">Internal vault</option>
-                  <option value="none">Don’t store</option>
-                </select>
+                <DropdownSelect
+                  value={storage}
+                  onChange={(v) => setStorage(v as "keyring" | "internal" | "none")}
+                  options={[
+                    { value: "keyring", label: "OS keyring" },
+                    { value: "internal", label: "Internal vault" },
+                    { value: "none", label: "Don’t store" },
+                  ]}
+                  aria-label="Secret storage"
+                />
               </div>
             </div>
             <div className="row">

@@ -33,11 +33,12 @@
   font: inherit;
 }
 
-/* Native selects: match app inputs + custom chevron (OS/WebView2 default looks off-brand). */
+/* Native selects: match app inputs + custom chevron (OS/WebView2 default looks off-brand).
+   Use select.docker-select — not bare .docker-select — so DropdownSelect roots (.ds-root.docker-select) are not double-styled. */
 .form select,
 .data-field select,
-.docker-select,
-.app-select {
+select.docker-select,
+select.app-select {
   height: 34px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -77,8 +78,8 @@
 .data-field input:focus,
 .form select:focus,
 .data-field select:focus,
-.docker-select:focus,
-.app-select:focus,
+select.docker-select:focus,
+select.app-select:focus,
 .form textarea:focus {
   border-color: rgba(110, 231, 255, 0.55);
   box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.12);

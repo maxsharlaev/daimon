@@ -7,6 +7,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import { SETTINGS_REFRESH_ALL_EVENT } from "../settingsEvents";
+import { DropdownSelect } from "./ui";
 
 type Props = {
   onSettingsChanged?: () => void;
@@ -123,15 +124,17 @@ export function AiModePanel({ onSettingsChanged }: Props) {
       <div className="settings-form-grid settings-logs-general-grid">
         <label className="settings-field">
           <span className="settings-field-label">Integration</span>
-          <select
+          <DropdownSelect
             className="settings-field-input"
             value={st.integrationType}
             disabled={busy}
-            onChange={(e) => setSt({ ...st, integrationType: e.target.value })}
-          >
-            <option value="none">None</option>
-            <option value="openai_compatible">OpenAI compatible</option>
-          </select>
+            onChange={(v) => setSt({ ...st, integrationType: v })}
+            options={[
+              { value: "none", label: "None" },
+              { value: "openai_compatible", label: "OpenAI compatible" },
+            ]}
+            aria-label="AI integration"
+          />
         </label>
 
         {st.integrationType === "openai_compatible" ? (

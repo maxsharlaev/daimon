@@ -386,7 +386,8 @@
   color: rgba(255, 255, 255, 0.72);
 }
 
-.settings-logs-general .settings-field-input,
+.settings-logs-general input.settings-field-input,
+.settings-logs-general select.settings-field-input,
 .settings-logs-general .settings-field-textarea {
   width: 100%;
   box-sizing: border-box;
@@ -398,7 +399,8 @@
   outline: none;
 }
 
-.settings-logs-general .settings-field-input {
+.settings-logs-general input.settings-field-input,
+.settings-logs-general select.settings-field-input {
   height: 34px;
   padding: 0 10px;
   font-size: 13px;
@@ -415,7 +417,30 @@
   padding-right: 28px;
 }
 
-.settings-logs-general .settings-field-input:focus,
+.settings-logs-general .settings-field-input.ds-root {
+  width: 100%;
+}
+
+.settings-logs-general .settings-field-input.ds-root .ds-trigger.ds-trigger--field {
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background-color: rgba(11, 18, 32, 0.55);
+  color: #fff;
+  height: 34px;
+  padding: 0 28px 0 10px;
+  font-size: 13px;
+  background-image: linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.5) 50%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.5) 50%, transparent 50%);
+  background-position: calc(100% - 16px) calc(50% - 2px), calc(100% - 11px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.settings-logs-general input.settings-field-input:focus,
+.settings-logs-general select.settings-field-input:focus,
 .settings-logs-general .settings-field-textarea:focus {
   border-color: rgba(110, 231, 255, 0.55);
   box-shadow: 0 0 0 3px rgba(110, 231, 255, 0.12);

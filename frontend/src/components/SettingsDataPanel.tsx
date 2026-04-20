@@ -10,6 +10,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import "./dataworkspace.css";
+import { DropdownSelect } from "./ui";
 
 type DataOwnerMode = "ssh" | "docker_local" | "docker_remote";
 
@@ -357,18 +358,20 @@ export function SettingsDataPanel({ profiles }: { profiles: ProfileDTO[] }) {
                 </div>
                 <div className="row">
                   <label>Engine</label>
-                  <select
+                  <DropdownSelect
                     className="docker-select"
                     value={editEngine}
-                    onChange={(e) => {
-                      const eng = e.target.value as "postgres" | "mysql";
+                    onChange={(v) => {
+                      const eng = v as "postgres" | "mysql";
                       setEditEngine(eng);
                       setEditPort(eng === "postgres" ? 5432 : 3306);
                     }}
-                  >
-                    <option value="postgres">PostgreSQL</option>
-                    <option value="mysql">MySQL / MariaDB</option>
-                  </select>
+                    options={[
+                      { value: "postgres", label: "PostgreSQL" },
+                      { value: "mysql", label: "MySQL / MariaDB" },
+                    ]}
+                    aria-label="Database engine"
+                  />
                 </div>
               </div>
               <div className="row two">
@@ -402,14 +405,16 @@ export function SettingsDataPanel({ profiles }: { profiles: ProfileDTO[] }) {
                 </div>
                 <div className="row">
                   <label>Password storage</label>
-                  <select
+                  <DropdownSelect
                     className="docker-select"
                     value={editStorage}
-                    onChange={(e) => setEditStorage(e.target.value as "keyring" | "internal")}
-                  >
-                    <option value="keyring">OS keyring</option>
-                    <option value="internal">Internal vault</option>
-                  </select>
+                    onChange={(v) => setEditStorage(v as "keyring" | "internal")}
+                    options={[
+                      { value: "keyring", label: "OS keyring" },
+                      { value: "internal", label: "Internal vault" },
+                    ]}
+                    aria-label="Password storage"
+                  />
                 </div>
               </div>
               <p className="data-hint">Leave password empty to keep the saved password.</p>

@@ -6,6 +6,12 @@ import { DashboardPanel } from "./DashboardPanel";
 import "./dashboardtabs.css";
 import type { DashboardTab, StoredLayoutV2 } from "./dashboardLayout";
 import { defaultLayoutV2, uid } from "./dashboardLayout";
+import { DropdownSelect } from "./ui";
+
+const TAB_ICON_OPTIONS = ["📊", "🧠", "🧰", "🌐", "🧪", "📡", "💾", "🧾"].map((x) => ({
+  value: x,
+  label: x,
+}));
 
 type Props = {
   profiles: ProfileDTO[];
@@ -188,13 +194,7 @@ export function DashboardTabs({ profiles, sessions, activeSessionId, onActivate,
               <label>Name</label>
               <input value={tabName} onChange={(e) => setTabName(e.target.value)} />
               <label>Icon</label>
-              <select value={tabIcon} onChange={(e) => setTabIcon(e.target.value)}>
-                {["📊", "🧠", "🧰", "🌐", "🧪", "📡", "💾", "🧾"].map((x) => (
-                  <option key={x} value={x}>
-                    {x}
-                  </option>
-                ))}
-              </select>
+              <DropdownSelect value={tabIcon} onChange={setTabIcon} options={TAB_ICON_OPTIONS} aria-label="Tab icon" />
               <div className="muted">Tabs are saved per profile. General cannot be deleted.</div>
             </div>
             <div className="modal-actions">

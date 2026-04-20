@@ -9,6 +9,7 @@ import {
 } from "../utils/dockerPlaceProfileId";
 import { SETTINGS_REFRESH_ALL_EVENT } from "../settingsEvents";
 import "./docker/docker.css";
+import { DropdownSelect } from "./ui";
 
 export type PlacesSegment = "connection" | "docker_local" | "docker_remote";
 
@@ -154,6 +155,15 @@ export function SettingsPlacesPanel({ profiles }: Props) {
   const sortedProfiles = useMemo(
     () => [...profiles].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id, undefined, { sensitivity: "base" })),
     [profiles]
+  );
+
+  const copyProfileSelectOptions = useMemo(
+    () =>
+      sortedProfiles.map((p) => ({
+        value: p.id,
+        label: p.name?.trim() ? p.name : p.id,
+      })),
+    [sortedProfiles]
   );
 
   const dockerLocalBuckets = useMemo(() => {
@@ -579,17 +589,15 @@ export function SettingsPlacesPanel({ profiles }: Props) {
               {copyKind === "connection" ? (
                 <label className="settings-field">
                   <span className="settings-field-label">Profile</span>
-                  <select
+                  <DropdownSelect
                     className="settings-field-input"
                     value={copyConnProfileId}
-                    onChange={(e) => setCopyConnProfileId(e.target.value)}
-                  >
-                    {sortedProfiles.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name?.trim() ? p.name : p.id}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setCopyConnProfileId}
+                    options={copyProfileSelectOptions}
+                    searchable
+                    searchPlaceholder="Filter profiles…"
+                    aria-label="Profile for copy"
+                  />
                 </label>
               ) : copyKind === "docker_local" ? (
                 <label className="settings-field">
@@ -605,17 +613,15 @@ export function SettingsPlacesPanel({ profiles }: Props) {
                 <>
                   <label className="settings-field">
                     <span className="settings-field-label">SSH profile</span>
-                    <select
+                    <DropdownSelect
                       className="settings-field-input"
                       value={copyRemoteProfileId}
-                      onChange={(e) => setCopyRemoteProfileId(e.target.value)}
-                    >
-                      {sortedProfiles.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name?.trim() ? p.name : p.id}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setCopyRemoteProfileId}
+                      options={copyProfileSelectOptions}
+                      searchable
+                      searchPlaceholder="Filter profiles…"
+                      aria-label="SSH profile for copy"
+                    />
                   </label>
                   <label className="settings-field">
                     <span className="settings-field-label">Container name</span>

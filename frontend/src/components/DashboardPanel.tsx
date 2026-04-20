@@ -4,6 +4,7 @@ import { main } from "../../wailsjs/go/models";
 import "./dashboardpanel.css";
 import type { DashboardRow, DashboardTab, StoredLayoutV2, WidgetConfig, WidgetMetric, WidgetView } from "./dashboardLayout";
 import { uid } from "./dashboardLayout";
+import { DropdownSelect } from "./ui";
 import type { LogEntryDTO } from "../types/logs";
 
 type Props = {
@@ -523,21 +524,19 @@ export function DashboardPanel({ sessionId, profileId, profileName, layout, acti
             <div className="modal-title">Add widget</div>
             <div className="modal-body">
               <label>Metric</label>
-              <select value={addMetric} onChange={(e) => setAddMetric(e.target.value as WidgetMetric)}>
-                {metricOptions.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
+              <DropdownSelect
+                value={addMetric}
+                onChange={(v) => setAddMetric(v as WidgetMetric)}
+                options={metricOptions.map((m) => ({ value: m.id, label: m.label }))}
+                aria-label="Widget metric"
+              />
               <label>View</label>
-              <select value={addView} onChange={(e) => setAddView(e.target.value as WidgetView)}>
-                {allowedViews.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
+              <DropdownSelect
+                value={addView}
+                onChange={(v) => setAddView(v as WidgetView)}
+                options={allowedViews.map((v) => ({ value: v, label: v }))}
+                aria-label="Widget view"
+              />
               <div className="muted">Widgets are saved per profile.</div>
             </div>
             <div className="modal-actions">

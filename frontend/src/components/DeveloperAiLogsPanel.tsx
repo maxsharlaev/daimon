@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { GetAiUsageEventDetail, ListAiUsageEvents, ReadAiDebugLog } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import "./developerailogs.css";
+import { DropdownSelect } from "./ui";
 
 type QuickFilter = "today" | "all";
 
@@ -118,12 +119,19 @@ export function DeveloperAiLogsPanel() {
           <button className={`btn btn-ghost ${filter === "all" ? "active" : ""}`} type="button" onClick={() => setFilter("all")}>
             All
           </button>
-          <select value={kind} onChange={(e) => setKind(e.target.value)}>
-            <option value="all">All kinds</option>
-            <option value="chat_round">chat_round</option>
-            <option value="explain">explain</option>
-            <option value="test_connection">test_connection</option>
-          </select>
+          <DropdownSelect
+            inline
+            className="docker-select"
+            value={kind}
+            onChange={setKind}
+            options={[
+              { value: "all", label: "All kinds" },
+              { value: "chat_round", label: "chat_round" },
+              { value: "explain", label: "explain" },
+              { value: "test_connection", label: "test_connection" },
+            ]}
+            aria-label="Event kind"
+          />
         </div>
         <button className="btn btn-ghost" type="button" onClick={() => void loadList()} disabled={busy}>
           Refresh

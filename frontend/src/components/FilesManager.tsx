@@ -23,6 +23,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { onSFTPTransfer, startSFTPEventBridge } from "../sftp/events";
 import "./filesmanager.css";
+import { DropdownSelect } from "./ui";
 
 type Props = {
   sessionId: string;
@@ -140,6 +141,11 @@ export function FilesManager({
   const remoteCrumbs = useMemo(() => breadcrumbsRemote(remotePath), [remotePath]);
 
   const localDrive = useMemo(() => driveFromLocalPath(localPath), [localPath]);
+
+  const localDriveOptions = useMemo(
+    () => localDrives.map((d) => ({ value: d, label: d.replace(/\\$/, "") })),
+    [localDrives]
+  );
 
   useEffect(() => {
     disconnectedReportedRef.current = false;
@@ -718,20 +724,16 @@ export function FilesManager({
               Local:
             </button>
             {localDrives.length > 0 ? (
-              <select
+              <DropdownSelect
                 className="drive-select"
-                value={localDrive || ""}
-                onChange={(e) => {
-                  const d = e.target.value;
+                inline
+                value={localDrive || localDrives[0] || ""}
+                onChange={(d) => {
                   if (d) void goLocal(d);
                 }}
-              >
-                {localDrives.map((d) => (
-                  <option key={d} value={d}>
-                    {d.replace(/\\$/, "")}
-                  </option>
-                ))}
-              </select>
+                options={localDriveOptions}
+                aria-label="Local drive"
+              />
             ) : null}
             <div className="crumbs" title={localPath}>
               {localCrumbs.map((c, idx) => (

@@ -33,6 +33,7 @@ import {
   DataSortableTable,
   sortDataRowsByColumn,
 } from "./DataResultGrid";
+import { DropdownSelect, type DropdownOption } from "./ui";
 import "./dataworkspace.css";
 import "./connections.css";
 import "./terminaltabs.css";
@@ -294,7 +295,6 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
   const [tableFilterClauses, setTableFilterClauses] = useState<TableFilterClause[]>([]);
   const [previewFilterCommitted, setPreviewFilterCommitted] = useState("");
   const [filterPickerColumns, setFilterPickerColumns] = useState<main.DataColumnMetaDTO[]>([]);
-  const [filterUiMenu, setFilterUiMenu] = useState<null | { kind: "col" | "op" | "join"; clauseIndex: number }>(null);
   const [busy, setBusy] = useState(false);
   /** Data source currently in DataConnect — card marker shows orange until success or error. */
   const [connectingDataSourceId, setConnectingDataSourceId] = useState<string | null>(null);
@@ -383,6 +383,32 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         profileLabelSortKey(a).localeCompare(profileLabelSortKey(b), undefined, { sensitivity: "base" })
       );
   }, [profiles, remoteGroupFilter]);
+
+  const sshGroupSelectOptions: DropdownOption[] = useMemo(
+    () => [
+      { value: "all", label: "All groups" },
+      ...sortedGroups.map((g) => ({ value: g.id, label: g.name })),
+    ],
+    [sortedGroups]
+  );
+
+  const sshProfileSelectOptions: DropdownOption[] = useMemo(
+    () =>
+      filteredSSHProfiles.map((p) => ({
+        value: p.id,
+        label: p.name?.trim() ? p.name : `${p.username}@${p.host}`,
+      })),
+    [filteredSSHProfiles]
+  );
+
+  const remoteProfileSelectOptions: DropdownOption[] = useMemo(
+    () =>
+      filteredRemoteProfiles.map((p) => ({
+        value: p.id,
+        label: p.name?.trim() ? p.name : `${p.username}@${p.host}`,
+      })),
+    [filteredRemoteProfiles]
+  );
 
   useEffect(() => {
     if (ownerMode !== "ssh") return;
@@ -573,7 +599,6 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         setTableFilterBarOpen(false);
         setTableFilterClauses([]);
         setPreviewFilterCommitted("");
-        setFilterUiMenu(null);
         setPreviewLoading(false);
         setPreviewError(null);
         setSqlPage(1);
@@ -621,7 +646,6 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         setTableFilterClauses(parseTableFilterClauses(pjson));
       }
       setTableFilterBarOpen(snap?.tableFilterBarOpen ?? false);
-      setFilterUiMenu(null);
       setActiveSessionId(sessionId);
     },
     [
@@ -711,6 +735,46 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
     }
     return filteredTableNames;
   }, [filteredTableNames, selectedTable]);
+
+  const headerNamespaceOptions: DropdownOption[] = useMemo(() => {
+    if (!activeSession) return [];
+    if (activeSession.engine === "postgres") {
+      return [
+        ...databases.map((d) => ({ value: d, label: d })),
+        ...postgresClusterDBs.map((d) => ({
+          value: d,
+          label: `${d} (cluster DB)`,
+          disabled: true,
+        })),
+      ];
+    }
+    return databases.map((d) => ({ value: d, label: d }));
+  }, [activeSession, databases, postgresClusterDBs]);
+
+  const tableRailOptions: DropdownOption[] = useMemo(
+    () => [{ value: "", label: "—" }, ...tables.map((t) => ({ value: t, label: t }))],
+    [tables]
+  );
+
+  const localContainerOptions: DropdownOption[] = useMemo(
+    () => [
+      { value: "", label: "—" },
+      ...localContainers.map((c) => ({
+        value: c.id,
+        label: c.name || c.id.slice(0, 12),
+      })),
+    ],
+    [localContainers]
+  );
+
+  const remoteContainerOptions: DropdownOption[] = useMemo(
+    () =>
+      remoteContainers.map((c) => ({
+        value: c.id,
+        label: c.name || c.id.slice(0, 12),
+      })),
+    [remoteContainers]
+  );
 
   const previewTotalRows = Number(preview?.totalRows ?? 0);
   const previewTotalPages = Math.max(1, Math.ceil(previewTotalRows / PREVIEW_PAGE_SIZE) || 1);
@@ -1027,7 +1091,6 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       setTableFilterBarOpen(false);
       setPreviewFilterCommitted("");
       setTableFilterClauses([]);
-      setFilterUiMenu(null);
     }
     prevFilterCtxRef.current = { sid, db, tbl };
   }, [activeSessionId, selectedDb, selectedTable]);
@@ -1059,21 +1122,6 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       cancelled = true;
     };
   }, [activeSessionId, selectedDb, selectedTable, tableFilterBarOpen, activeSessionAlive, markSessionDisconnected]);
-
-  useEffect(() => {
-    if (!filterUiMenu) return;
-    const curKey = `${filterUiMenu.kind}:${filterUiMenu.clauseIndex}`;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target;
-      if (!(t instanceof Element)) return;
-      if (t.closest(".tf-dropdown")) return;
-      const trigger = t.closest("[data-tf-menu-key]");
-      if (trigger?.getAttribute("data-tf-menu-key") === curKey) return;
-      setFilterUiMenu(null);
-    };
-    document.addEventListener("mousedown", onDown, true);
-    return () => document.removeEventListener("mousedown", onDown, true);
-  }, [filterUiMenu]);
 
   const handlePreviewSortClick = useCallback((col: string) => {
     setPreviewSort((prev) => {
@@ -1575,38 +1623,24 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
               <div className="data-conn-filters" role="group" aria-label="SSH connection">
                 <label className="data-field">
                   <span>Group</span>
-                  <select
+                  <DropdownSelect
                     className="docker-select"
                     value={sshGroupFilter}
-                    onChange={(e) => setSshGroupFilter(e.target.value)}
+                    onChange={setSshGroupFilter}
+                    options={sshGroupSelectOptions}
                     aria-label="Group filter"
-                  >
-                    <option value="all">All groups</option>
-                    {sortedGroups.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </label>
                 <label className="data-field">
                   <span>Connection</span>
-                  <select
+                  <DropdownSelect
                     className="docker-select"
                     value={sshProfileId}
-                    onChange={(e) => setSshProfileId(e.target.value)}
+                    onChange={setSshProfileId}
+                    options={sshProfileSelectOptions}
+                    emptyMessage="No connections in this group"
                     aria-label="SSH profile"
-                  >
-                    {filteredSSHProfiles.length === 0 ? (
-                      <option value="">No connections in this group</option>
-                    ) : (
-                      filteredSSHProfiles.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name?.trim() ? p.name : `${p.username}@${p.host}`}
-                        </option>
-                      ))
-                    )}
-                  </select>
+                  />
                 </label>
               </div>
             ) : null}
@@ -1614,14 +1648,12 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
             {ownerMode === "docker_local" ? (
               <label className="data-field">
                 <span>Container</span>
-                <select value={localContainer} onChange={(e) => setLocalContainer(e.target.value)}>
-                  <option value="">—</option>
-                  {localContainers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name || c.id.slice(0, 12)}
-                    </option>
-                  ))}
-                </select>
+                <DropdownSelect
+                  value={localContainer}
+                  onChange={setLocalContainer}
+                  options={localContainerOptions}
+                  aria-label="Docker container"
+                />
               </label>
             ) : null}
 
@@ -1630,38 +1662,24 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                 <div className="data-conn-filters" role="group" aria-label="Remote Docker host">
                   <label className="data-field">
                     <span>Group</span>
-                    <select
+                    <DropdownSelect
                       className="docker-select"
                       value={remoteGroupFilter}
-                      onChange={(e) => setRemoteGroupFilter(e.target.value)}
+                      onChange={setRemoteGroupFilter}
+                      options={sshGroupSelectOptions}
                       aria-label="Group filter"
-                    >
-                      <option value="all">All groups</option>
-                      {sortedGroups.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.name}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </label>
                   <label className="data-field">
                     <span>Connection</span>
-                    <select
+                    <DropdownSelect
                       className="docker-select"
                       value={remoteProfileId}
-                      onChange={(e) => setRemoteProfileId(e.target.value)}
+                      onChange={setRemoteProfileId}
+                      options={remoteProfileSelectOptions}
+                      emptyMessage="No connections in this group"
                       aria-label="SSH profile for Docker"
-                    >
-                      {filteredRemoteProfiles.length === 0 ? (
-                        <option value="">No connections in this group</option>
-                      ) : (
-                        filteredRemoteProfiles.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name?.trim() ? p.name : `${p.username}@${p.host}`}
-                          </option>
-                        ))
-                      )}
-                    </select>
+                    />
                   </label>
                 </div>
                 {!remoteSessionId ? (
@@ -1675,13 +1693,12 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                     </button>
                     <label className="data-field">
                       <span>Container</span>
-                      <select value={remoteContainer} onChange={(e) => setRemoteContainer(e.target.value)}>
-                        {remoteContainers.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name || c.id.slice(0, 12)}
-                          </option>
-                        ))}
-                      </select>
+                      <DropdownSelect
+                        value={remoteContainer}
+                        onChange={setRemoteContainer}
+                        options={remoteContainerOptions}
+                        aria-label="Remote Docker container"
+                      />
                     </label>
                   </>
                 )}
@@ -1838,47 +1855,23 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                     <span className="data-header-namespace-caption">
                       {activeSession.engine === "postgres" ? "Database / schema" : "Database"}
                     </span>
-                    <select
+                    <DropdownSelect
                       className="docker-select data-header-namespace-select"
                       value={selectedDb}
-                      onChange={(e) => {
-                        setSelectedDb(e.target.value);
+                      onChange={(v) => {
+                        setSelectedDb(v);
                         setPreviewPage(1);
                       }}
+                      options={headerNamespaceOptions}
                       disabled={busy || databases.length === 0}
-                      title={
+                      searchable
+                      searchPlaceholder="Filter databases…"
+                      aria-label={
                         activeSession.engine === "postgres"
-                          ? "Schema for tables and SQL. Cluster databases are shown for reference only."
+                          ? "Schema for tables and SQL. Cluster rows are reference only."
                           : "Active database"
                       }
-                    >
-                      {activeSession.engine === "postgres" ? (
-                        <>
-                          <optgroup label="Schemas">
-                            {databases.map((d) => (
-                              <option key={`sch:${d}`} value={d}>
-                                {d}
-                              </option>
-                            ))}
-                          </optgroup>
-                          {postgresClusterDBs.length > 0 ? (
-                            <optgroup label="Cluster databases">
-                              {postgresClusterDBs.map((d) => (
-                                <option key={`db:${d}`} value={d} disabled>
-                                  {d}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ) : null}
-                        </>
-                      ) : (
-                        databases.map((d) => (
-                          <option key={d} value={d}>
-                            {d}
-                          </option>
-                        ))
-                      )}
-                    </select>
+                    />
                   </label>
                 </div>
               ) : null}
@@ -2014,7 +2007,6 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                         onClick={() => {
                           if (!tableFilterSqlSupported) return;
                           setTableFilterBarOpen((v) => !v);
-                          setFilterUiMenu(null);
                         }}
                       >
                         <span className="data-sql-editor-toggle-icon" aria-hidden>
@@ -2064,85 +2056,74 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                                   <div className="tf-clause-inner">
                                     {ci > 0 ? (
                                       <div className="tf-join-wrap">
-                                        <button
-                                          type="button"
-                                          className="tf-join-chip"
-                                          title="Change AND / OR"
-                                          data-tf-menu-key={`join:${ci}`}
-                                          onClick={() =>
-                                            setFilterUiMenu((m) => {
-                                              const key = `join:${ci}`;
-                                              const open = m ? `${m.kind}:${m.clauseIndex}` : "";
-                                              return open === key ? null : { kind: "join", clauseIndex: ci };
-                                            })
+                                        <DropdownSelect
+                                          variant="joinChip"
+                                          inline
+                                          value={clause.join === "OR" ? "OR" : "AND"}
+                                          onChange={(v) =>
+                                            setTableFilterClauses((prev) =>
+                                              prev.map((row, i) =>
+                                                i === ci ? { ...row, join: v as "AND" | "OR" } : row
+                                              )
+                                            )
                                           }
-                                        >
-                                          {clause.join === "OR" ? "OR" : "AND"}
-                                        </button>
-                                        {filterUiMenu?.kind === "join" && filterUiMenu.clauseIndex === ci ? (
-                                          <div className="tf-dropdown tf-dropdown-join-repick">
-                                            <button
-                                              type="button"
-                                              className="tf-dropdown-item"
-                                              onClick={() => {
-                                                setTableFilterClauses((prev) =>
-                                                  prev.map((row, i) =>
-                                                    i === ci ? { ...row, join: "AND" } : row
-                                                  )
-                                                );
-                                                setFilterUiMenu(null);
-                                              }}
-                                            >
-                                              AND
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="tf-dropdown-item"
-                                              onClick={() => {
-                                                setTableFilterClauses((prev) =>
-                                                  prev.map((row, i) =>
-                                                    i === ci ? { ...row, join: "OR" } : row
-                                                  )
-                                                );
-                                                setFilterUiMenu(null);
-                                              }}
-                                            >
-                                              OR
-                                            </button>
-                                          </div>
-                                        ) : null}
+                                          options={[
+                                            { value: "AND", label: "AND" },
+                                            { value: "OR", label: "OR" },
+                                          ]}
+                                          aria-label="Change AND or OR"
+                                        />
                                       </div>
                                     ) : null}
                                     <div className="tf-clause-body">
                                     <div className="tf-seg">
-                                      <button
-                                        type="button"
-                                        className="tf-compact tf-pill"
-                                        data-tf-menu-key={`col:${ci}`}
-                                        onClick={() =>
-                                          setFilterUiMenu((m) => {
-                                            const key = `col:${ci}`;
-                                            const open = m ? `${m.kind}:${m.clauseIndex}` : "";
-                                            return open === key ? null : { kind: "col", clauseIndex: ci };
-                                          })
+                                      <DropdownSelect
+                                        variant="pill"
+                                        inline
+                                        value={clause.column.trim() ? clause.column : "__any__"}
+                                        onChange={(v) =>
+                                          setTableFilterClauses((prev) =>
+                                            prev.map((row, i) =>
+                                              i === ci ? { ...row, column: v === "__any__" ? "" : v } : row
+                                            )
+                                          )
                                         }
-                                      >
-                                        {clause.column.trim() ? clause.column : "ANY"}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="tf-compact tf-pill tf-pill-op"
-                                        data-tf-menu-key={`op:${ci}`}
-                                        onClick={() =>
-                                          setFilterUiMenu((m) => {
-                                            const key = `op:${ci}`;
-                                            const open = m ? `${m.kind}:${m.clauseIndex}` : "";
-                                            return open === key ? null : { kind: "op", clauseIndex: ci };
-                                          })
-                                        }
-                                      >
-                                        {TABLE_FILTER_OPS.find((o) => o.op === clause.op)?.label ?? "Equals"}
-                                      </button>
+                                        options={[
+                                          { value: "__any__", label: "ANY" },
+                                          ...filterPickerColumns.map((col) => ({
+                                            value: col.name ?? "",
+                                            label: col.name ?? "",
+                                          })),
+                                        ]}
+                                        searchable
+                                        searchPlaceholder="Filter columns…"
+                                        emptyMessage="No columns"
+                                        aria-label="Filter column"
+                                      />
+                                      <DropdownSelect
+                                        variant="pillOp"
+                                        inline
+                                        value={clause.op}
+                                        onChange={(v) => {
+                                          const op = v as TableFilterOp;
+                                          setTableFilterClauses((prev) =>
+                                            prev.map((row, i) =>
+                                              i === ci
+                                                ? {
+                                                    ...row,
+                                                    op,
+                                                    value: op === "is" || op === "is_not" ? "" : row.value,
+                                                  }
+                                                : row
+                                            )
+                                          );
+                                        }}
+                                        options={TABLE_FILTER_OPS.map((o) => ({
+                                          value: o.op,
+                                          label: o.label,
+                                        }))}
+                                        aria-label="Filter operator"
+                                      />
                                       {opNeedsValue(clause.op) ? (
                                         <input
                                           className="tf-input"
@@ -2161,60 +2142,6 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                                           —
                                         </span>
                                       )}
-                                      {filterUiMenu?.kind === "col" && filterUiMenu.clauseIndex === ci ? (
-                                        <div className="tf-dropdown">
-                                          <div className="tf-dropdown-hdr">ANY</div>
-                                          {filterPickerColumns.length === 0 ? (
-                                            <div className="tf-dropdown-empty">No columns</div>
-                                          ) : (
-                                            filterPickerColumns.map((col) => (
-                                              <button
-                                                key={col.name}
-                                                type="button"
-                                                className="tf-dropdown-item"
-                                                onClick={() => {
-                                                  setTableFilterClauses((prev) =>
-                                                    prev.map((row, i) =>
-                                                      i === ci ? { ...row, column: col.name ?? "" } : row
-                                                    )
-                                                  );
-                                                  setFilterUiMenu(null);
-                                                }}
-                                              >
-                                                {col.name}
-                                              </button>
-                                            ))
-                                          )}
-                                        </div>
-                                      ) : null}
-                                      {filterUiMenu?.kind === "op" && filterUiMenu.clauseIndex === ci ? (
-                                        <div className="tf-dropdown">
-                                          {TABLE_FILTER_OPS.map((o) => (
-                                            <button
-                                              key={o.op}
-                                              type="button"
-                                              className="tf-dropdown-item"
-                                              onClick={() => {
-                                                setTableFilterClauses((prev) =>
-                                                  prev.map((row, i) =>
-                                                    i === ci
-                                                      ? {
-                                                          ...row,
-                                                          op: o.op,
-                                                          value:
-                                                            o.op === "is" || o.op === "is_not" ? "" : row.value,
-                                                        }
-                                                      : row
-                                                  )
-                                                );
-                                                setFilterUiMenu(null);
-                                              }}
-                                            >
-                                              {o.label}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      ) : null}
                                     </div>
                                     <button
                                       type="button"
@@ -2222,7 +2149,6 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                                       title="Remove condition"
                                       aria-label="Remove condition"
                                       onClick={() => {
-                                        setFilterUiMenu(null);
                                         setTableFilterClauses((prev) => {
                                           const next = prev.filter((_, i) => i !== ci);
                                           if (next.length === 0) return next;
@@ -2240,53 +2166,24 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                               ))}
                               <div className="tf-dotted-and-wrap">
                                 <span className="tf-dotted-line" aria-hidden />
-                                <button
-                                  type="button"
-                                  className="tf-and-pill"
-                                  data-tf-menu-key={`join:${tableFilterClauses.length}`}
-                                  onClick={() =>
-                                    setFilterUiMenu((m) => {
-                                      const n = tableFilterClauses.length;
-                                      const key = `join:${n}`;
-                                      const open = m ? `${m.kind}:${m.clauseIndex}` : "";
-                                      return open === key ? null : { kind: "join", clauseIndex: n };
-                                    })
+                                <DropdownSelect
+                                  variant="andPill"
+                                  inline
+                                  value="AND"
+                                  onChange={(v) =>
+                                    setTableFilterClauses((prev) => [
+                                      ...prev,
+                                      { join: v as "AND" | "OR", column: "", op: "eq", value: "" },
+                                    ])
                                   }
-                                >
-                                  AND
-                                </button>
+                                  options={[
+                                    { value: "AND", label: "AND" },
+                                    { value: "OR", label: "OR" },
+                                  ]}
+                                  dropdownAlign="center"
+                                  aria-label="Add filter row with AND or OR"
+                                />
                                 <span className="tf-dotted-line" aria-hidden />
-                                {filterUiMenu?.kind === "join" &&
-                                filterUiMenu.clauseIndex === tableFilterClauses.length ? (
-                                  <div className="tf-dropdown tf-dropdown-join">
-                                    <button
-                                      type="button"
-                                      className="tf-dropdown-item"
-                                      onClick={() => {
-                                        setTableFilterClauses((prev) => [
-                                          ...prev,
-                                          { join: "AND", column: "", op: "eq", value: "" },
-                                        ]);
-                                        setFilterUiMenu(null);
-                                      }}
-                                    >
-                                      AND
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="tf-dropdown-item"
-                                      onClick={() => {
-                                        setTableFilterClauses((prev) => [
-                                          ...prev,
-                                          { join: "OR", column: "", op: "eq", value: "" },
-                                        ]);
-                                        setFilterUiMenu(null);
-                                      }}
-                                    >
-                                      OR
-                                    </button>
-                                  </div>
-                                ) : null}
                               </div>
                             </>
                           )}
@@ -2300,7 +2197,6 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                               if (tableFilterShowCancel) {
                                 setPreviewFilterCommitted("");
                                 setTableFilterClauses([]);
-                                setFilterUiMenu(null);
                                 setPreviewPage(1);
                                 return;
                               }
@@ -2407,19 +2303,16 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                       <aside className="data-sql-schema-rail" aria-label="Table reference">
                         <div className="data-sql-rail-block">
                           <div className="data-sql-rail-label">Table</div>
-                          <select
+                          <DropdownSelect
                             className="docker-select data-sql-rail-select"
                             value={selectedTable}
-                            onChange={(e) => setSelectedTable(e.target.value)}
+                            onChange={setSelectedTable}
+                            options={tableRailOptions}
                             disabled={!selectedDb || tables.length === 0}
-                          >
-                            <option value="">—</option>
-                            {tables.map((t) => (
-                              <option key={t} value={t}>
-                                {t}
-                              </option>
-                            ))}
-                          </select>
+                            searchable
+                            searchPlaceholder="Filter tables…"
+                            aria-label="Table for SQL rail"
+                          />
                         </div>
                         <div className="data-sql-rail-block data-sql-rail-block--grow">
                           <div className="data-sql-rail-label">Columns</div>
@@ -2561,19 +2454,16 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                       <aside className="data-sql-schema-rail" aria-label="Table reference">
                         <div className="data-sql-rail-block">
                           <div className="data-sql-rail-label">Table</div>
-                          <select
+                          <DropdownSelect
                             className="docker-select data-sql-rail-select"
                             value={selectedTable}
-                            onChange={(e) => setSelectedTable(e.target.value)}
+                            onChange={setSelectedTable}
+                            options={tableRailOptions}
                             disabled={!selectedDb || tables.length === 0}
-                          >
-                            <option value="">—</option>
-                            {tables.map((t) => (
-                              <option key={t} value={t}>
-                                {t}
-                              </option>
-                            ))}
-                          </select>
+                            searchable
+                            searchPlaceholder="Filter tables…"
+                            aria-label="Table for SQL rail"
+                          />
                         </div>
                         <div className="data-sql-rail-block data-sql-rail-block--grow">
                           <div className="data-sql-rail-label">Columns</div>
@@ -2694,18 +2584,20 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                 </div>
                 <div className="row">
                   <label>Engine</label>
-                  <select
+                  <DropdownSelect
                     className="docker-select"
                     value={editEngine}
-                    onChange={(e) => {
-                      const eng = e.target.value as "postgres" | "mysql";
+                    onChange={(v) => {
+                      const eng = v as "postgres" | "mysql";
                       setEditEngine(eng);
                       setEditPort(eng === "postgres" ? 5432 : 3306);
                     }}
-                  >
-                    <option value="postgres">PostgreSQL</option>
-                    <option value="mysql">MySQL / MariaDB</option>
-                  </select>
+                    options={[
+                      { value: "postgres", label: "PostgreSQL" },
+                      { value: "mysql", label: "MySQL / MariaDB" },
+                    ]}
+                    aria-label="Database engine"
+                  />
                 </div>
               </div>
               <div className="row two">
@@ -2739,14 +2631,16 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
                 </div>
                 <div className="row">
                   <label>Password storage</label>
-                  <select
+                  <DropdownSelect
                     className="docker-select"
                     value={editStorage}
-                    onChange={(e) => setEditStorage(e.target.value as "keyring" | "internal")}
-                  >
-                    <option value="keyring">OS keyring</option>
-                    <option value="internal">Internal vault</option>
-                  </select>
+                    onChange={(v) => setEditStorage(v as "keyring" | "internal")}
+                    options={[
+                      { value: "keyring", label: "OS keyring" },
+                      { value: "internal", label: "Internal vault" },
+                    ]}
+                    aria-label="Password storage"
+                  />
                 </div>
               </div>
               <p className="data-hint">

@@ -8,6 +8,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import type { ProfileDTO } from "../types/models";
 import "./sshpasswordmodal.css";
+import { DropdownSelect } from "./ui";
 
 export type SshPasswordModalPurpose = "terminal" | "dashboard";
 
@@ -148,22 +149,25 @@ export function SshPasswordModal({ context, onClose, onConnected }: Props) {
 
           <div className="ssh-pw-field">
             <label htmlFor="ssh-pw-save">Save password for this profile</label>
-            <select
+            <DropdownSelect
               id="ssh-pw-save"
+              className="ssh-pw-save-select ssh-pw-field-select"
               value={saveAs}
-              onChange={(e) => {
-                const v = e.target.value as SavePasswordAs;
-                setSaveAs(v);
-                if (v !== "internal") {
+              onChange={(v) => {
+                const next = v as SavePasswordAs;
+                setSaveAs(next);
+                if (next !== "internal") {
                   setVaultMasterPassword("");
                 }
               }}
               disabled={busy}
-            >
-              <option value="none">Do not save (ask again next time)</option>
-              <option value="keyring">Operating system keyring</option>
-              <option value="internal">App vault (encrypted with a master password)</option>
-            </select>
+              options={[
+                { value: "none", label: "Do not save (ask again next time)" },
+                { value: "keyring", label: "Operating system keyring" },
+                { value: "internal", label: "App vault (encrypted with a master password)" },
+              ]}
+              aria-label="Save password for this profile"
+            />
           </div>
 
           {saveAs === "internal" && !vaultSetup ? (

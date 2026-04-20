@@ -16,6 +16,7 @@ import { onLogsSync, startLogsEventBridge } from "../logs/events";
 import { LogSourceEditorModal, type LogSourceEditorState } from "./LogSourceEditorModal";
 import "./settingspage.css";
 import "./logsworkspace.css";
+import { DropdownSelect } from "./ui";
 
 type Props = {
   profiles: ProfileDTO[];
@@ -118,6 +119,33 @@ export function LogsWorkspace({ profiles }: Props) {
     }
     return { kind: "docker_remote", profileId: selectedRemoteProfileId, containerName: selectedRemoteContainer };
   }, [activeProfileId, ownerKind, selectedLocalContainer, selectedRemoteContainer, selectedRemoteProfileId]);
+
+  const logsRemoteProfileOptions = useMemo(
+    () => [
+      { value: "", label: "Select connection" },
+      ...profiles.map((p) => ({ value: p.id, label: p.name?.trim() ? p.name : p.id })),
+    ],
+    [profiles]
+  );
+
+  const viewerSourceFilterOptions = useMemo(
+    () => [
+      { value: "all", label: "All sources" },
+      ...sources.map((s) => ({
+        value: s.id,
+        label: s.displayName?.trim() ? s.displayName : s.path,
+      })),
+    ],
+    [sources]
+  );
+
+  const levelFilterOptions = useMemo(
+    () => [
+      { value: "all", label: "All" },
+      ...(queryResult.levels ?? []).map((level) => ({ value: level, label: level })),
+    ],
+    [queryResult.levels]
+  );
 
   const loadSources = useCallback(async () => {
     if (sourceFilter.kind === "profile" && !sourceFilter.profileId) {
@@ -401,19 +429,13 @@ export function LogsWorkspace({ profiles }: Props) {
           <div className="logs-column-scroll">
             {ownerKind === "docker_remote" ? (
               <div className="logs-connections-field settings-logs-general">
-                <select
+                <DropdownSelect
                   className="settings-field-input"
                   value={selectedRemoteProfileId}
-                  onChange={(e) => setSelectedRemoteProfileId(e.target.value)}
+                  onChange={setSelectedRemoteProfileId}
+                  options={logsRemoteProfileOptions}
                   aria-label="Connection"
-                >
-                  <option value="">Select connection</option>
-                  {profiles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             ) : null}
 
@@ -486,7 +508,7 @@ export function LogsWorkspace({ profiles }: Props) {
         <section className="logs-column logs-column--right" aria-label="Logs workspace">
           <div className="logs-right-tab-panels">
             {rightPaneTab === "viewer" ? (
-              <div className="logs-right-tab-panel" role="tabpanel">
+              <div className="logs-right-tab-panel logs-right-tab-panel--viewer" role="tabpanel">
                 <div className={`logs-viewer-filters-anim ${viewerFiltersOpen ? "is-open" : ""}`}>
                   <div className="logs-viewer-filters-anim-inner">
                     <div className="logs-viewer-filters settings-logs-general">
@@ -521,41 +543,29 @@ export function LogsWorkspace({ profiles }: Props) {
                           <span className="settings-field-label" id="logs-filter-source-label">
                             Source
                           </span>
-                          <select
+                          <DropdownSelect
                             id="logs-filter-source"
                             className="settings-field-input"
                             value={viewerSourceFilterId}
-                            onChange={(e) =>
-                              setViewerSourceFilterId(e.target.value === "all" ? "all" : e.target.value)
-                            }
+                            onChange={(v) => setViewerSourceFilterId(v === "all" ? "all" : v)}
+                            options={viewerSourceFilterOptions}
+                            searchable
+                            searchPlaceholder="Filter sources…"
                             aria-labelledby="logs-filter-source-label"
-                          >
-                            <option value="all">All sources</option>
-                            {sources.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.displayName?.trim() ? s.displayName : s.path}
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </label>
                         <label className="settings-field">
                           <span className="settings-field-label" id="logs-filter-level-label">
                             Level
                           </span>
-                          <select
+                          <DropdownSelect
                             id="logs-filter-level"
                             className="settings-field-input"
                             value={levelFilter}
-                            onChange={(e) => setLevelFilter(e.target.value)}
+                            onChange={setLevelFilter}
+                            options={levelFilterOptions}
                             aria-labelledby="logs-filter-level-label"
-                          >
-                            <option value="all">All</option>
-                            {(queryResult.levels ?? []).map((level) => (
-                              <option key={level} value={level}>
-                                {level}
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </label>
                         <label className="settings-field">
                           <span className="settings-field-label" id="logs-filter-search-label">
