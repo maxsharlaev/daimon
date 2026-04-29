@@ -615,7 +615,7 @@ func (a *App) dataRemoteDockerMySQLQuery(remoteSessionID, containerID string, sr
 	if strings.TrimSpace(src.Database) != "" {
 		extra = " " + shellescape.Quote(strings.TrimSpace(src.Database))
 	}
-	script := fmt.Sprintf(`echo %s | base64 -d | docker run -i --rm --network container:%s -e MYSQL_PWD=%s %s mysql -h 127.0.0.1 -P %d -u %s -B -N%s`,
+	script := fmt.Sprintf(`echo %s | base64 -d | docker run -i --rm --network container:%s -e MYSQL_PWD=%s %s mysql -h 127.0.0.1 -P %d -u %s --default-character-set=utf8mb4 -B%s`,
 		shellescape.Quote(b64),
 		shellescape.Quote(containerID),
 		shellescape.Quote(password),
@@ -628,7 +628,7 @@ func (a *App) dataRemoteDockerMySQLQuery(remoteSessionID, containerID string, sr
 	if err != nil {
 		return nil, nil, err
 	}
-	return parseTSV(strings.TrimSpace(out))
+	return parseMySQLTSV(strings.TrimSpace(out))
 }
 
 func (a *App) getDataSession(sessionID string) (*dataSession, error) {

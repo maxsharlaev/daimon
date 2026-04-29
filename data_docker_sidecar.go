@@ -133,7 +133,8 @@ func dockerMySQLQuery(containerID, host string, port int, user, password, databa
 	}
 	args := []string{
 		"mysql", "-h", host, "-P", strconv.Itoa(port), "-u", user,
-		"-B", "-N", "-e", sqlText,
+		"--default-character-set=utf8mb4",
+		"-B", "-e", sqlText,
 	}
 	if database != "" {
 		args = append(args, database)
@@ -145,7 +146,8 @@ func dockerMySQLQuery(containerID, host string, port int, user, password, databa
 		}
 		return nil, nil, err
 	}
-	// mysql -B -N tab-separated; first row might be header if we used -e with multiple columns - actually -N removes column names
+	// mysql -B emits tab-separated output and includes the header row (unless -N is set).
+	// We keep headers so UI gets real column names.
 	return parseMySQLTSV(out)
 }
 
@@ -186,7 +188,25 @@ func parseTSV(s string) (cols []string, rows [][]string, err error) {
 }
 
 func parseMySQLTSV(s string) (cols []string, rows [][]string, err error) {
-	return parseTSV(s)
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, nil, nil
+	}
+	r := csv.NewReader(strings.NewReader(s))
+	r.Comma = '\t'
+	r.LazyQuotes = true
+	records, err := r.ReadAll()
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(records) == 0 {
+		return nil, nil, nil
+	}
+	cols = records[0]
+	if len(records) > 1 {
+		rows = records[1:]
+	}
+	return cols, rows, nil
 }
 
 func dockerRemoteShellQuote(s string) string {
