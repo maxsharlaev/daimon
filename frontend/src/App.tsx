@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
+import daimonLogo from "./assets/images/daimon-logo.png";
 
 import { SplitView } from "./components/SplitView";
 import { ConnectionsPanel } from "./components/ConnectionsPanel";
@@ -808,7 +809,10 @@ function App() {
     <div className="app-shell">
       <div className="topbar">
         <div className="brand">
-          <span className="brand-name">daimon</span>
+          <div className="brand-mark">
+            <img src={daimonLogo} alt="" className="brand-logo" aria-hidden />
+            <span className="brand-name">daimon</span>
+          </div>
           <div className="topbar-tabs" role="tablist" aria-label="App mode">
             <button
               className={`topbar-tab ${appMode === "connections" ? "active" : ""}`}
