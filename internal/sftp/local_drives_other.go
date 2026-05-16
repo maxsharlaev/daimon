@@ -2,8 +2,7 @@
 
 package sftp
 
-// ListLocalDrives returns local "roots" for non-Windows systems.
+// ListLocalDrives returns local roots (alias for ListLocalVolumes on non-Windows).
 func ListLocalDrives() ([]string, error) {
-	return []string{"/"}, nil
+	return ListLocalVolumes()
 }
-

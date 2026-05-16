@@ -1,0 +1,211 @@
+.local-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.local-layout-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
+}
+
+.local-layout-toolbar .spacer {
+  flex: 1;
+}
+
+.local-system-badge {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.local-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.local-body[data-layout="both-term"] {
+  display: grid;
+  grid-template-rows: 1fr minmax(180px, 38%);
+  grid-template-columns: 1fr;
+}
+
+.local-body[data-layout="side-term"] {
+  display: grid;
+  grid-template-columns: 1fr minmax(280px, 42%);
+  grid-template-rows: 1fr;
+}
+
+.local-body[data-layout="panels-only"] {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.local-panels-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  min-height: 0;
+}
+
+.local-body[data-layout="side-term"] .local-panels-row {
+  grid-template-columns: 1fr;
+}
+
+.local-body[data-layout="side-term"] .local-panels-row[data-single="true"] {
+  grid-template-columns: 1fr;
+}
+
+.local-pane-wrap {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.local-file-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.local-file-pane.active {
+  border-color: rgba(110, 231, 255, 0.35);
+}
+
+.local-file-pane .pathbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.local-file-pane .pane-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.local-file-pane .list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.local-file-pane .row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: default;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.local-file-pane .row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.local-file-pane .row.selected {
+  background: rgba(110, 231, 255, 0.12);
+}
+
+.local-file-pane .name.dir {
+  color: rgba(110, 231, 255, 0.9);
+}
+
+.local-file-pane .meta {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+}
+
+.local-terminal-wrap {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0b1220;
+}
+
+.local-terminal-header {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.local-terminal {
+  flex: 1;
+  min-height: 0;
+}
+
+.local-pane-error {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #f87171;
+}
+
+.local-file-pane .crumbs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.local-file-pane .crumbwrap {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+.local-file-pane .crumb {
+  border: none;
+  background: transparent;
+  color: rgba(110, 231, 255, 0.85);
+  font-size: 12px;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.local-file-pane .crumb:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.local-file-pane .crumbsep {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+  user-select: none;
+}
+
+.local-layout-toolbar .btn.active {
+  border-color: rgba(110, 231, 255, 0.45);
+  background: rgba(110, 231, 255, 0.1);
+}

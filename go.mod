@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	al.essio.dev/pkg/shellescape v1.5.1
+	github.com/creack/pty v1.1.24
 	github.com/docker/docker v27.2.1+incompatible
 	github.com/docker/go-units v0.5.0
 	github.com/dustin/go-humanize v1.0.1

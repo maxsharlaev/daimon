@@ -38,6 +38,8 @@ import { SecretsModal } from "./components/SecretsModal";
 import { SettingsPage } from "./components/SettingsPage";
 import { LogsWorkspace } from "./components/LogsWorkspace";
 import { DataWorkspace } from "./components/DataWorkspace";
+import { LocalWorkspace } from "./components/local/LocalWorkspace";
+import type { LocalWorkspacePersist } from "./types/local";
 
 type FilesLastPathsByProfile = Record<string, { localPath: string; remotePath: string }>;
 
@@ -57,7 +59,8 @@ function shellQuote(p: string) {
 }
 
 function App() {
-  const [appMode, setAppMode] = useState<"connections" | "docker" | "logs" | "data" | "settings">("connections");
+  const [appMode, setAppMode] = useState<"local" | "connections" | "docker" | "logs" | "data" | "settings">("local");
+  const [localWorkspace, setLocalWorkspace] = useState<LocalWorkspacePersist | null>(null);
   const [groups, setGroups] = useState<ProfileGroupDTO[]>([]);
   const [profiles, setProfiles] = useState<ProfileDTO[]>([]);
   const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>([]);
@@ -315,8 +318,18 @@ function App() {
       try {
         const v = JSON.parse(raw);
         const nextMode = v?.appMode;
-        if (nextMode === "connections" || nextMode === "docker" || nextMode === "logs" || nextMode === "data" || nextMode === "settings") {
+        if (
+          nextMode === "local" ||
+          nextMode === "connections" ||
+          nextMode === "docker" ||
+          nextMode === "logs" ||
+          nextMode === "data" ||
+          nextMode === "settings"
+        ) {
           setAppMode(nextMode);
+        }
+        if (v?.localWorkspace && typeof v.localWorkspace === "object") {
+          setLocalWorkspace(v.localWorkspace as LocalWorkspacePersist);
         }
         if (Array.isArray(v?.expandedGroupIds)) {
           hasPersistedExpandedGroupsRef.current = true;
@@ -337,11 +350,17 @@ function App() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      const payload = JSON.stringify({ version: 3, appMode, expandedGroupIds, filesLastPathsByProfile });
+      const payload = JSON.stringify({
+        version: 4,
+        appMode,
+        expandedGroupIds,
+        filesLastPathsByProfile,
+        localWorkspace,
+      });
       void SaveUILayout("app", payload);
     }, 250);
     return () => clearTimeout(t);
-  }, [appMode, expandedGroupIds, filesLastPathsByProfile]);
+  }, [appMode, expandedGroupIds, filesLastPathsByProfile, localWorkspace]);
 
   // Update session markers from ssh:state events
   useEffect(() => {
@@ -815,6 +834,15 @@ function App() {
           </div>
           <div className="topbar-tabs" role="tablist" aria-label="App mode">
             <button
+              className={`topbar-tab ${appMode === "local" ? "active" : ""}`}
+              type="button"
+              role="tab"
+              aria-selected={appMode === "local"}
+              onClick={() => setAppMode("local")}
+            >
+              Local
+            </button>
+            <button
               className={`topbar-tab ${appMode === "connections" ? "active" : ""}`}
               type="button"
               role="tab"
@@ -876,6 +904,9 @@ function App() {
 
       <div className="content">
         <div className="app-grid">
+          <div className="app-mode-pane" style={{ display: appMode === "local" ? undefined : "none" }}>
+            <LocalWorkspace persist={localWorkspace} onPersist={setLocalWorkspace} />
+          </div>
           <div
             className="app-mode-pane"
             style={{ display: appMode === "connections" ? undefined : "none" }}

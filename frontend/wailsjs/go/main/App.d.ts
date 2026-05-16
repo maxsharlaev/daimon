@@ -277,11 +277,23 @@ export function LocalListDir(arg1:string):Promise<Array<sftp.FileEntryDTO>>;
 
 export function LocalListDrives():Promise<Array<string>>;
 
+export function LocalListVolumes():Promise<Array<string>>;
+
 export function LocalMkdir(arg1:string):Promise<void>;
 
 export function LocalRename(arg1:string,arg2:string):Promise<void>;
 
+export function LocalShellResize(arg1:string,arg2:number,arg3:number):Promise<void>;
+
+export function LocalShellSend(arg1:string,arg2:string):Promise<void>;
+
+export function LocalShellStart(arg1:number,arg2:number,arg3:string):Promise<string>;
+
+export function LocalShellStop(arg1:string):Promise<void>;
+
 export function LocalStat(arg1:string):Promise<sftp.FileEntryDTO>;
+
+export function LocalSystemInfo():Promise<main.LocalSystemInfoDTO>;
 
 export function LogsPurge(arg1:main.LogsPurgeRequest):Promise<number>;
 
