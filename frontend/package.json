@@ -4,6 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "sync:appicon": "node ./scripts/sync-appicon.cjs",
+    "sync:appicon:force": "node ./scripts/sync-appicon.cjs --force",
+    "predev": "node ./scripts/sync-appicon.cjs --if-changed",
+    "prebuild": "node ./scripts/sync-appicon.cjs --if-changed",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"

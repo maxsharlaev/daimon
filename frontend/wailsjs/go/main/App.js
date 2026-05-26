@@ -550,6 +550,10 @@ export function LocalListDrives() {
   return window['go']['main']['App']['LocalListDrives']();
 }
 
+export function LocalListVolumes() {
+  return window['go']['main']['App']['LocalListVolumes']();
+}
+
 export function LocalMkdir(arg1) {
   return window['go']['main']['App']['LocalMkdir'](arg1);
 }
@@ -558,8 +562,32 @@ export function LocalRename(arg1, arg2) {
   return window['go']['main']['App']['LocalRename'](arg1, arg2);
 }
 
+export function LocalShellCwd(arg1) {
+  return window['go']['main']['App']['LocalShellCwd'](arg1);
+}
+
+export function LocalShellResize(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LocalShellResize'](arg1, arg2, arg3);
+}
+
+export function LocalShellSend(arg1, arg2) {
+  return window['go']['main']['App']['LocalShellSend'](arg1, arg2);
+}
+
+export function LocalShellStart(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LocalShellStart'](arg1, arg2, arg3);
+}
+
+export function LocalShellStop(arg1) {
+  return window['go']['main']['App']['LocalShellStop'](arg1);
+}
+
 export function LocalStat(arg1) {
   return window['go']['main']['App']['LocalStat'](arg1);
+}
+
+export function LocalSystemInfo() {
+  return window['go']['main']['App']['LocalSystemInfo']();
 }
 
 export function LogsPurge(arg1) {

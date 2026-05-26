@@ -97,6 +97,17 @@ type EditGroupState = {
   order: number;
 };
 
+type DeleteProfileModalState = {
+  open: boolean;
+  profileId: string | null;
+  profileName: string;
+  profileHost: string;
+  termCount: number;
+  filesCount: number;
+  hasDashboard: boolean;
+  message: string;
+};
+
 export function ConnectionsPanel({
   groups,
   profiles,
@@ -146,6 +157,16 @@ export function ConnectionsPanel({
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuItems, setMenuItems] = useState<ContextMenuItem[]>([]);
+  const [deleteProfileModal, setDeleteProfileModal] = useState<DeleteProfileModalState>({
+    open: false,
+    profileId: null,
+    profileName: "",
+    profileHost: "",
+    termCount: 0,
+    filesCount: 0,
+    hasDashboard: false,
+    message: "",
+  });
 
   const groupsById = useMemo(() => {
     const m = new Map<string, ProfileGroupDTO>();
@@ -270,12 +291,77 @@ export function ConnectionsPanel({
     setProfileEditorOpen(true);
   };
 
+  const openDeleteProfileModal = (profileId: string) => {
+    const profile = profiles.find((p) => p.id === profileId) ?? null;
+    const termSessions = sessions.filter((s) => s.profileId === profileId);
+    const filesForProf = fileSessions.filter((s) => s.profileId === profileId);
+    const dash = dashboardSessions.find((s) => s.profileId === profileId) ?? null;
+    const hasOpenSessions = termSessions.length > 0 || filesForProf.length > 0 || dash !== null;
+    const message = hasOpenSessions
+      ? "This will also close related sessions. This action cannot be undone."
+      : "This action cannot be undone.";
+    setDeleteProfileModal({
+      open: true,
+      profileId,
+      profileName: profile?.name ?? "Unknown profile",
+      profileHost: profile ? `${profile.username}@${profile.host}:${profile.port}` : "",
+      termCount: termSessions.length,
+      filesCount: filesForProf.length,
+      hasDashboard: dash !== null,
+      message,
+    });
+  };
+
   const doDeleteProfile = async (profileId: string) => {
-    if (!confirm("Delete profile?")) return;
+    const termSessions = sessions.filter((s) => s.profileId === profileId);
+    const filesForProf = fileSessions.filter((s) => s.profileId === profileId);
+    const dash = dashboardSessions.find((s) => s.profileId === profileId) ?? null;
+
     setBusy(true);
     setError(null);
     try {
+      for (const s of termSessions) {
+        try {
+          if (s.marker !== "gray") {
+            await SSHDisconnect(s.sessionId);
+          }
+        } catch {
+          /* still drop UI row */
+        }
+        onCloseSession(s.sessionId);
+      }
+      for (const s of filesForProf) {
+        try {
+          if (s.marker !== "gray") {
+            await SFTPDisconnect(s.sessionId);
+          }
+        } catch {
+          /* still drop UI row */
+        }
+        onCloseFileSession(s.sessionId);
+      }
+      if (dash) {
+        try {
+          if (dash.marker !== "gray") {
+            await SSHDisconnect(dash.sessionId);
+          }
+        } catch {
+          /* still drop UI row */
+        }
+        onCloseDashboardSession(dash.sessionId);
+      }
+
       await DeleteProfile(profileId);
+      setDeleteProfileModal({
+        open: false,
+        profileId: null,
+        profileName: "",
+        profileHost: "",
+        termCount: 0,
+        filesCount: 0,
+        hasDashboard: false,
+        message: "",
+      });
       onDataChanged();
     } catch (e: any) {
       setError(e?.message ?? String(e));
@@ -538,7 +624,6 @@ export function ConnectionsPanel({
                             rightMode === "terminal" && profSessions.some((s) => s.sessionId === activeSessionId);
                           const hasActiveFiles = rightMode === "files" && profFileSessions.some((s) => s.sessionId === activeFileSessionId);
                           const hasActiveDashboard = rightMode === "dashboard" && profDashboard?.sessionId === activeDashboardSessionId;
-                          const canDelete = profSessions.length === 0;
                           const topMarker: Marker =
                             profSessions.find((s) => s.marker === "yellow")?.marker ??
                             profSessions.find((s) => s.marker === "green")?.marker ??
@@ -587,8 +672,7 @@ export function ConnectionsPanel({
                                           id: "delete",
                                           label: "Delete",
                                           danger: true,
-                                          disabled: !canDelete,
-                                          onClick: () => void doDeleteProfile(p.id),
+                                          onClick: () => openDeleteProfileModal(p.id),
                                         },
                                       ])
                                     }
@@ -716,6 +800,54 @@ export function ConnectionsPanel({
             })
         )}
       </div>
+
+      {deleteProfileModal.open ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal">
+            <div className="modal-title">Delete profile?</div>
+            <div className="modal-body">
+              <div>
+                <strong>{deleteProfileModal.profileName}</strong>
+              </div>
+              {deleteProfileModal.profileHost ? <div>{deleteProfileModal.profileHost}</div> : null}
+              <div>{deleteProfileModal.message}</div>
+              <div>
+                Sessions to close: terminal {deleteProfileModal.termCount}, files {deleteProfileModal.filesCount}, dashboard{" "}
+                {deleteProfileModal.hasDashboard ? "1" : "0"}.
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="btn btn-ghost"
+                type="button"
+                onClick={() =>
+                  setDeleteProfileModal({
+                    open: false,
+                    profileId: null,
+                    profileName: "",
+                    profileHost: "",
+                    termCount: 0,
+                    filesCount: 0,
+                    hasDashboard: false,
+                    message: "",
+                  })
+                }
+                disabled={busy}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn"
+                type="button"
+                onClick={() => deleteProfileModal.profileId && void doDeleteProfile(deleteProfileModal.profileId)}
+                disabled={busy}
+              >
+                {busy ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Group modal */}
       {editGroup.open ? (

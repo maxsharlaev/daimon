@@ -934,6 +934,30 @@ export namespace main {
 	        this.containerName = source["containerName"];
 	    }
 	}
+	export class LocalSystemInfoDTO {
+	    os: string;
+	    arch: string;
+	    hostname: string;
+	    homeDir: string;
+	    defaultShell: string;
+	    volumeLabel: string;
+	    osDisplayName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LocalSystemInfoDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.os = source["os"];
+	        this.arch = source["arch"];
+	        this.hostname = source["hostname"];
+	        this.homeDir = source["homeDir"];
+	        this.defaultShell = source["defaultShell"];
+	        this.volumeLabel = source["volumeLabel"];
+	        this.osDisplayName = source["osDisplayName"];
+	    }
+	}
 	export class LogEntryDTO {
 	    id: string;
 	    sourceId: string;

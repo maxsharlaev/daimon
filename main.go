@@ -3,6 +3,8 @@ package main
 import (
 	"embed"
 
+	_ "daimon/internal/appicon" // linked so edits to internal/appicon/epoch.go trigger wails dev rebuilds (app icon sync)
+
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"

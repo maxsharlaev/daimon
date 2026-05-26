@@ -7,6 +7,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"daimon/internal/localpty"
 	"daimon/internal/secrets"
 	"daimon/internal/sftp"
 	"daimon/internal/storage"
@@ -21,6 +22,7 @@ type App struct {
 	sftp          *sftp.Manager
 	sftpTransfers *sftp.TransferManager
 	dockerStreams *DockerStreamManager
+	localPTY      *localpty.Manager
 
 	dataMu       sync.Mutex
 	dataSessions map[string]*dataSession
@@ -48,12 +50,18 @@ func (a *App) startup(ctx context.Context) {
 	a.db = store
 	a.secrets = secrets.NewRouter(store.DB)
 	a.sftp = sftp.NewManager()
+	a.localPTY = localpty.NewManager(func(event string, payload any) {
+		runtime.EventsEmit(a.ctx, event, payload)
+	})
 
 	_, _ = a.EnsureDefaultGroup()
 	_ = seedDefaultLogFormats(store.DB)
 }
 
 func (a *App) shutdown(ctx context.Context) {
+	if a.localPTY != nil {
+		a.localPTY.StopAll()
+	}
 	a.dataCloseAllSessions()
 	if a.db != nil {
 		_ = a.db.Close()
