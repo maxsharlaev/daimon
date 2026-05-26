@@ -1,5 +1,5 @@
 import { EventsOn } from "../../wailsjs/runtime/runtime";
-import type { LocalOutputEvent, LocalStateEvent } from "../types/local";
+import type { LocalCwdEvent, LocalOutputEvent, LocalStateEvent } from "../types/local";
 
 let started = false;
 
@@ -34,6 +34,13 @@ export function onLocalOutput(cb: (ev: LocalOutputEvent) => void) {
 export function onLocalState(cb: (ev: LocalStateEvent) => void) {
   return EventsOn("local:state", (...args: unknown[]) => {
     const ev = normalize<LocalStateEvent>(args);
+    if (ev) cb(ev);
+  });
+}
+
+export function onLocalCwd(cb: (ev: LocalCwdEvent) => void) {
+  return EventsOn("local:cwd", (...args: unknown[]) => {
+    const ev = normalize<LocalCwdEvent>(args);
     if (ev) cb(ev);
   });
 }

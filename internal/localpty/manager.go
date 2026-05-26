@@ -30,6 +30,11 @@ type StateEvent struct {
 	Error string `json:"error,omitempty"`
 }
 
+type CwdEvent struct {
+	ID   string `json:"id"`
+	Path string `json:"path"`
+}
+
 type EmitFunc func(event string, payload any)
 
 type Manager struct {
@@ -39,10 +44,12 @@ type Manager struct {
 }
 
 type session struct {
-	id     string
-	ptmx   *os.File
-	cmd    *exec.Cmd
-	closed chan struct{}
+	id       string
+	ptmx     *os.File
+	cmd      *exec.Cmd
+	closed   chan struct{}
+	cwd      string
+	inputBuf strings.Builder
 }
 
 func NewManager(emit EmitFunc) *Manager {
@@ -91,13 +98,14 @@ func (m *Manager) Start(ctx context.Context, cols, rows int, cwd string) (string
 	}
 
 	id := randomID()
-	s := &session{id: id, ptmx: ptmx, cmd: cmd, closed: make(chan struct{})}
+	s := &session{id: id, ptmx: ptmx, cmd: cmd, closed: make(chan struct{}), cwd: cwd}
 	m.mu.Lock()
 	m.shells[id] = s
 	m.mu.Unlock()
 
 	if m.emit != nil {
 		m.emit("local:state", StateEvent{ID: id, State: "connected"})
+		m.emit("local:cwd", CwdEvent{ID: id, Path: cwd})
 	}
 
 	go m.pump(ctx, id, ptmx, false)
@@ -113,6 +121,20 @@ func (m *Manager) Start(ctx context.Context, cols, rows int, cwd string) (string
 	return id, nil
 }
 
+func (m *Manager) Cwd(id string) (string, error) {
+	m.mu.Lock()
+	s := m.shells[id]
+	cwd := ""
+	if s != nil {
+		cwd = s.cwd
+	}
+	m.mu.Unlock()
+	if s == nil {
+		return "", errors.New("local shell not found")
+	}
+	return cwd, nil
+}
+
 func (m *Manager) Send(id string, data string) error {
 	m.mu.Lock()
 	s := m.shells[id]
@@ -121,7 +143,64 @@ func (m *Manager) Send(id string, data string) error {
 		return errors.New("local shell not found")
 	}
 	_, err := s.ptmx.Write([]byte(data))
-	return err
+	if err != nil {
+		return err
+	}
+	m.feedInput(id, data)
+	return nil
+}
+
+func (m *Manager) feedInput(id string, data string) {
+	var cwdUpdate string
+	m.mu.Lock()
+	s := m.shells[id]
+	if s == nil {
+		m.mu.Unlock()
+		return
+	}
+	for _, ch := range data {
+		if ch == '\r' || ch == '\n' {
+			line := s.inputBuf.String()
+			s.inputBuf.Reset()
+			next := ApplyCdLine(s.cwd, line)
+			if next != "" && next != s.cwd {
+				s.cwd = next
+				cwdUpdate = next
+			}
+		} else {
+			s.inputBuf.WriteRune(ch)
+		}
+	}
+	m.mu.Unlock()
+	if cwdUpdate != "" {
+		m.emitCwd(id, cwdUpdate)
+	}
+}
+
+func (m *Manager) emitCwd(id string, path string) {
+	if m.emit == nil {
+		return
+	}
+	m.emit("local:cwd", CwdEvent{ID: id, Path: path})
+}
+
+func (m *Manager) noteCwdFromOutput(id string, chunk string) {
+	if p := ParseOSC7Cwd(chunk); p != "" {
+		m.setCwd(id, p)
+	}
+}
+
+func (m *Manager) setCwd(id string, path string) {
+	path = filepath.Clean(path)
+	m.mu.Lock()
+	s := m.shells[id]
+	if s == nil || s.cwd == path {
+		m.mu.Unlock()
+		return
+	}
+	s.cwd = path
+	m.mu.Unlock()
+	m.emitCwd(id, path)
 }
 
 func (m *Manager) Resize(id string, cols, rows int) error {
@@ -193,8 +272,12 @@ func (m *Manager) pump(ctx context.Context, id string, r io.Reader, isErr bool) 
 		default:
 		}
 		n, err := r.Read(buf)
-		if n > 0 && m.emit != nil {
-			m.emit("local:output", OutputEvent{ID: id, Data: string(buf[:n]), IsErr: isErr})
+		if n > 0 {
+			chunk := string(buf[:n])
+			m.noteCwdFromOutput(id, chunk)
+			if m.emit != nil {
+				m.emit("local:output", OutputEvent{ID: id, Data: chunk, IsErr: isErr})
+			}
 		}
 		if err != nil {
 			return

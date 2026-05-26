@@ -562,6 +562,10 @@ export function LocalRename(arg1, arg2) {
   return window['go']['main']['App']['LocalRename'](arg1, arg2);
 }
 
+export function LocalShellCwd(arg1) {
+  return window['go']['main']['App']['LocalShellCwd'](arg1);
+}
+
 export function LocalShellResize(arg1, arg2, arg3) {
   return window['go']['main']['App']['LocalShellResize'](arg1, arg2, arg3);
 }

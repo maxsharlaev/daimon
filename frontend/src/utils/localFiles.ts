@@ -51,6 +51,17 @@ export function volumeForPath(p: string, volumes: string[]): string | null {
   return best;
 }
 
+/** Separator after crumb at index (empty after Unix root so we do not render "/" twice). */
+export function crumbSeparatorAfter(
+  idx: number,
+  crumb: { path: string },
+  total: number
+): string {
+  if (idx >= total - 1) return "";
+  if (idx === 0 && crumb.path === "/") return "";
+  return "/";
+}
+
 export function breadcrumbsLocal(p: string): Array<{ label: string; path: string }> {
   if (!p) return [];
   const win = p.match(/^([a-zA-Z]:)(\\|\/)?/);

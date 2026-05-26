@@ -6,12 +6,15 @@ type Props = {
   onChange: (next: LocalLayoutFlags) => void;
 };
 
+function visibleCount(layout: LocalLayoutFlags) {
+  return (layout.leftPanel ? 1 : 0) + (layout.rightPanel ? 1 : 0) + (layout.terminal ? 1 : 0);
+}
+
 export function LocalLayoutToolbar({ layout, system, onChange }: Props) {
   const toggle = (key: keyof LocalLayoutFlags) => {
     const next = { ...layout, [key]: !layout[key] };
-    if (!next.leftPanel && !next.rightPanel && !next.terminal) {
-      next.terminal = true;
-    }
+    // Do not allow hiding everything — keep at least one block visible.
+    if (visibleCount(next) === 0) return;
     onChange(next);
   };
 
@@ -51,4 +54,3 @@ export function LocalLayoutToolbar({ layout, system, onChange }: Props) {
     </div>
   );
 }
-

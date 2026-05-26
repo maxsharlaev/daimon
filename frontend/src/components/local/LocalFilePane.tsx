@@ -6,11 +6,18 @@ import {
   LocalListVolumes,
   LocalMkdir,
   LocalRename,
+  LocalShellCwd,
+  LocalShellSend,
+  LocalShellStart,
   PickLocalFolder,
 } from "../../../wailsjs/go/main/App";
-import type { LocalPanelConfig, LocalSystemInfo } from "../../types/local";
+import type { LocalPanelConfig, LocalPanelKind, LocalSystemInfo } from "../../types/local";
+import { PANEL_KIND_OPTIONS } from "../../types/local";
+import { onLocalCwd, startLocalEventBridge } from "../../local/events";
+import { LocalPanelShell } from "./LocalPanelShell";
 import {
   breadcrumbsLocal,
+  crumbSeparatorAfter,
   displayEntries,
   fmtDate,
   fmtSize,
@@ -28,7 +35,8 @@ type Props = {
   system: LocalSystemInfo | null;
   onConfigChange: (next: LocalPanelConfig) => void;
   onActivate: () => void;
-  onOpenTerminalHere?: (path: string) => void;
+  /** cd in the workspace main terminal; enables it if hidden */
+  onOpenMainTerminal?: (path: string) => void;
 };
 
 export function LocalFilePane({
@@ -39,7 +47,7 @@ export function LocalFilePane({
   system,
   onConfigChange,
   onActivate,
-  onOpenTerminalHere,
+  onOpenMainTerminal,
 }: Props) {
   const [entries, setEntries] = useState<LocalFileEntry[]>([]);
   const [volumes, setVolumes] = useState<string[]>([]);
@@ -99,14 +107,89 @@ export function LocalFilePane({
   }, []);
 
   useEffect(() => {
-    if (!path) return;
+    if (config.kind !== "files" || !path) return;
     void refresh();
-  }, [path, refresh]);
+  }, [path, refresh, config.kind]);
+
+  useEffect(() => {
+    startLocalEventBridge();
+    return onLocalCwd((ev) => {
+      if (ev.id !== config.shellId) return;
+      const vol = volumeForPath(ev.path, volumes) ?? config.volume;
+      onConfigChange({ ...config, path: ev.path, volume: vol });
+    });
+  }, [config, volumes, onConfigChange]);
+
+  const sendCdToShell = async (shellId: string, dir: string) => {
+    const isWin = system?.os === "windows";
+    const cmd = isWin ? `cd /d "${dir.replace(/"/g, '""')}"\r\n` : `cd ${JSON.stringify(dir)}\n`;
+    await LocalShellSend(shellId, cmd);
+  };
+
+  const ensureSecondaryShell = async (): Promise<string | null> => {
+    if (config.shellId) {
+      try {
+        await LocalShellCwd(config.shellId);
+        return config.shellId;
+      } catch {
+        // stale id
+      }
+    }
+    try {
+      const id = await LocalShellStart(80, 24, path || system?.homeDir || ".");
+      return id;
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+      return null;
+    }
+  };
+
+  const enterTerminalMode = async () => {
+    setError(null);
+    const id = await ensureSecondaryShell();
+    if (!id) return;
+    onConfigChange({ ...config, kind: "terminal", shellId: id });
+    const dir = path || system?.homeDir || ".";
+    void sendCdToShell(id, dir);
+  };
+
+  const onTerminalIconClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onActivate();
+    const dir = path || system?.homeDir || ".";
+    if (e.altKey) {
+      void enterTerminalMode();
+      return;
+    }
+    onOpenMainTerminal?.(dir);
+  };
+
+  const enterFilesMode = async () => {
+    let nextPath = path;
+    if (config.shellId) {
+      try {
+        nextPath = await LocalShellCwd(config.shellId);
+      } catch {
+        // keep path
+      }
+    }
+    const vol = volumeForPath(nextPath, volumes) ?? config.volume;
+    onConfigChange({ ...config, kind: "files", path: nextPath, volume: vol });
+  };
+
+  const setPanelKind = (kind: LocalPanelKind) => {
+    if (kind === config.kind) return;
+    if (kind === "terminal") void enterTerminalMode();
+    else void enterFilesMode();
+  };
 
   const goTo = (nextPath: string) => {
     const vol = volumeForPath(nextPath, volumes) ?? config.volume;
     onConfigChange({ ...config, path: nextPath, volume: vol });
     setSelection(null);
+    if (config.kind === "terminal" && config.shellId) {
+      void sendCdToShell(config.shellId, nextPath);
+    }
   };
 
   const pickFolder = async () => {
@@ -190,7 +273,7 @@ export function LocalFilePane({
     <div className={`local-file-pane ${active ? "active" : ""}`} onMouseDown={onActivate} data-side={side}>
       <div className="pathbar">
         <span className="pathlabel-btn">{title}</span>
-        {volumeOptions.length > 0 ? (
+        {config.kind === "files" && volumeOptions.length > 0 ? (
           <DropdownSelect
             className="drive-select"
             inline
@@ -203,9 +286,11 @@ export function LocalFilePane({
         <DropdownSelect
           className="drive-select"
           inline
-          value="files"
-          onChange={() => {}}
-          options={[{ value: "files", label: "Files" }]}
+          value={config.kind}
+          onChange={(v) => {
+            if (v === "files" || v === "terminal") setPanelKind(v);
+          }}
+          options={PANEL_KIND_OPTIONS}
           aria-label="Panel type"
         />
         <div className="crumbs" title={path}>
@@ -214,56 +299,76 @@ export function LocalFilePane({
               <button className="crumb" type="button" onClick={() => goTo(c.path)}>
                 {c.label}
               </button>
-              {idx < crumbs.length - 1 ? <span className="crumbsep">/</span> : null}
+              {(() => {
+                const sep = crumbSeparatorAfter(idx, c, crumbs.length);
+                return sep ? <span className="crumbsep">{sep}</span> : null;
+              })()}
             </span>
           ))}
         </div>
-        {onOpenTerminalHere ? (
-          <button className="iconbtn" type="button" title="Open terminal here" onClick={() => onOpenTerminalHere(path)}>
+        {config.kind === "files" ? (
+          <button
+            className="iconbtn"
+            type="button"
+            title="Open in main terminal (⌥ — panel terminal)"
+            onClick={onTerminalIconClick}
+          >
             ⌘
           </button>
         ) : null}
       </div>
-      <div className="pane-toolbar">
-        <button className="btn btn-ghost" type="button" onClick={() => void pickFolder()} disabled={busy}>
-          Browse…
-        </button>
-        <button className="btn btn-ghost" type="button" onClick={() => void mkdir()} disabled={busy}>
-          Mkdir
-        </button>
-        <button className="btn btn-ghost" type="button" onClick={startRename} disabled={busy || !selection}>
-          Rename
-        </button>
-        <button className="btn btn-ghost" type="button" onClick={() => void del()} disabled={busy || !selection}>
-          Delete
-        </button>
-      </div>
+      {config.kind === "files" ? (
+        <div className="pane-toolbar">
+          <button className="btn btn-ghost" type="button" onClick={() => void pickFolder()} disabled={busy}>
+            Browse…
+          </button>
+          <button className="btn btn-ghost" type="button" onClick={() => void mkdir()} disabled={busy}>
+            Mkdir
+          </button>
+          <button className="btn btn-ghost" type="button" onClick={startRename} disabled={busy || !selection}>
+            Rename
+          </button>
+          <button className="btn btn-ghost" type="button" onClick={() => void del()} disabled={busy || !selection}>
+            Delete
+          </button>
+        </div>
+      ) : null}
       {error ? <div className="local-pane-error">{error}</div> : null}
-      <div className="list">
-        {display.map((e) => (
-          <div
-            key={e.path}
-            className={`row ${selection === e.path ? "selected" : ""}`}
-            onClick={() => {
-              onActivate();
-              setSelection(e.path);
-            }}
-            onDoubleClick={() => {
-              if (e.isDir) goTo(e.path);
-            }}
-          >
-            <span className={`name ${e.isDir ? "dir" : ""}`}>
-              {e.isDir ? "📁 " : ""}
-              {e.name}
-            </span>
-            <span className="meta">
-              {e.name === ".."
-                ? ""
-                : `${e.isDir ? "" : fmtSize(e.size)}${e.mtimeMs ? `${e.isDir ? "" : " • "}${fmtDate(e.mtimeMs)}` : ""}`}
-            </span>
-          </div>
-        ))}
-      </div>
+      {config.kind === "terminal" && config.shellId ? (
+        <LocalPanelShell
+          shellId={config.shellId}
+          onDisconnected={() => {
+            onConfigChange({ ...config, shellId: undefined });
+            void enterFilesMode();
+          }}
+        />
+      ) : config.kind === "files" ? (
+        <div className="list">
+          {display.map((e) => (
+            <div
+              key={e.path}
+              className={`row ${selection === e.path ? "selected" : ""}`}
+              onClick={() => {
+                onActivate();
+                setSelection(e.path);
+              }}
+              onDoubleClick={() => {
+                if (e.isDir) goTo(e.path);
+              }}
+            >
+              <span className={`name ${e.isDir ? "dir" : ""}`}>
+                {e.isDir ? "📁 " : ""}
+                {e.name}
+              </span>
+              <span className="meta">
+                {e.name === ".."
+                  ? ""
+                  : `${e.isDir ? "" : fmtSize(e.size)}${e.mtimeMs ? `${e.isDir ? "" : " • "}${fmtDate(e.mtimeMs)}` : ""}`}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {renameOpen ? (
         <div className="modal-overlay" role="dialog" aria-modal="true">
           <div className="modal">

@@ -32,3 +32,10 @@ func (a *App) LocalShellStop(id string) error {
 	}
 	return a.localPTY.Stop(id)
 }
+
+func (a *App) LocalShellCwd(id string) (string, error) {
+	if a.localPTY == nil {
+		return "", fmt.Errorf("local shell not ready")
+	}
+	return a.localPTY.Cwd(id)
+}

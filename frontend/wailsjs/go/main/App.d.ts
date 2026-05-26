@@ -283,6 +283,8 @@ export function LocalMkdir(arg1:string):Promise<void>;
 
 export function LocalRename(arg1:string,arg2:string):Promise<void>;
 
+export function LocalShellCwd(arg1:string):Promise<string>;
+
 export function LocalShellResize(arg1:string,arg2:number,arg3:number):Promise<void>;
 
 export function LocalShellSend(arg1:string,arg2:string):Promise<void>;
