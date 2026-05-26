@@ -566,6 +566,18 @@ export function LocalShellCwd(arg1) {
   return window['go']['main']['App']['LocalShellCwd'](arg1);
 }
 
+export function LocalShellDebug(arg1) {
+  return window['go']['main']['App']['LocalShellDebug'](arg1);
+}
+
+export function LocalShellReplay(arg1) {
+  return window['go']['main']['App']['LocalShellReplay'](arg1);
+}
+
+export function LocalShellReplayB64(arg1) {
+  return window['go']['main']['App']['LocalShellReplayB64'](arg1);
+}
+
 export function LocalShellResize(arg1, arg2, arg3) {
   return window['go']['main']['App']['LocalShellResize'](arg1, arg2, arg3);
 }
@@ -580,6 +592,10 @@ export function LocalShellStart(arg1, arg2, arg3) {
 
 export function LocalShellStop(arg1) {
   return window['go']['main']['App']['LocalShellStop'](arg1);
+}
+
+export function LocalShellStopAll() {
+  return window['go']['main']['App']['LocalShellStopAll']();
 }
 
 export function LocalStat(arg1) {

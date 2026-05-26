@@ -44,6 +44,18 @@ function darwinRefreshBundle() {
   }
 }
 
+function removeWindowsIcon() {
+  const ico = path.join(__dirname, "..", "..", "build", "windows", "icon.ico");
+  try {
+    if (fs.existsSync(ico)) {
+      fs.unlinkSync(ico);
+      console.log("sync-appicon: removed stale", path.relative(process.cwd(), ico));
+    }
+  } catch (e) {
+    console.warn("sync-appicon: could not remove icon.ico:", e.message);
+  }
+}
+
 const src = path.join(__dirname, "..", "src", "images", "daimon-icon.png");
 const dest = path.join(__dirname, "..", "..", "build", "appicon.png");
 const epochGo = path.join(__dirname, "..", "..", "internal", "appicon", "epoch.go");
@@ -77,11 +89,15 @@ const shouldBump = ifChangedOnly ? iconChanged : true;
 
 if (shouldBump) {
   bumpEpoch(epochGo);
+  if (iconChanged) {
+    removeWindowsIcon();
+  }
 } else if (ifChangedOnly && !iconChanged) {
   console.log("sync-appicon: build/appicon.png already matches src; skip Epoch bump");
 }
 
 if (forceFS) {
+  removeWindowsIcon();
   const icns = path.join(__dirname, "..", "..", "build", "bin", "daimon.app", "Contents", "Resources", "iconfile.icns");
   try {
     if (fs.existsSync(icns)) {

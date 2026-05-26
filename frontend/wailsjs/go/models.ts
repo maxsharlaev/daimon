@@ -1,3 +1,32 @@
+export namespace localpty {
+	
+	export class DebugInfo {
+	    id: string;
+	    cwd: string;
+	    cols: number;
+	    rows: number;
+	    bufferLen: number;
+	    tailHex: string;
+	    tailText: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DebugInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.cwd = source["cwd"];
+	        this.cols = source["cols"];
+	        this.rows = source["rows"];
+	        this.bufferLen = source["bufferLen"];
+	        this.tailHex = source["tailHex"];
+	        this.tailText = source["tailText"];
+	    }
+	}
+
+}
+
 export namespace main {
 	
 	export class AgentContextDTO {

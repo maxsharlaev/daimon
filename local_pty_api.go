@@ -2,6 +2,8 @@ package main
 
 import "fmt"
 
+import "daimon/internal/localpty"
+
 func (a *App) LocalShellStart(cols int, rows int, cwd string) (string, error) {
 	if a.ctx == nil {
 		return "", fmt.Errorf("app context not ready")
@@ -33,9 +35,38 @@ func (a *App) LocalShellStop(id string) error {
 	return a.localPTY.Stop(id)
 }
 
+func (a *App) LocalShellStopAll() error {
+	if a.localPTY == nil {
+		return fmt.Errorf("local shell not ready")
+	}
+	a.localPTY.StopAll()
+	return nil
+}
+
 func (a *App) LocalShellCwd(id string) (string, error) {
 	if a.localPTY == nil {
 		return "", fmt.Errorf("local shell not ready")
 	}
 	return a.localPTY.Cwd(id)
+}
+
+func (a *App) LocalShellReplay(id string) (string, error) {
+	if a.localPTY == nil {
+		return "", fmt.Errorf("local shell not ready")
+	}
+	return a.localPTY.Replay(id)
+}
+
+func (a *App) LocalShellReplayB64(id string) (string, error) {
+	if a.localPTY == nil {
+		return "", fmt.Errorf("local shell not ready")
+	}
+	return a.localPTY.ReplayB64(id)
+}
+
+func (a *App) LocalShellDebug(id string) (localpty.DebugInfo, error) {
+	if a.localPTY == nil {
+		return localpty.DebugInfo{}, fmt.Errorf("local shell not ready")
+	}
+	return a.localPTY.Debug(id)
 }

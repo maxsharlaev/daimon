@@ -49,7 +49,8 @@ export function sidePanelsPctFromSplit(
 
 export type LocalOutputEvent = {
   id: string;
-  data: string;
+  data?: string;
+  dataB64?: string;
   isErr?: boolean;
 };
 

@@ -1,8 +1,10 @@
 package localpty
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -15,13 +17,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/creack/pty"
+	"github.com/charmbracelet/x/xpty"
 )
 
 type OutputEvent struct {
-	ID    string `json:"id"`
-	Data  string `json:"data"`
-	IsErr bool   `json:"isErr"`
+	ID      string `json:"id"`
+	Data    string `json:"data,omitempty"` // legacy fallback
+	DataB64 string `json:"dataB64,omitempty"`
+	IsErr   bool   `json:"isErr"`
 }
 
 type StateEvent struct {
@@ -35,6 +38,16 @@ type CwdEvent struct {
 	Path string `json:"path"`
 }
 
+type DebugInfo struct {
+	ID        string `json:"id"`
+	Cwd       string `json:"cwd"`
+	Cols      int    `json:"cols"`
+	Rows      int    `json:"rows"`
+	BufferLen int    `json:"bufferLen"`
+	TailHex   string `json:"tailHex"`
+	TailText  string `json:"tailText"`
+}
+
 type EmitFunc func(event string, payload any)
 
 type Manager struct {
@@ -43,13 +56,16 @@ type Manager struct {
 	emit   EmitFunc
 }
 
+const maxShellOutputBuf = 512 * 1024
+
 type session struct {
-	id       string
-	ptmx     *os.File
-	cmd      *exec.Cmd
-	closed   chan struct{}
-	cwd      string
-	inputBuf strings.Builder
+	id        string
+	pty       xpty.Pty
+	cmd       *exec.Cmd
+	closed    chan struct{}
+	cwd       string
+	inputBuf  strings.Builder
+	outputBuf bytes.Buffer
 }
 
 func NewManager(emit EmitFunc) *Manager {
@@ -81,24 +97,22 @@ func (m *Manager) Start(ctx context.Context, cols, rows int, cwd string) (string
 		}
 	}
 
+	pt, err := xpty.NewPty(cols, rows)
+	if err != nil {
+		return "", fmt.Errorf("create pty: %w", err)
+	}
+
 	cmd := exec.Command(shell, shellArgs...)
 	cmd.Dir = cwd
 	cmd.Env = os.Environ()
 
-	ptmx, err := pty.Start(cmd)
-	if err != nil {
-		return "", fmt.Errorf("start pty: %w", err)
-	}
-	if err := pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)}); err != nil {
-		_ = ptmx.Close()
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-		return "", fmt.Errorf("resize pty: %w", err)
+	if err := pt.Start(cmd); err != nil {
+		_ = pt.Close()
+		return "", fmt.Errorf("start shell: %w", err)
 	}
 
 	id := randomID()
-	s := &session{id: id, ptmx: ptmx, cmd: cmd, closed: make(chan struct{}), cwd: cwd}
+	s := &session{id: id, pty: pt, cmd: cmd, closed: make(chan struct{}), cwd: cwd}
 	m.mu.Lock()
 	m.shells[id] = s
 	m.mu.Unlock()
@@ -108,9 +122,9 @@ func (m *Manager) Start(ctx context.Context, cols, rows int, cwd string) (string
 		m.emit("local:cwd", CwdEvent{ID: id, Path: cwd})
 	}
 
-	go m.pump(ctx, id, ptmx, false)
+	go m.pump(ctx, id, pt, false)
 	go func() {
-		err := cmd.Wait()
+		err := xpty.WaitProcess(ctx, cmd)
 		ev := StateEvent{ID: id, State: "disconnected"}
 		if err != nil {
 			ev.Error = err.Error()
@@ -119,6 +133,79 @@ func (m *Manager) Start(ctx context.Context, cols, rows int, cwd string) (string
 	}()
 
 	return id, nil
+}
+
+func (m *Manager) Replay(id string) (string, error) {
+	b64, err := m.ReplayB64(id)
+	if err != nil {
+		return "", err
+	}
+	raw, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+func (m *Manager) ReplayB64(id string) (string, error) {
+	m.mu.Lock()
+	s := m.shells[id]
+	var out string
+	if s != nil {
+		out = base64.StdEncoding.EncodeToString(s.outputBuf.Bytes())
+	}
+	m.mu.Unlock()
+	if s == nil {
+		return "", errors.New("local shell not found")
+	}
+	return out, nil
+}
+
+func (m *Manager) Debug(id string) (DebugInfo, error) {
+	m.mu.Lock()
+	s := m.shells[id]
+	if s == nil {
+		m.mu.Unlock()
+		return DebugInfo{}, errors.New("local shell not found")
+	}
+	info := DebugInfo{
+		ID:        id,
+		Cwd:       s.cwd,
+		BufferLen: s.outputBuf.Len(),
+	}
+	tail := append([]byte(nil), s.outputBuf.Bytes()...)
+	m.mu.Unlock()
+
+	if s.pty != nil {
+		cols, rows, err := s.pty.Size()
+		if err == nil {
+			info.Cols = cols
+			info.Rows = rows
+		}
+	}
+	if len(tail) > 96 {
+		tail = tail[len(tail)-96:]
+	}
+	info.TailHex = hex.EncodeToString(tail)
+	info.TailText = strings.ReplaceAll(string(tail), "\x1b", "\\x1b")
+	return info, nil
+}
+
+func (m *Manager) appendOutput(id string, chunk []byte) {
+	if len(chunk) == 0 {
+		return
+	}
+	m.mu.Lock()
+	s := m.shells[id]
+	if s != nil {
+		_, _ = s.outputBuf.Write(chunk)
+		if s.outputBuf.Len() > maxShellOutputBuf {
+			trim := append([]byte(nil), s.outputBuf.Bytes()...)
+			s.outputBuf.Reset()
+			_, _ = s.outputBuf.Write(trim[len(trim)-maxShellOutputBuf:])
+		}
+	}
+	m.mu.Unlock()
 }
 
 func (m *Manager) Cwd(id string) (string, error) {
@@ -139,10 +226,10 @@ func (m *Manager) Send(id string, data string) error {
 	m.mu.Lock()
 	s := m.shells[id]
 	m.mu.Unlock()
-	if s == nil || s.ptmx == nil {
+	if s == nil || s.pty == nil {
 		return errors.New("local shell not found")
 	}
-	_, err := s.ptmx.Write([]byte(data))
+	_, err := s.pty.Write([]byte(data))
 	if err != nil {
 		return err
 	}
@@ -207,13 +294,13 @@ func (m *Manager) Resize(id string, cols, rows int) error {
 	m.mu.Lock()
 	s := m.shells[id]
 	m.mu.Unlock()
-	if s == nil || s.ptmx == nil {
+	if s == nil || s.pty == nil {
 		return errors.New("local shell not found")
 	}
 	if cols <= 0 || rows <= 0 {
 		return nil
 	}
-	return pty.Setsize(s.ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
+	return s.pty.Resize(cols, rows)
 }
 
 func (m *Manager) Stop(id string) error {
@@ -247,8 +334,8 @@ func (m *Manager) stop(id string, ev *StateEvent) error {
 	default:
 		close(s.closed)
 	}
-	if s.ptmx != nil {
-		_ = s.ptmx.Close()
+	if s.pty != nil {
+		_ = s.pty.Close()
 	}
 	if s.cmd != nil && s.cmd.Process != nil {
 		_ = s.cmd.Process.Kill()
@@ -263,23 +350,48 @@ func (m *Manager) stop(id string, ev *StateEvent) error {
 	return nil
 }
 
+func (m *Manager) emitOutputChunk(id string, chunk []byte, isErr bool) {
+	if len(chunk) == 0 {
+		return
+	}
+	m.appendOutput(id, chunk)
+	m.noteCwdFromOutput(id, string(chunk))
+	if m.emit != nil {
+		m.emit("local:output", OutputEvent{ID: id, DataB64: base64.StdEncoding.EncodeToString(chunk), IsErr: isErr})
+	}
+}
+
 func (m *Manager) pump(ctx context.Context, id string, r io.Reader, isErr bool) {
-	buf := make([]byte, 32*1024)
+	readBuf := make([]byte, 32*1024)
+	var pending []byte
+	flushPending := func() {
+		for len(pending) > 0 {
+			emit, rest := emitPrefix(pending)
+			if len(emit) == 0 {
+				break
+			}
+			pending = rest
+			m.emitOutputChunk(id, emit, isErr)
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
+			if len(pending) > 0 {
+				m.emitOutputChunk(id, pending, isErr)
+			}
 			return
 		default:
 		}
-		n, err := r.Read(buf)
+		n, err := r.Read(readBuf)
 		if n > 0 {
-			chunk := string(buf[:n])
-			m.noteCwdFromOutput(id, chunk)
-			if m.emit != nil {
-				m.emit("local:output", OutputEvent{ID: id, Data: chunk, IsErr: isErr})
-			}
+			pending = append(pending, readBuf[:n]...)
+			flushPending()
 		}
 		if err != nil {
+			if len(pending) > 0 {
+				m.emitOutputChunk(id, pending, isErr)
+			}
 			return
 		}
 	}

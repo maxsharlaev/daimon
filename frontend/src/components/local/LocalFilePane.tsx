@@ -126,17 +126,19 @@ export function LocalFilePane({
     await LocalShellSend(shellId, cmd);
   };
 
-  const ensureSecondaryShell = async (): Promise<string | null> => {
+  const startPanelShell = async (cols: number, rows: number): Promise<string | null> => {
+    if (cols < 1 || rows < 1) return null;
     if (config.shellId) {
       try {
         await LocalShellCwd(config.shellId);
         return config.shellId;
       } catch {
-        // stale id
+        // stale id — start a new shell below
       }
     }
     try {
-      const id = await LocalShellStart(80, 24, path || system?.homeDir || ".");
+      const id = await LocalShellStart(cols, rows, path || system?.homeDir || ".");
+      onConfigChange({ ...config, kind: "terminal", shellId: id });
       return id;
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -144,13 +146,9 @@ export function LocalFilePane({
     }
   };
 
-  const enterTerminalMode = async () => {
+  const enterTerminalMode = () => {
     setError(null);
-    const id = await ensureSecondaryShell();
-    if (!id) return;
-    onConfigChange({ ...config, kind: "terminal", shellId: id });
-    const dir = path || system?.homeDir || ".";
-    void sendCdToShell(id, dir);
+    onConfigChange({ ...config, kind: "terminal", shellId: undefined });
   };
 
   const onTerminalIconClick = (e: React.MouseEvent) => {
@@ -334,9 +332,12 @@ export function LocalFilePane({
         </div>
       ) : null}
       {error ? <div className="local-pane-error">{error}</div> : null}
-      {config.kind === "terminal" && config.shellId ? (
+      {config.kind === "terminal" ? (
         <LocalPanelShell
           shellId={config.shellId}
+          syncCwd={path || system?.homeDir || "."}
+          isWindows={system?.os === "windows"}
+          onStartShell={startPanelShell}
           onDisconnected={() => {
             onConfigChange({ ...config, shellId: undefined });
             void enterFilesMode();

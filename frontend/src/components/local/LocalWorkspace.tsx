@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   LocalShellCwd,
   LocalShellSend,
   LocalShellStart,
+  LocalShellStopAll,
   LocalShellStop,
   LocalSystemInfo as fetchLocalSystemInfo,
 } from "../../../wailsjs/go/main/App";
@@ -31,6 +32,11 @@ type Props = {
 
 const paneStub = <div className="local-pane-stub" aria-hidden />;
 
+function dropShellId(panel: LocalPanelConfig): LocalPanelConfig {
+  if (!panel.shellId) return panel;
+  return { ...panel, shellId: undefined };
+}
+
 export function LocalWorkspace({ persist, onPersist }: Props) {
   const [system, setSystem] = useState<LocalSystemInfo | null>(null);
   const [layout, setLayout] = useState<LocalLayoutFlags>(() => persist?.layout ?? defaultLocalLayout());
@@ -42,6 +48,7 @@ export function LocalWorkspace({ persist, onPersist }: Props) {
     ...persist?.split,
   }));
   const [shellId, setShellId] = useState<string | null>(null);
+  const [shellError, setShellError] = useState<string | null>(null);
   const [mainCwd, setMainCwd] = useState("");
   const shellIdRef = useRef<string | null>(null);
   const startingRef = useRef(false);
@@ -93,14 +100,15 @@ export function LocalWorkspace({ persist, onPersist }: Props) {
       layoutRef.current = persist.layout;
       setLayout(persist.layout);
     }
-    if (persist.left) setLeft(persist.left);
-    if (persist.right) setRight(persist.right);
+    if (persist.left) setLeft(dropShellId(persist.left));
+    if (persist.right) setRight(dropShellId(persist.right));
     if (persist.activePane) setActivePane(persist.activePane);
     if (persist.split) setSplit((prev) => ({ ...prev, ...persist.split }));
   }, [persist]);
 
   useEffect(() => {
     startLocalEventBridge();
+    void LocalShellStopAll().catch(() => {});
     void fetchLocalSystemInfo()
       .then((info) => {
         const s = info as LocalSystemInfo;
@@ -116,7 +124,7 @@ export function LocalWorkspace({ persist, onPersist }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const mainStartCwd = system?.homeDir || ".";
+  const mainStartCwd = system?.homeDir || "";
 
   const cdMainShell = useCallback(
     async (targetPath: string) => {
@@ -147,16 +155,19 @@ export function LocalWorkspace({ persist, onPersist }: Props) {
     [cdMainShell]
   );
 
-  const startShell = useCallback(async () => {
+  const startShell = useCallback(async (cols: number, rows: number) => {
     if (!layout.terminal || startingRef.current) return;
+    if (cols < 1 || rows < 1) return;
+    if (!mainStartCwd) return;
     startingRef.current = true;
+    setShellError(null);
     try {
       if (shellIdRef.current) {
         await LocalShellStop(shellIdRef.current);
         shellIdRef.current = null;
         setShellId(null);
       }
-      const id = await LocalShellStart(80, 24, mainStartCwd);
+      const id = await LocalShellStart(cols, rows, mainStartCwd);
       shellIdRef.current = id;
       setShellId(id);
       try {
@@ -174,9 +185,10 @@ export function LocalWorkspace({ persist, onPersist }: Props) {
           // ignore
         }
       }
-    } catch {
+    } catch (e: unknown) {
       shellIdRef.current = null;
       setShellId(null);
+      setShellError(e instanceof Error ? e.message : String(e));
     } finally {
       startingRef.current = false;
     }
@@ -191,14 +203,13 @@ export function LocalWorkspace({ persist, onPersist }: Props) {
       }
       return;
     }
-    void startShell();
     return () => {
       if (shellIdRef.current) {
         void LocalShellStop(shellIdRef.current);
         shellIdRef.current = null;
       }
     };
-  }, [layout.terminal, startShell]);
+  }, [layout.terminal]);
 
   useEffect(() => {
     return onLocalCwd((ev) => {
@@ -214,20 +225,51 @@ export function LocalWorkspace({ persist, onPersist }: Props) {
 
   const terminalOnLeft = !layout.leftPanel && layout.rightPanel && layout.terminal;
 
+  const onOuterDividerPointerDown = useCallback(
+    (mode: "vertical" | "horizontal") => (e: ReactPointerEvent<HTMLDivElement>) => {
+      const container = e.currentTarget.parentElement;
+      if (!container) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const update = (ev: PointerEvent) => {
+        const rect = container.getBoundingClientRect();
+        if (mode === "vertical") {
+          const pct = ((ev.clientY - rect.top) / Math.max(1, rect.height)) * 100;
+          patchSplit({ verticalPct: Math.max(12, Math.min(88, pct)) });
+          return;
+        }
+        const firstPct = ((ev.clientX - rect.left) / Math.max(1, rect.width)) * 100;
+        const panelsPct = terminalOnLeft ? 100 - firstPct : firstPct;
+        patchSplit({ sidePanelsPct: Math.max(12, Math.min(88, panelsPct)) });
+      };
+      const stop = () => {
+        window.removeEventListener("pointermove", update);
+        window.removeEventListener("pointerup", stop);
+        window.removeEventListener("pointercancel", stop);
+      };
+      window.addEventListener("pointermove", update);
+      window.addEventListener("pointerup", stop);
+      window.addEventListener("pointercancel", stop);
+    },
+    [patchSplit, terminalOnLeft]
+  );
+
   const terminalBlock = layout.terminal ? (
     <div className="local-terminal-wrap">
       <div className="local-terminal-header" title={mainCwd}>
         Local shell
         {system?.defaultShell ? ` · ${system.defaultShell}` : ""}
         {mainCwd ? ` · ${mainCwd}` : ""}
+        {shellError ? ` · ${shellError}` : ""}
       </div>
       <LocalTerminal
         shellId={shellId}
         shellIdRef={shellIdRef}
+        wantShell={layout.terminal && Boolean(mainStartCwd)}
+        isWindows={system?.os === "windows"}
+        onStartShell={startShell}
         onDisconnected={() => {
           shellIdRef.current = null;
           setShellId(null);
-          void startShell();
         }}
       />
     </div>
@@ -316,7 +358,6 @@ export function LocalWorkspace({ persist, onPersist }: Props) {
   const showOuterVertical = hasPanels && layout.terminal && dualPanels;
   const showOuterHorizontal = hasPanels && layout.terminal && !dualPanels;
   const sidePanelsPct = sidePanelsPctFromSplit(split, terminalOnLeft);
-  const horizontalFirstPct = terminalOnLeft ? 100 - sidePanelsPct : sidePanelsPct;
 
   const body = useMemo((): ReactNode => {
     if (showTerminalOnly) {
@@ -327,37 +368,31 @@ export function LocalWorkspace({ persist, onPersist }: Props) {
     }
     if (!layout.terminal || !hasPanels) return null;
 
-    return (
-      <div className="local-body-layers">
-        <div className={`local-layer${showOuterVertical ? "" : " local-layer-hidden"}`}>
-          <SplitView
-            key="local-split-outer-v"
-            orientation="vertical"
-            left={panelsDualSplit}
-            right={terminalBlock}
-            pct={split.verticalPct ?? 62}
-            minLeftPx={160}
-            minRightPx={140}
-            onPctChange={(pct) => patchSplit({ verticalPct: pct })}
+    if (showOuterVertical || showOuterHorizontal) {
+      const vertical = showOuterVertical;
+      const panelsPct = vertical ? split.verticalPct ?? 62 : sidePanelsPct;
+      const terminalPct = 100 - panelsPct;
+      return (
+        <div
+          className={`local-composite ${vertical ? "local-composite-vertical" : "local-composite-horizontal"}${
+            !vertical && terminalOnLeft ? " terminal-first" : ""
+          }`}
+        >
+          <div className="local-composite-panels" style={{ flexBasis: `${panelsPct}%` }}>
+            {vertical ? panelsDualSplit : panelsRow}
+          </div>
+          <div
+            className="local-composite-divider"
+            onPointerDown={onOuterDividerPointerDown(vertical ? "vertical" : "horizontal")}
           />
+          <div className="local-composite-terminal" style={{ flexBasis: `${terminalPct}%` }}>
+            {terminalBlock}
+          </div>
         </div>
-        <div className={`local-layer${showOuterHorizontal ? "" : " local-layer-hidden"}`}>
-          <SplitView
-            key="local-split-outer-h"
-            orientation="horizontal"
-            left={terminalOnLeft ? terminalBlock : panelsRow}
-            right={terminalOnLeft ? panelsRow : terminalBlock}
-            pct={horizontalFirstPct}
-            minLeftPx={200}
-            minRightPx={160}
-            onPctChange={(firstPct) => {
-              const panelsPct = terminalOnLeft ? 100 - firstPct : firstPct;
-              patchSplit({ sidePanelsPct: panelsPct });
-            }}
-          />
-        </div>
-      </div>
-    );
+      );
+    }
+
+    return null;
   }, [
     showTerminalOnly,
     showPanelsOnly,
@@ -369,12 +404,10 @@ export function LocalWorkspace({ persist, onPersist }: Props) {
     terminalBlock,
     panelsRow,
     panelsDualSplit,
-    leftPane,
-    rightPane,
     split.verticalPct,
-    horizontalFirstPct,
+    sidePanelsPct,
     terminalOnLeft,
-    patchSplit,
+    onOuterDividerPointerDown,
   ]);
 
   return (
