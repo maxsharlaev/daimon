@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { DropdownSelect } from "../../components/ui/DropdownSelect";
+import { DropdownSelect } from "../../components/ui";
 import type { DashboardSession, FilesSession, Profile, ProfileGroup, TerminalSession } from "../types";
 
 type Props = {

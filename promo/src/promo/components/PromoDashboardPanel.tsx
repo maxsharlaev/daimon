@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { DashboardLayout, DashboardRow, DashboardTab, WidgetConfig, WidgetMetric, WidgetView } from "../demo/layout";
+import type { DashboardLayout, DashboardRow, WidgetConfig } from "../demo/layout";
 import { getDashboardSnapshot, type DashboardSnapshot } from "../demo/dashboard";
 
 type Props = {
