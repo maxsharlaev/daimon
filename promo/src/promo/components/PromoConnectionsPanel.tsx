@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { DropdownSelect } from "../../components/ui/DropdownSelect";
 import type { DashboardSession, FilesSession, Profile, ProfileGroup, TerminalSession } from "../types";
 
 type Props = {
@@ -51,6 +52,9 @@ export function PromoConnectionsPanel({
   onCloseFiles,
   onCloseDashboard,
 }: Props) {
+  const [groupOpen, setGroupOpen] = useState(false);
+  const [profileGroupId, setProfileGroupId] = useState<string | null>(null);
+  const [authKind, setAuthKind] = useState<"password" | "private_key">("password");
   const profilesByGroup = useMemo(() => {
     const m = new Map<string, Profile[]>();
     profiles.forEach((p) => {
@@ -82,7 +86,14 @@ export function PromoConnectionsPanel({
     <div className="connections panel">
       <div className="panel-titlebar">
         <div className="panel-title">Connections</div>
-        <div className="panel-meta">demo mode</div>
+        <div className="panel-actions">
+          <button className="btn btn-ghost" type="button" title="Refresh (demo)">
+            Refresh
+          </button>
+          <button className="btn" type="button" title="Add group" onClick={() => setGroupOpen(true)}>
+            + Group
+          </button>
+        </div>
       </div>
 
       <div className="connections-list">
@@ -102,8 +113,11 @@ export function PromoConnectionsPanel({
                       {expanded ? "▾" : "▸"} {g.name}
                     </button>
                     <div className="group-actions">
-                      <button className="btn btn-ghost" type="button" disabled>
-                        Demo data
+                      <button className="btn btn-ghost" type="button" title="Add profile" onClick={() => setProfileGroupId(g.id)}>
+                        + Profile
+                      </button>
+                      <button className="btn btn-ghost" type="button" title="Group menu (demo)" disabled>
+                        ⋯
                       </button>
                     </div>
                   </div>
@@ -206,11 +220,11 @@ export function PromoConnectionsPanel({
                                       </button>
                                       <button
                                         type="button"
-                                        className="session-close neutral"
+                                        className={`session-close ${s.marker === "green" || s.marker === "yellow" ? "" : "neutral"}`}
                                         onClick={() => onCloseTerminal(s.sessionId)}
-                                        title="Close session"
+                                        title={s.marker === "green" || s.marker === "yellow" ? "Disconnect" : "Close session"}
                                       >
-                                        Close
+                                        {s.marker === "green" || s.marker === "yellow" ? "Disconnect" : "Close"}
                                       </button>
                                     </div>
                                   ))}
@@ -258,6 +272,46 @@ export function PromoConnectionsPanel({
             })
         )}
       </div>
+      {groupOpen ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal">
+            <div className="modal-title">New group</div>
+            <div className="modal-body form"><div className="row"><label>Name</label><input defaultValue="Staging" /></div></div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" type="button" onClick={() => setGroupOpen(false)}>Cancel</button>
+              <button className="btn" type="button" onClick={() => setGroupOpen(false)}>Save</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {profileGroupId ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal modal-wide">
+            <div className="modal-title">New profile</div>
+            <div className="modal-body modal-grid">
+              <div className="section form">
+                <div className="section-title">Connection</div>
+                <div className="row"><label>Group</label><DropdownSelect value={profileGroupId} onChange={setProfileGroupId} options={groups.map((group) => ({ value: group.id, label: group.name }))} aria-label="Group" /></div>
+                <div className="row"><label>Name</label><input defaultValue="web-02" /></div>
+                <div className="row"><label>Host</label><input defaultValue="10.0.1.11" placeholder="example.com" /></div>
+                <div className="row two"><div className="row"><label>Port</label><input type="number" defaultValue={22} /></div><div className="row"><label>User</label><input defaultValue="deploy" /></div></div>
+                <div className="row"><label>Host key verification</label><label className="checkbox"><input type="checkbox" defaultChecked />Insecure: ignore host key (MVP)</label></div>
+                <div className="row"><label>Timeout (ms)</label><input type="number" defaultValue={8000} /></div>
+              </div>
+              <div className="section form">
+                <div className="section-title">Auth + Secrets</div>
+                <div className="row"><label>Primary auth</label><div className="segmented"><button className={`seg ${authKind === "password" ? "active" : ""}`} type="button" onClick={() => setAuthKind("password")}>Password</button><button className={`seg ${authKind === "private_key" ? "active" : ""}`} type="button" onClick={() => setAuthKind("private_key")}>Private key</button></div></div>
+                {authKind === "password" ? <div className="row"><label>Password</label><input type="password" defaultValue="" /></div> : <div className="subsection"><div className="subsection-title">Private key storage</div><div className="row"><label>PEM</label><textarea className="textarea" defaultValue="" /></div></div>}
+                <div className="subsection"><div className="subsection-title">Vault</div><div className="vault-status">Vault is locked in this preview.</div></div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <div className="modal-actions-left"><button className="btn btn-ghost" type="button">Test</button><div className="test-status"><span className="test-hint">Host is filled. Test stays local in the demo.</span></div></div>
+              <div className="modal-actions-right"><button className="btn btn-ghost" type="button" onClick={() => setProfileGroupId(null)}>Cancel</button><button className="btn" type="button" onClick={() => setProfileGroupId(null)}>Save</button></div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

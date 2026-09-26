@@ -10,6 +10,13 @@ body {
     "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
 }
 
+@font-face {
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 400;
+  src: local("Nunito"), local("Nunito Sans");
+}
+
 #root {
   height: 100vh;
 }

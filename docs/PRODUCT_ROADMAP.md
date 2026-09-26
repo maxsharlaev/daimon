@@ -1,33 +1,46 @@
 # Product roadmap (index)
 
-Single entry point for **in-app** and **adjacent** plans. Depth lives in linked documents; this file tracks priority and scope.
+Single entry point for **what the app already does** and **what is still planned**. Detail lives in the linked documents.
 
-## Principles (summary)
+## Shipped in the desktop app
 
-- **Core**: reliable SSH/SFTP, Macros, Places, Linux Dashboard — local-first, explicit network use.
-- **Extensions**: Docker today; Kubernetes and Data/SQL as documented tracks.
-- **Trust**: security defaults and disclosure process before expanding surface area.
-- **Ecosystem**: releases, signing, optional commercial services — separate from core UX (see ecosystem doc).
+Top-level modes in `frontend/src/App.tsx`: **Local**, **Connections**, **Docker**, **Logs**, **Data**, **Settings**.
 
-## Priority order (living document)
+- **Local**: local file panes and a local PTY.
+- **Connections**: SSH terminal, SFTP, Places, Macros, Linux Dashboard.
+- **Docker**: local daemon and remote daemon over an SSH profile (containers, images, volumes, networks, logs, shell, files).
+- **Logs**: sources on an SSH profile or a Docker container, with configurable formats and a local query store.
+- **Data**: PostgreSQL and MySQL/MariaDB over an SSH tunnel or Docker (local/remote). Status and remaining gaps: `docs/sql/LIGHT_SQL_ROADMAP.md`.
+- **Agent**: optional. Requires an OpenAI-compatible integration in Settings. The panel is mounted on Connections and Docker only.
+- **Settings**: logs/formats, macros, places, AI, data sources, developer AI logs, privacy.
 
-1. **Security hardening** — host keys, SFTP parity, safe defaults: `docs/security/HARDENING_ROADMAP.md`  
-   Context: `docs/security/THREAT_MODEL.md`, `SECURITY.md`, `PRIVACY.md`.
+Secrets: OS keyring and/or the encrypted internal vault. There is no cloud account inside the app.
 
-2. **Core stability** — SSH/SFTP/Dashboard/Macros UX and bugs; optional settings to disable heavy modes (e.g. Docker) where not needed.
+## Principles
 
-3. **Data / Light SQL** (SSH tunnel only, Postgres + MySQL/MariaDB): `docs/sql/LIGHT_SQL_ROADMAP.md`.
+- **Trust first**: security defaults and disclosure before new surface area. Host key verification is still not secure-by-default; SFTP ignores the known_hosts path. `docs/security/HARDENING_ROADMAP.md`.
+- **Local-first**: network use is explicit. Logs, chats, and data-source metadata stay on disk.
+- **Extensions stay narrow**: Data is a light SQL client, not a database IDE. Kubernetes, if built, should follow the Docker UX, not replace `kubectl`.
 
-4. **Kubernetes mode** (browse / exec / files / logs — phased): `docs/kubernetes/IMPLEMENTATION_ROADMAP.md`.
+## Priority order
 
-5. **Ecosystem** (releases site, billing, team features — scope only until built): `docs/ecosystem/AROUND_DAIMON.md`.
+1. **Security hardening** — host keys, SFTP parity with `ssh_manager.go`, safe defaults: `docs/security/HARDENING_ROADMAP.md`. Context: `docs/security/THREAT_MODEL.md`, `SECURITY.md`, `PRIVACY.md`.
+
+2. **Core stability** — bugs and rough edges in the modes already shipped (SSH/SFTP, Local, Docker, Logs, Data, Agent, Dashboard, Macros).
+
+3. **Data / Light SQL gaps** — the Data mode exists. Still open: a dedicated insert-row form, CSV export, typed confirmation for DDL. `docs/sql/LIGHT_SQL_ROADMAP.md`.
+
+4. **Kubernetes mode** — not started (no client, no UI). `docs/kubernetes/IMPLEMENTATION_ROADMAP.md`.
+
+5. **Ecosystem** — not in this repository. A releases site, billing, or team features would live beside the app, not as a required backend. There is no separate ecosystem spec checked in; do not treat that work as part of the desktop tree until a repo or doc exists.
 
 ## Explicitly out of scope (until reconsidered)
 
 - Full REST client competing with Postman-class tools.
 - Universal in-browser terminal SaaS.
-- Heavy enterprise backend (SSO, org policy server) **before** pilots justify it.
+- Heavy enterprise backend (SSO, org policy server) before pilots justify it.
+- Direct database TCP from the workstation in SSH Data mode (Docker modes reach the database from inside the container network).
 
 ## When to update this file
 
-After each major release or when priorities shift (e.g. K8s before SQL if the audience demands it). Linked docs should stay the source of detail; adjust **section 2–5 order** here when the decision changes.
+After a mode ships or a priority swaps (for example Kubernetes ahead of the remaining SQL gaps). Linked docs stay the source of detail; change the order in this file when the decision changes.

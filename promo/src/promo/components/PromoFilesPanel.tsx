@@ -17,6 +17,8 @@ type Props = {
 };
 
 export function PromoFilesPanel({ sessionId, remotePath, onRemotePathChange }: Props) {
+  const [transfer, setTransfer] = useState<{ direction: string; pct: number; state: string } | null>(null);
+  const [conflictOpen, setConflictOpen] = useState(false);
   const [localPath, setLocalPath] = useState(DEFAULT_LOCAL);
   const [activePane, setActivePane] = useState<"local" | "remote">("remote");
   const [selLocal, setSelLocal] = useState<string | null>(null);
@@ -57,6 +59,12 @@ export function PromoFilesPanel({ sessionId, remotePath, onRemotePathChange }: P
     setSelRemote(null);
   };
 
+  const startTransfer = (direction: string) => {
+    setConflictOpen(false);
+    setTransfer({ direction, pct: 35, state: "running" });
+    window.setTimeout(() => setTransfer({ direction, pct: 100, state: "done" }), 700);
+  };
+
   return (
     <div className="files panel">
       <div className="panel-titlebar">
@@ -88,10 +96,10 @@ export function PromoFilesPanel({ sessionId, remotePath, onRemotePathChange }: P
         <button className="btn btn-ghost" type="button" disabled>
           Delete
         </button>
-        <button className="btn" type="button" disabled>
+        <button className="btn" type="button" onClick={() => startTransfer("upload")}>
           Upload →
         </button>
-        <button className="btn" type="button" disabled>
+        <button className="btn" type="button" onClick={() => (transfer ? setConflictOpen(true) : startTransfer("download"))}>
           ← Download
         </button>
       </div>
@@ -171,6 +179,35 @@ export function PromoFilesPanel({ sessionId, remotePath, onRemotePathChange }: P
           </div>
         </div>
       </div>
+      {transfer ? (
+        <div className="transferpanel">
+          <div className={`transferrow ${transfer.state}`}>
+            <div className="progress">
+              <div className="progress-fill" style={{ width: `${transfer.pct}%` }} />
+              <div className="progress-text">{transfer.pct}%</div>
+            </div>
+            <div className="transfermeta mono">{transfer.direction} • 1.2 MB/3.4 MB • 420 KB/s • {transfer.state}</div>
+            <button className="btn btn-ghost transfer-cancel" type="button" disabled={transfer.state !== "running"} onClick={() => setTransfer(null)}>Cancel</button>
+          </div>
+        </div>
+      ) : null}
+      {conflictOpen ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal">
+            <div className="modal-title">File already exists</div>
+            <div className="modal-body">
+              <div className="conflict-grid">
+                <div><div className="conflict-h">Local existing</div><div className="mono">readme.md • 12 KB</div></div>
+                <div><div className="conflict-h">Incoming</div><div className="mono">readme.md • 14 KB</div></div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" type="button" onClick={() => setConflictOpen(false)}>Cancel</button>
+              <button className="btn" type="button" onClick={() => { setConflictOpen(false); startTransfer("download"); }}>Overwrite</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

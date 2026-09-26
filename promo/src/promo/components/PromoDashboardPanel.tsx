@@ -89,13 +89,41 @@ export function PromoDashboardPanel({ sessionId, profileName, layout, activeTabI
 }
 
 function PromoRow({ row, snap, diskRoot }: { row: DashboardRow; snap: DashboardSnapshot | null; diskRoot: DashboardSnapshot["disks"][0] | null }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [colsOpen, setColsOpen] = useState(false);
   return (
-    <div className={`dash-row cols-${row.cols}`}>
-      {row.slots.map((slot, idx) => (
-        <div key={idx} className={`slot ${slot ? "filled" : ""}`}>
-          {slot ? <Widget w={slot} snap={snap} diskRoot={diskRoot} /> : <div className="slot-empty">—</div>}
-        </div>
-      ))}
+    <div className="dash-row-wrapper">
+      <div className={`dash-row cols-${row.cols}`}>
+        {row.slots.map((slot, idx) => (
+          <div key={idx} className={`slot ${slot ? "filled" : ""}`}>
+            {slot ? <Widget w={slot} snap={snap} diskRoot={diskRoot} /> : (
+              <div className="slot-empty"><button className="btn" type="button">+ Add widget</button></div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="dash-row-menu-wrapper">
+        <button className="btn btn-ghost row-menu-btn" type="button" title="Row menu" onClick={() => { setMenuOpen((open) => !open); setColsOpen(false); }}>⋯</button>
+        {menuOpen ? (
+          <div className="row-menu-dropdown">
+            <div className="row-menu-item-wrapper">
+              <button className="row-menu-item" type="button" onClick={() => setColsOpen((open) => !open)}>Edit row</button>
+              {colsOpen ? (
+                <div className="edit-cols-dropdown">
+                  {[1, 2, 3].map((cols) => (
+                    <button key={cols} className="edit-cols-option" type="button" onClick={() => { setColsOpen(false); setMenuOpen(false); }}>
+                      <div className={`row-preview cols-${cols}`}>{Array.from({ length: cols }, (_, i) => <div key={i} className="preview-slot" />)}</div>
+                      <span>{cols} column{cols > 1 ? "s" : ""}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="row-menu-sep" />
+            <button className="row-menu-item row-menu-item-danger" type="button" onClick={() => setMenuOpen(false)}>Delete row</button>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

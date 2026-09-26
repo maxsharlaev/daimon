@@ -5,9 +5,17 @@ export type TerminalMeta = {
   host: string;
 };
 
+type SessionState = {
+  meta: TerminalMeta;
+  timer: number;
+  line: string;
+  scriptIdx: number;
+  /** Pause auto-demo while the visitor is typing or shortly after a command. */
+  userActiveUntil: number;
+};
+
 const outputSubs = new Map<string, Set<OutputHandler>>();
-const timers = new Map<string, number>();
-const metas = new Map<string, TerminalMeta>();
+const sessions = new Map<string, SessionState>();
 
 const scriptLines = [
   "uname -a",
@@ -22,12 +30,18 @@ const scriptLines = [
 ];
 
 const outputsByCommand: Record<string, string[]> = {
-  "uname -a": [
-    "Linux web-01 6.6.12 #1 SMP PREEMPT_DYNAMIC x86_64 GNU/Linux",
+  help: [
+    "Demo terminal — try: uptime, df -h /, free -m, ls, pwd, whoami",
+    "Auto-demo keeps running when idle. Type any listed command and press Enter.",
   ],
-  uptime: [
-    " 11:26:18 up 13 days,  4:52,  2 users,  load average: 0.21, 0.18, 0.24",
+  ls: [
+    "app.log  bin  config.yml  deploy  logs  myapp  nginx.conf  releases  tmp",
   ],
+  pwd: ["/home/deploy"],
+  whoami: ["deploy"],
+  clear: [],
+  "uname -a": ["Linux web-01 6.6.12 #1 SMP PREEMPT_DYNAMIC x86_64 GNU/Linux"],
+  uptime: [" 11:26:18 up 13 days,  4:52,  2 users,  load average: 0.21, 0.18, 0.24"],
   "df -h /": [
     "Filesystem      Size  Used Avail Use% Mounted on",
     "/dev/sda1        96G   34G   58G  37% /",
@@ -70,26 +84,70 @@ const outputsByCommand: Record<string, string[]> = {
   ],
 };
 
+const USER_IDLE_MS = 20_000;
+const AUTO_DEMO_INTERVAL_MS = 2800;
+
+function prompt(meta: TerminalMeta): string {
+  return `${meta.user}@${meta.host}:~$ `;
+}
+
+function emit(sessionId: string, data: string) {
+  const set = outputSubs.get(sessionId);
+  if (!set) return;
+  set.forEach((fn) => fn(data));
+}
+
+function runMockCommand(sessionId: string, state: SessionState, cmd: string) {
+  const trimmed = cmd.trim();
+  if (!trimmed) {
+    emit(sessionId, `\r\n${prompt(state.meta)}`);
+    return;
+  }
+
+  if (trimmed === "clear") {
+    emit(sessionId, "\x1b[2J\x1b[H");
+    emit(sessionId, prompt(state.meta));
+    return;
+  }
+
+  const lines = outputsByCommand[trimmed];
+  if (lines) {
+    lines.forEach((line) => emit(sessionId, `${line}\r\n`));
+  } else {
+    emit(sessionId, `${trimmed}: command not found (demo)\r\n`);
+    emit(sessionId, "Try: help\r\n");
+  }
+  emit(sessionId, prompt(state.meta));
+}
+
+function runAutoDemoTick(sessionId: string) {
+  const state = sessions.get(sessionId);
+  if (!state) return;
+  if (Date.now() < state.userActiveUntil) return;
+  if (state.line.length > 0) return;
+
+  const cmd = scriptLines[state.scriptIdx % scriptLines.length];
+  state.scriptIdx += 1;
+  emit(sessionId, `\r\n${prompt(state.meta)}${cmd}\r\n`);
+  (outputsByCommand[cmd] ?? []).forEach((line) => emit(sessionId, `${line}\r\n`));
+  emit(sessionId, prompt(state.meta));
+}
+
 export function registerTerminalSession(sessionId: string, meta: TerminalMeta) {
-  metas.set(sessionId, meta);
-  if (timers.has(sessionId)) return;
+  if (sessions.has(sessionId)) return;
+
+  const timer = window.setInterval(() => runAutoDemoTick(sessionId), AUTO_DEMO_INTERVAL_MS);
+  sessions.set(sessionId, { meta, timer, line: "", scriptIdx: 0, userActiveUntil: 0 });
+
   emit(sessionId, `\r\n[daimon] connected to ${meta.user}@${meta.host}\r\n`);
-  let idx = 0;
-  const timer = window.setInterval(() => {
-    const cmd = scriptLines[idx % scriptLines.length];
-    const prompt = `${meta.user}@${meta.host}:~$ `;
-    emit(sessionId, `\r\n${prompt}${cmd}\r\n`);
-    (outputsByCommand[cmd] ?? []).forEach((line) => emit(sessionId, `${line}\r\n`));
-    idx += 1;
-  }, 1800);
-  timers.set(sessionId, timer);
+  emit(sessionId, "Type help for demo commands.\r\n");
+  emit(sessionId, prompt(meta));
 }
 
 export function unregisterTerminalSession(sessionId: string) {
-  const timer = timers.get(sessionId);
-  if (timer) window.clearInterval(timer);
-  timers.delete(sessionId);
-  metas.delete(sessionId);
+  const state = sessions.get(sessionId);
+  if (state) window.clearInterval(state.timer);
+  sessions.delete(sessionId);
   outputSubs.delete(sessionId);
 }
 
@@ -104,11 +162,41 @@ export function onTerminalOutput(sessionId: string, cb: OutputHandler) {
 }
 
 export function emitTerminalLine(sessionId: string, line: string) {
-  emit(sessionId, `\r\n${line}\r\n`);
+  const state = sessions.get(sessionId);
+  if (!state) return;
+  state.userActiveUntil = Date.now() + USER_IDLE_MS;
+  emit(sessionId, `\r\n${prompt(state.meta)}${line}\r\n`);
+  runMockCommand(sessionId, state, line);
 }
 
-function emit(sessionId: string, data: string) {
-  const set = outputSubs.get(sessionId);
-  if (!set) return;
-  set.forEach((fn) => fn(data));
+/** Handle keystrokes from xterm — echo locally and run mock commands on Enter. */
+export function handleTerminalInput(sessionId: string, data: string) {
+  const state = sessions.get(sessionId);
+  if (!state) return;
+
+  state.userActiveUntil = Date.now() + USER_IDLE_MS;
+
+  for (let i = 0; i < data.length; i++) {
+    const ch = data[i];
+    const code = ch.charCodeAt(0);
+
+    if (ch === "\r" || ch === "\n") {
+      emit(sessionId, "\r\n");
+      runMockCommand(sessionId, state, state.line);
+      state.line = "";
+      continue;
+    }
+
+    if (code === 127 || code === 8) {
+      if (state.line.length === 0) continue;
+      state.line = state.line.slice(0, -1);
+      emit(sessionId, "\b \b");
+      continue;
+    }
+
+    if (code < 32) continue;
+
+    state.line += ch;
+    emit(sessionId, ch);
+  }
 }

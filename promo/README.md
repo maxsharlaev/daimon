@@ -1,8 +1,8 @@
 # Daimon Promo (React component)
 
-This folder contains a web-only demo UI that can be embedded into a Vite + React landing page.
+Web-only demo UI that mirrors the full daimon desktop app for embedding in a landing page.
 
-## Dev preview (optional)
+## Dev preview
 
 ```bash
 cd promo
@@ -18,11 +18,9 @@ npm install
 npm run build
 ```
 
-The build output is an ES module you can import from your landing bundle.
+Output: `dist/daimon-promo.js` + `dist/style.css`.
 
-## Embed in Vite + React landing
-
-Example usage (same repo / monorepo):
+## Embed
 
 ```tsx
 import { DaimonPromo } from "../promo/src";
@@ -36,11 +34,24 @@ export function LandingDemo() {
 }
 ```
 
-If you prefer using the built artifact, import from `promo/dist/daimon-promo.js` and include the emitted CSS asset in your landing.
+## What is demo-only
+
+All modes (Local, Connections, Docker, Logs, Data, Settings, Agent) look and feel like the real app:
+
+- tabs, panels, toolbars, dropdowns, splits, terminal chrome
+- clickable navigation and mock content (terminals, logs table, SQL grid, agent chat)
+
+There is **no** Wails/SSH/Docker/database backend. Destructive and create actions are disabled or only update local UI state.
+
+Styles in `src/styles/from-app/` are hand-copied from `frontend/src`. They are not generated. After a CSS change in the app, copy the matching file here or the demo will drift.
 
 ## Smoke-test checklist
-- Left panel shows demo connection groups and profiles
-- Connect opens a terminal tab with live demo output
-- Files opens file tabs with navigable local/remote trees
-- Dashboard opens tabs with live metrics and lists
-- No edit/create/delete actions are enabled
+
+- Topbar: logo, Local / Connections / Docker / Logs / Data, Agent (Connections/Docker), Settings, window controls
+- Local: layout toggles, file panes, interactive mock cmd terminal
+- Connections: groups/profiles, Connect/Files/Dashboard, Places/Macros, terminal input
+- Docker: Local/Remote, resource views, Logs/Shell/Files session tabs
+- Logs: owner segments, filters, table, Sources
+- Data: source cards, Table / SQL / Explain, canned results
+- Settings: sidebar sections (AI, Macros, Places, Privacy, …)
+- Agent: chat, context strip, canned replies / command approval

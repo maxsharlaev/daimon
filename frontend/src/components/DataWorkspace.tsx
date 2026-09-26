@@ -1578,7 +1578,6 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
           <div className="panel data-panel data-panel--sources">
             <div className="panel-titlebar">
               <div className="panel-title">Data sources</div>
-              <div className="panel-meta">Light SQL</div>
               <div className="panel-actions">
                 <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void loadSources()}>
                   Refresh

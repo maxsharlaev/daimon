@@ -1,4 +1,6 @@
 build/bin
+# `go build` in the module root writes daimon.exe here. `wails build` / `wails dev` use build/bin.
+/*.exe
 node_modules
 frontend/dist
 .idea
