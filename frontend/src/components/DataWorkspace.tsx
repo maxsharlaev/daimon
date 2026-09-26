@@ -676,7 +676,10 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         remoteDockerSessionId: ownerMode === "docker_remote" ? remoteSessionId ?? "" : "",
       });
       const res = (await DataConnect(req)) as main.DataSessionDTO;
-      if (!res.sessionId) throw new Error("no session");
+      if (!res.sessionId) {
+        alert("no session");
+        return;
+      }
       const scopeSummary = buildDataScopeSummary();
       setSessions((prev) => {
         if (prev.some((s) => s.sessionId === res.sessionId)) return prev;
