@@ -109,6 +109,8 @@ Go tests:
 go test ./...
 ```
 
+Pull requests and pushes to `main` run tests, lint, the frontend build, and `go build` in GitHub Actions. Commit subjects follow Conventional Commits. Details are in `CONTRIBUTING.md`.
+
 Promo demo (no Wails):
 
 ```bash

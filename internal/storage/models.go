@@ -115,7 +115,7 @@ type AppSetting struct {
 // Place stores a saved remote path ("place") for a profile.
 // Used by the Places UI to quickly cd/open in terminal/files.
 type Place struct {
-	ID        string `gorm:"primaryKey;size:36"`
+	ID string `gorm:"primaryKey;size:36"`
 	// Composite docker keys exceed 36 chars (e.g. docker:remote:<uuid>:name:<container>).
 	ProfileID string `gorm:"index;size:512;not null"`
 
@@ -300,8 +300,8 @@ func (m *LogEntry) BeforeCreate(tx *gorm.DB) error {
 
 // AiConversation is one persisted AI agent chat thread.
 type AiConversation struct {
-	ID     string `gorm:"primaryKey;size:36"`
-	Title  string `gorm:"not null;default:''"`
+	ID    string `gorm:"primaryKey;size:36"`
+	Title string `gorm:"not null;default:''"`
 	// SummaryText holds compressed history for storage / long context (optional).
 	SummaryText string `gorm:"not null;default:''"`
 	// SummaryUpdatedAt is set when SummaryText was last refreshed.
@@ -338,10 +338,10 @@ func (m *AiMessage) BeforeCreate(tx *gorm.DB) error {
 
 // AiUsageEvent records token usage for one LLM call (and optional errors).
 type AiUsageEvent struct {
-	ID     string `gorm:"primaryKey;size:36"`
-	Model  string `gorm:"index;size:120;not null;default:''"`
-	Kind   string `gorm:"index;size:32;not null;default:''"`  // chat_round | explain | test_connection
-	Phase  string `gorm:"index;size:80;not null;default:''"`  // optional subphase
+	ID               string `gorm:"primaryKey;size:36"`
+	Model            string `gorm:"index;size:120;not null;default:''"`
+	Kind             string `gorm:"index;size:32;not null;default:''"` // chat_round | explain | test_connection
+	Phase            string `gorm:"index;size:80;not null;default:''"` // optional subphase
 	PromptTokens     int
 	CompletionTokens int
 	TotalTokens      int

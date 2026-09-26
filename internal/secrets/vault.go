@@ -139,13 +139,13 @@ func (v *Vault) Put(profileID string, kind Kind, val SecretValue, hint string) e
 	}
 	kdfJSON, _ := json.Marshal(v.kdf)
 	item := storage.VaultItem{
-		ProfileID:  profileID,
-		Kind:       string(kind),
-		CipherB64:  cipherB64,
-		KDFJSON:    string(kdfJSON),
-		SaltB64:    base64.StdEncoding.EncodeToString(v.salt),
-		NonceB64:   nonceB64,
-		Hint:       hint,
+		ProfileID: profileID,
+		Kind:      string(kind),
+		CipherB64: cipherB64,
+		KDFJSON:   string(kdfJSON),
+		SaltB64:   base64.StdEncoding.EncodeToString(v.salt),
+		NonceB64:  nonceB64,
+		Hint:      hint,
 	}
 
 	// upsert by profile+kind
@@ -226,4 +226,3 @@ func (v *Vault) saveSalt(salt []byte) error {
 	st.ValueJSON = b64
 	return v.db.Save(&st).Error
 }
-

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/docker/docker/api/types"
 	"al.essio.dev/pkg/shellescape"
+	"github.com/docker/docker/api/types"
 )
 
 func (a *App) DockerLocalListNetworks() ([]DockerNetworkDTO, error) {

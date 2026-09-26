@@ -239,4 +239,3 @@ func (tm *TransferManager) Step(id string, limit int) (TransferEvent, error) {
 		return TransferEvent{}, errors.New("unknown transfer direction")
 	}
 }
-

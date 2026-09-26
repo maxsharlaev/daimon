@@ -88,4 +88,3 @@ func DecryptJSON(key []byte, cipherB64 string, nonceB64 string, out any) error {
 	}
 	return json.Unmarshal(plain, out)
 }
-

@@ -18,4 +18,3 @@ type TransferEvent struct {
 	State      string `json:"state"` // "running" | "success" | "failed" | "cancelled"
 	Error      string `json:"error,omitempty"`
 }
-

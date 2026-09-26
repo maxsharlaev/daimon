@@ -124,13 +124,13 @@ func (a *App) DockerRemoteListContainers(sessionId string) ([]DockerContainerDTO
 			continue
 		}
 		out = append(out, DockerContainerDTO{
-			ID:     v.ID,
-			Name:   v.Names,
-			Image:  v.Image,
+			ID:      v.ID,
+			Name:    v.Names,
+			Image:   v.Image,
 			ImageID: v.ImageID,
-			State:  v.State,
-			Status: v.Status,
-			Ports:  v.Ports,
+			State:   v.State,
+			Status:  v.Status,
+			Ports:   v.Ports,
 		})
 	}
 	return out, nil

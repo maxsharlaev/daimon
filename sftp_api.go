@@ -483,4 +483,3 @@ func runUpload(ctx context.Context, sess *sftp.Session, localPath string, remote
 	runtime.EventsEmit(ctx, "sftp:transfer", sftp.TransferEvent{TransferID: transferID, Direction: "upload", DoneBytes: done, TotalBytes: total, State: "success"})
 	return transferID, nil
 }
-

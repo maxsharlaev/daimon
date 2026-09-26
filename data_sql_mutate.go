@@ -19,7 +19,7 @@ var reWhereSplit = regexp.MustCompile(`(?is)\s+where\s+`)
 // mutationDeletePreviewSQL returns COUNT and SELECT sample queries for a simple DELETE, or ok=false.
 func mutationDeletePreviewSQL(sqlText string, sampleLimit int) (countSQL, sampleSQL string, ok bool) {
 	m := reDeleteSingleTable.FindStringSubmatch(sqlText)
-	if m == nil || len(m) < 2 {
+	if len(m) < 2 {
 		return "", "", false
 	}
 	table := strings.TrimSpace(m[1])

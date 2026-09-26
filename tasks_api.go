@@ -35,4 +35,3 @@ func (a *App) DemoRunTask(sessionId string, durationMs int) error {
 	}()
 	return nil
 }
-

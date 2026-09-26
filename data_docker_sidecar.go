@@ -19,7 +19,7 @@ import (
 
 const (
 	postgresSidecarImage = "postgres:16-alpine"
-	mysqlSidecarImage     = "mysql:8"
+	mysqlSidecarImage    = "mysql:8"
 )
 
 func dockerSidecarRun(ctx context.Context, cli *client.Client, targetContainerID string, image string, env []string, cmd []string, stdin io.Reader) (stdout string, stderr string, err error) {
@@ -114,9 +114,6 @@ func dockerPostgresQuery(containerID, host string, port int, user, password, dat
 		}
 		return nil, nil, err
 	}
-	if stderr != "" && !strings.Contains(strings.ToLower(stderr), "rows)") {
-		// psql may print notices to stderr
-	}
 	return parseTSV(out)
 }
 
@@ -171,9 +168,7 @@ func parseTSV(s string) (cols []string, rows [][]string, err error) {
 	if len(records[0]) == 1 && len(records) > 1 {
 		// Could be single-column result
 		cols = []string{"?"}
-		for _, row := range records {
-			rows = append(rows, row)
-		}
+		rows = append(rows, records...)
 		return cols, rows, nil
 	}
 	// Assume first line is header if we emitted with headers - we use -At without headers
@@ -181,9 +176,7 @@ func parseTSV(s string) (cols []string, rows [][]string, err error) {
 	for i := range cols {
 		cols[i] = fmt.Sprintf("col%d", i+1)
 	}
-	for _, rec := range records {
-		rows = append(rows, rec)
-	}
+	rows = append(rows, records...)
 	return cols, rows, nil
 }
 
@@ -207,8 +200,4 @@ func parseMySQLTSV(s string) (cols []string, rows [][]string, err error) {
 		rows = records[1:]
 	}
 	return cols, rows, nil
-}
-
-func dockerRemoteShellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
 }

@@ -14,9 +14,9 @@ import (
 
 // AiChatRequest is one user turn in a conversation.
 type AiChatRequest struct {
-	ConversationID string            `json:"conversationId"`
-	UserText       string            `json:"userText"`
-	AgentContext   AgentContextDTO   `json:"agentContext"`
+	ConversationID string          `json:"conversationId"`
+	UserText       string          `json:"userText"`
+	AgentContext   AgentContextDTO `json:"agentContext"`
 }
 
 // AiPendingCommandDTO is returned when the model requested a shell command.
@@ -27,17 +27,17 @@ type AiPendingCommandDTO struct {
 
 // AiChatResponse is the outcome of AiChat (or continuation).
 type AiChatResponse struct {
-	AssistantMessage *AiMessageDTO         `json:"assistantMessage,omitempty"`
-	PendingCommand   *AiPendingCommandDTO  `json:"pendingCommand,omitempty"`
-	Error            string                `json:"error,omitempty"`
+	AssistantMessage *AiMessageDTO        `json:"assistantMessage,omitempty"`
+	PendingCommand   *AiPendingCommandDTO `json:"pendingCommand,omitempty"`
+	Error            string               `json:"error,omitempty"`
 }
 
 // AiResolveCommandRequest completes or cancels a pending command from a prior assistant message.
 type AiResolveCommandRequest struct {
-	ConversationID       string          `json:"conversationId"`
-	AssistantMessageID   string          `json:"assistantMessageId"`
-	Approved             bool            `json:"approved"`
-	AgentContext         AgentContextDTO `json:"agentContext"`
+	ConversationID     string          `json:"conversationId"`
+	AssistantMessageID string          `json:"assistantMessageId"`
+	Approved           bool            `json:"approved"`
+	AgentContext       AgentContextDTO `json:"agentContext"`
 }
 
 type aiParsedReply struct {
@@ -70,7 +70,7 @@ func (a *App) buildAgentContextHintText(ag AgentContextDTO) string {
 		var p storage.Profile
 		if err := a.db.DB.First(&p, "id = ?", pid).Error; err == nil {
 			b.WriteString("; host=" + p.Host)
-			b.WriteString(fmt.Sprintf("; port=%d", p.Port))
+			fmt.Fprintf(&b, "; port=%d", p.Port)
 			b.WriteString("; sshUser=" + p.Username)
 		}
 	}

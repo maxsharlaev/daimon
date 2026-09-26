@@ -13,15 +13,15 @@ import (
 
 	"al.essio.dev/pkg/shellescape"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-units"
 )
 
 type volumeUsage struct {
-	refCount int
+	refCount  int
 	sizeBytes int64
 }
 
@@ -59,7 +59,7 @@ func getLocalVolumeUsageMap(cli *client.Client) (map[string]volumeUsage, error) 
 			continue
 		}
 		out[v.Name] = volumeUsage{
-			refCount: int(v.UsageData.RefCount),
+			refCount:  int(v.UsageData.RefCount),
 			sizeBytes: int64(v.UsageData.Size),
 		}
 	}
@@ -280,7 +280,6 @@ func cleanupRemoteTempContainersByLabels(sessionId string, labels []string, exec
 	_, err = exec(sessionId, fmt.Sprintf("docker rm -f %s", strings.Join(quoted, " ")))
 	return err
 }
-
 
 func (a *App) DockerLocalListVolumes() ([]DockerVolumeDTO, error) {
 	cli, err := dockerClient()

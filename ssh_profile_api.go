@@ -227,4 +227,3 @@ func (a *App) SSHConnectProfileWithPassword(profileId string, password string, r
 	_ = a.secrets.PutSecretValue(profileId, secrets.KindPassword, mode, "", secrets.SecretValue{Password: password}, "{}")
 	return id, nil
 }
-

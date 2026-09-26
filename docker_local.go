@@ -145,8 +145,8 @@ func (a *App) DockerLocalCreateTempContainer(imageRef string) (string, error) {
 		Cmd:   []string{"sh", "-lc", "sleep 3600"},
 		Tty:   false,
 		Labels: map[string]string{
-			"daimon.temp":      "true",
-			"daimon.temp.kind": "image",
+			"daimon.temp":       "true",
+			"daimon.temp.kind":  "image",
 			"daimon.temp.image": imageRef,
 		},
 	}, nil, nil, nil, name)
@@ -179,9 +179,9 @@ func (a *App) DockerLocalCreateVolumeTempContainer(volumeName string) (string, e
 	}
 	name := tempContainerName(volumeName)
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: imageRef,
-		Cmd:   []string{"sh", "-lc", "sleep 3600"},
-		Tty:   false,
+		Image:  imageRef,
+		Cmd:    []string{"sh", "-lc", "sleep 3600"},
+		Tty:    false,
 		Labels: tempContainerLabels(volumeName),
 	}, &container.HostConfig{
 		Mounts: []mount.Mount{

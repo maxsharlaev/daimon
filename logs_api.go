@@ -1229,10 +1229,6 @@ func parseRecordResult(format storage.LogFormat, record string, now time.Time) r
 	return recordParseResult{Entry: entry, Matched: matched, Route: route}
 }
 
-func parseRegexRecord(format storage.LogFormat, record string, now time.Time) parsedLogEntry {
-	return parseRegexRecordResult(format, record, now).Entry
-}
-
 // applyLevelMappingJSON returns a normalized level if mappingJSON maps the captured level text, else "".
 func applyLevelMappingJSON(levelRaw, mappingJSON string) string {
 	raw := strings.TrimSpace(levelRaw)

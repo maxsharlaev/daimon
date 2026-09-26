@@ -1,0 +1,23 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - govet
+    - ineffassign
+    - unused
+    - staticcheck
+  exclusions:
+    rules:
+      # Docker Engine API v27 still exposes these types. Revisit when the client module moves off the incompatible path.
+      - path: docker_.+\.go
+        linters:
+          - staticcheck
+        text: "SA1019:"
+
+formatters:
+  enable:
+    - gofmt

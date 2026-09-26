@@ -15,8 +15,8 @@ type ContainerV1 struct {
 
 	KDF secrets.KDFParams `json:"kdf"`
 
-	SaltB64  string `json:"saltB64"`
-	NonceB64 string `json:"nonceB64"`
+	SaltB64   string `json:"saltB64"`
+	NonceB64  string `json:"nonceB64"`
 	CipherB64 string `json:"cipherB64"`
 }
 
@@ -35,11 +35,11 @@ func EncryptPayload(password string, payload any) (ContainerV1, error) {
 		return ContainerV1{}, err
 	}
 	return ContainerV1{
-		Format:   "daimon-profile-export",
-		Version:  1,
-		KDF:      kdf,
-		SaltB64:  base64.StdEncoding.EncodeToString(salt),
-		NonceB64: nonceB64,
+		Format:    "daimon-profile-export",
+		Version:   1,
+		KDF:       kdf,
+		SaltB64:   base64.StdEncoding.EncodeToString(salt),
+		NonceB64:  nonceB64,
 		CipherB64: cipherB64,
 	}, nil
 }
@@ -77,4 +77,3 @@ func UnmarshalContainer(s string) (ContainerV1, error) {
 	}
 	return c, nil
 }
-

@@ -222,6 +222,5 @@ func decodeSecretValue(s string) (SecretValue, Storage, error) {
 }
 
 // small wrappers (avoid pulling encoding/json here if you want to swap later)
-func jsonMarshal(v any) ([]byte, error) { return json.Marshal(v) }
+func jsonMarshal(v any) ([]byte, error)   { return json.Marshal(v) }
 func jsonUnmarshal(b []byte, v any) error { return json.Unmarshal(b, v) }
-

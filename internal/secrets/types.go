@@ -14,8 +14,8 @@ const (
 type Storage string
 
 const (
-	StorageNone    Storage = "none"
-	StorageKeyring Storage = "keyring"
+	StorageNone     Storage = "none"
+	StorageKeyring  Storage = "keyring"
 	StorageExternal Storage = "external"
 	StorageInternal Storage = "internal"
 )
@@ -28,4 +28,3 @@ type SecretValue struct {
 	PrivateKeyPEM string `json:"privateKeyPem,omitempty"`
 	Passphrase    string `json:"passphrase,omitempty"`
 }
-

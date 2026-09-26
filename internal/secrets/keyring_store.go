@@ -34,4 +34,3 @@ func (k *KeyringStore) Get(profileID string, kind Kind) (string, error) {
 func (k *KeyringStore) Delete(profileID string, kind Kind) error {
 	return keyring.Delete(k.Service, k.Key(profileID, kind))
 }
-

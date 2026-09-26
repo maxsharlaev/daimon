@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
-	"regexp"
 	"strings"
 	"time"
 
@@ -40,8 +39,6 @@ func byteSize(b int64) string {
 	}
 	return humanize.Bytes(uint64(b))
 }
-
-var tempNameSanitizeRe = regexp.MustCompile(`[^a-z0-9]+`)
 
 var tempNameWordA = []string{
 	"amber", "ancient", "aqua", "arctic", "ashen", "autumn", "brave", "bright", "calm", "candid",

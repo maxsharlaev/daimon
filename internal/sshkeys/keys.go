@@ -63,4 +63,3 @@ func ParseSigner(keyBytes []byte, passphrase string) (ssh.Signer, error) {
 	}
 	return signer, nil
 }
-

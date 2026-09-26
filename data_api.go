@@ -21,17 +21,17 @@ import (
 )
 
 type DataSourceDTO struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Engine     string `json:"engine"`
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Username   string `json:"username"`
-	Database   string `json:"database"`
-	ScopeJSON  string `json:"scopeJson"`
-	CreatedAt  string `json:"createdAt"`
-	UpdatedAt  string `json:"updatedAt"`
-	HasSecret  bool   `json:"hasSecret"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Engine    string `json:"engine"`
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	Username  string `json:"username"`
+	Database  string `json:"database"`
+	ScopeJSON string `json:"scopeJson"`
+	CreatedAt string `json:"createdAt"`
+	UpdatedAt string `json:"updatedAt"`
+	HasSecret bool   `json:"hasSecret"`
 }
 
 type UpsertDataSourceRequest struct {
@@ -44,8 +44,8 @@ type UpsertDataSourceRequest struct {
 	Database  string `json:"database"`
 	ScopeJSON string `json:"scopeJson"`
 
-	Password         string `json:"password,omitempty"`
-	PasswordStorage  string `json:"passwordStorage,omitempty"` // none | keyring | internal
+	Password        string `json:"password,omitempty"`
+	PasswordStorage string `json:"passwordStorage,omitempty"` // none | keyring | internal
 }
 
 type DataConnectRequest struct {
@@ -652,9 +652,10 @@ func (a *App) loadDataSourceRow(id string) (*storage.DataSource, error) {
 func (a *App) dataRunQuery(sess *dataSession, src *storage.DataSource, sqlText string) ([]string, [][]string, error) {
 	if sess.db != nil {
 		schemaOrDB := ""
-		if src.Engine == "postgres" {
+		switch src.Engine {
+		case "postgres":
 			schemaOrDB = "public"
-		} else if src.Engine == "mysql" {
+		case "mysql":
 			schemaOrDB = strings.TrimSpace(src.Database)
 		}
 		return dataExecUserSQL(src.Engine, sess.db, schemaOrDB, sqlText)
@@ -837,9 +838,6 @@ func (a *App) DataListTables(sessionID, database string) ([]string, error) {
 	var q string
 	switch src.Engine {
 	case "postgres":
-		sch := "public"
-		q = fmt.Sprintf(`SELECT tablename FROM pg_tables WHERE schemaname = %s ORDER BY tablename`, quotePGIdent(sch))
-		// wrong - need string literal for schema
 		q = `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`
 	case "mysql":
 		if dbName == "" {
@@ -1332,13 +1330,13 @@ ORDER BY ORDINAL_POSITION`, strings.ReplaceAll(db, "'", "''"), strings.ReplaceAl
 }
 
 type DataRowMutationRequest struct {
-	SessionID string            `json:"sessionId"`
-	Database  string            `json:"database"`
-	Table     string            `json:"table"`
-	Columns   []string          `json:"columns"`
-	Values    []string          `json:"values"`
-	PKColumns []string          `json:"pkColumns"`
-	PKValues  []string          `json:"pkValues"`
+	SessionID string   `json:"sessionId"`
+	Database  string   `json:"database"`
+	Table     string   `json:"table"`
+	Columns   []string `json:"columns"`
+	Values    []string `json:"values"`
+	PKColumns []string `json:"pkColumns"`
+	PKValues  []string `json:"pkValues"`
 }
 
 func (a *App) DataUpdateRow(req DataRowMutationRequest) error {

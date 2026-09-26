@@ -440,7 +440,7 @@ func dataTablePreview(engine string, db *sql.DB, schemaOrDB, table string, limit
 		b.WriteString(whereSQL)
 	}
 	b.WriteString(orderClause)
-	b.WriteString(fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset))
+	fmt.Fprintf(&b, " LIMIT %d OFFSET %d", limit, offset)
 	q = b.String()
 
 	rows, err := db.QueryContext(ctx, q, fargs...)

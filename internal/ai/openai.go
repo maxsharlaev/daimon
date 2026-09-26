@@ -18,11 +18,11 @@ type ChatMessage struct {
 
 // ChatCompletionRequest is sent to POST {base}/chat/completions.
 type ChatCompletionRequest struct {
-	Model            string           `json:"model"`
-	Messages         []ChatMessage    `json:"messages"`
-	MaxTokens        int              `json:"max_tokens,omitempty"`
-	Temperature      float64          `json:"temperature,omitempty"`
-	ResponseFormat   *responseFormat  `json:"response_format,omitempty"`
+	Model          string          `json:"model"`
+	Messages       []ChatMessage   `json:"messages"`
+	MaxTokens      int             `json:"max_tokens,omitempty"`
+	Temperature    float64         `json:"temperature,omitempty"`
+	ResponseFormat *responseFormat `json:"response_format,omitempty"`
 }
 
 // responseFormat selects structured output. Type "json_object" asks the API to return valid JSON only

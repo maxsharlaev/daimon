@@ -81,7 +81,7 @@ func dockerHostFromCurrentContext() string {
 			continue
 		}
 		var m struct {
-			Name      string            `json:"Name"`
+			Name      string `json:"Name"`
 			Endpoints map[string]struct {
 				Host string `json:"Host"`
 			} `json:"Endpoints"`

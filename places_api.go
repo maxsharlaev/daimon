@@ -9,13 +9,13 @@ import (
 )
 
 type PlaceDTO struct {
-	ID        string `json:"id"`
-	ProfileID string `json:"profileId"`
-	Name      string `json:"name"`
+	ID         string `json:"id"`
+	ProfileID  string `json:"profileId"`
+	Name       string `json:"name"`
 	RemotePath string `json:"remotePath"`
-	Order     int    `json:"order"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+	Order      int    `json:"order"`
+	CreatedAt  string `json:"createdAt"`
+	UpdatedAt  string `json:"updatedAt"`
 }
 
 type UpsertPlaceRequest struct {
@@ -125,4 +125,3 @@ func (a *App) DeletePlace(id string) error {
 	}
 	return a.db.DB.Delete(&storage.Place{}, "id = ?", id).Error
 }
-

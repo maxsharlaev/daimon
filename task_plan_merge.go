@@ -11,17 +11,6 @@ func normTaskStatusGo(s string) string {
 	return strings.ToLower(strings.ReplaceAll(strings.TrimSpace(s), " ", "_"))
 }
 
-// planNeedsContinuation reports whether any task is still pending or in progress.
-func planNeedsContinuation(tasks []aiTaskItemJSON) bool {
-	for _, t := range tasks {
-		st := normTaskStatusGo(t.Status)
-		if st == "pending" || st == "in_progress" {
-			return true
-		}
-	}
-	return false
-}
-
 // extractTasksFromAssistantPayload parses tasks from a persisted assistant payload.
 // Returns (tasks, tasksKeyPresent, usable). usable is false for parse-error assistant rows.
 func extractTasksFromAssistantPayload(payloadJSON string) (tasks []aiTaskItemJSON, tasksKeyPresent bool, usable bool) {
@@ -40,7 +29,6 @@ func extractTasksFromAssistantPayload(payloadJSON string) (tasks []aiTaskItemJSO
 	if !ok {
 		return nil, false, true
 	}
-	tasksKeyPresent = true
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, true, true
 	}

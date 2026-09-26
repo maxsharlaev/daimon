@@ -12,7 +12,7 @@ import (
 )
 
 type ExportPayloadV1 struct {
-	Profile storage.Profile `json:"profile"`
+	Profile storage.Profile                `json:"profile"`
 	Secrets map[string]secrets.SecretValue `json:"secrets"` // kind -> value
 }
 
@@ -152,4 +152,3 @@ func (a *App) ExportProfileEncryptedPreview(profileId string) (string, error) {
 	b, _ := json.MarshalIndent(p, "", "  ")
 	return string(b), nil
 }
-

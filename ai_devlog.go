@@ -97,4 +97,3 @@ func sanitizeKind(s string) string {
 	}
 	return b.String()
 }
-

@@ -91,4 +91,3 @@ func StatLocal(p string) (FileEntryDTO, error) {
 		MTimeMs: fi.ModTime().UnixMilli(),
 	}, nil
 }
-
