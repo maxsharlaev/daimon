@@ -43,8 +43,9 @@
 
 ## Known Gaps (Current State)
 
-- host key verification is not consistently strict by default
-- SFTP path currently uses insecure host key callback in MVP behavior
+- The first connection to a host relies on the user checking the SHA256 fingerprint (trust on first use).
+- SSH host certificates are not supported.
+- a profile can explicitly skip host key verification
 - no formal reproducible-build verification pipeline documented yet
 - security policy exists, but process maturity is still evolving
 - **Logs**: redaction is pattern-based; novel secret formats may still be stored in cleartext in `LogEntry` rows until patterns are improved

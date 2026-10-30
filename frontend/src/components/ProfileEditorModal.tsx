@@ -4,6 +4,7 @@ import {
   PickPrivateKeyFile,
   SetSecret,
   SSHTestConnection,
+  ForgetHostKey,
   UpsertProfile,
   VaultSetup,
   VaultStatus,
@@ -11,6 +12,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import type { ProfileDTO, ProfileGroupDTO } from "../types/models";
+import { clearHostKeyPrompt, readSSHOptions, sshOptionsJSON, withHostKey } from "../ssh/hostKey";
 import { Tooltip } from "./Tooltip";
 import { DropdownSelect } from "./ui";
 import "./profile_editor.scss";
@@ -61,7 +63,7 @@ export function ProfileEditorModal({
   const [initialKeyStorage, setInitialKeyStorage] = useState<SecretStorage>("none");
   const [initialKeyPath, setInitialKeyPath] = useState("");
 
-  const [insecureIgnoreHostKey, setInsecureIgnoreHostKey] = useState(true);
+  const [insecureIgnoreHostKey, setInsecureIgnoreHostKey] = useState(false);
   const [timeoutMs, setTimeoutMs] = useState(10000);
 
   const [vaultSetupPw, setVaultSetupPw] = useState("");
@@ -111,8 +113,9 @@ export function ProfileEditorModal({
     setInitialKeyPath("");
     setKeyPEM("");
     setKeyPassphrase("");
-    setInsecureIgnoreHostKey(true);
-    setTimeoutMs(10000);
+    const sshOpts = readSSHOptions(profile?.sshOptionsJson);
+    setInsecureIgnoreHostKey(sshOpts.insecureIgnoreHostKey);
+    setTimeoutMs(sshOpts.timeoutMs > 0 ? sshOpts.timeoutMs : 10000);
     setVaultSetupPw("");
     setVaultUnlockPw("");
     setTestState({ status: "idle" });
@@ -251,6 +254,24 @@ export function ProfileEditorModal({
     if (path) setKeyPath(path);
   };
 
+  const forgetHostKey = async () => {
+    const endpointHost = host.trim();
+    const endpointPort = Number(port) || 22;
+    if (!window.confirm(`Forget the stored host key for ${endpointHost}:${endpointPort}? The next connection will ask you to trust the server key again.`)) {
+      return;
+    }
+    clearHostKeyPrompt(endpointHost, endpointPort);
+    setBusy(true);
+    setError(null);
+    try {
+      await ForgetHostKey(host.trim(), Number(port) || 22);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const testConnection = async () => {
     setBusy(true);
     setError(null);
@@ -278,7 +299,7 @@ export function ProfileEditorModal({
         }
       }
 
-      const r = await SSHTestConnection(main.SSHConfig.createFrom(cfg));
+      const r = await withHostKey(() => SSHTestConnection(main.SSHConfig.createFrom(cfg)));
       setTestState({ status: "success", message: r });
     } catch (e: any) {
       const msg = e?.message ?? String(e);
@@ -330,7 +351,7 @@ export function ProfileEditorModal({
         host,
         port: Number(port) || 22,
         username,
-        sshOptionsJson: profile?.sshOptionsJson ?? "{}",
+        sshOptionsJson: sshOptionsJSON(profile?.sshOptionsJson, insecureIgnoreHostKey, timeoutMs),
       });
       const saved = await UpsertProfile(req);
 
@@ -467,8 +488,15 @@ export function ProfileEditorModal({
                   onChange={(e) => setInsecureIgnoreHostKey(e.target.checked)}
                   disabled={busy}
                 />
-                Insecure: ignore host key (MVP)
+                Skip host key verification
               </label>
+              <p className="hostkey-optout-note">
+                Use this for a load balancer that presents a different key on each connection, or for servers that are
+                recreated often. The connection will not check the server key, so a substituted server is not detected.
+              </p>
+              <button className="btn" type="button" onClick={() => void forgetHostKey()} disabled={busy || !host.trim()}>
+                Forget host key
+              </button>
             </div>
 
             <div className="row">

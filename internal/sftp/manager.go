@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"daimon/internal/hostkeys"
+	"daimon/internal/sshconn"
 	"daimon/internal/sshkeys"
 	pkgsftp "github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -47,6 +49,7 @@ type Session struct {
 type Manager struct {
 	mu       sync.Mutex
 	sessions map[string]*Session
+	hostKeys *hostkeys.Store
 }
 
 func NewManager() *Manager {
@@ -55,8 +58,27 @@ func NewManager() *Manager {
 	}
 }
 
+// SetHostKeys installs the app known_hosts store used by later dials.
+func (m *Manager) SetHostKeys(keys *hostkeys.Store) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	m.hostKeys = keys
+	m.mu.Unlock()
+}
+
+func (m *Manager) hostKeyStore() *hostkeys.Store {
+	if m == nil {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.hostKeys
+}
+
 func (m *Manager) Connect(ctx context.Context, cfg SSHConfig) (string, error) {
-	client, err := dialSSH(cfg)
+	client, err := m.dialSSH(cfg)
 	if err != nil {
 		return "", err
 	}
@@ -307,7 +329,7 @@ func sshTimeoutFromConfig(cfg SSHConfig) time.Duration {
 	return timeout
 }
 
-func dialSSH(cfg SSHConfig) (*ssh.Client, error) {
+func (m *Manager) dialSSH(cfg SSHConfig) (*ssh.Client, error) {
 	if strings.TrimSpace(cfg.Host) == "" {
 		return nil, errors.New("host is required")
 	}
@@ -322,21 +344,18 @@ func dialSSH(cfg SSHConfig) (*ssh.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	hostKeyCb := ssh.InsecureIgnoreHostKey()
-	if !cfg.InsecureIgnoreHostKey {
-		// MVP: keep insecure unless you add known_hosts verification here (same as ssh_manager.go).
-		hostKeyCb = ssh.InsecureIgnoreHostKey()
-	}
-
 	timeout := sshTimeoutFromConfig(cfg)
 
-	clientCfg := &ssh.ClientConfig{
-		User:            cfg.Username,
-		Auth:            auth,
-		HostKeyCallback: hostKeyCb,
-		// Still set for ssh internals; TCP + handshake are bounded explicitly below.
-		Timeout: timeout,
+	clientCfg, err := sshconn.BuildClientConfig(sshconn.Node{
+		Host:                  cfg.Host,
+		Port:                  cfg.Port,
+		Username:              cfg.Username,
+		Auth:                  auth,
+		Timeout:               timeout,
+		InsecureIgnoreHostKey: cfg.InsecureIgnoreHostKey,
+	}, m.hostKeyStore())
+	if err != nil {
+		return nil, err
 	}
 	addr := net.JoinHostPort(cfg.Host, fmt.Sprintf("%d", cfg.Port))
 

@@ -9,16 +9,16 @@ import (
 	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"daimon/internal/hostkeys"
+	"daimon/internal/sshconn"
 	"daimon/internal/sshkeys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 type SSHConfig struct {
@@ -36,7 +36,7 @@ type SSHConfig struct {
 	PrivateKeyPEM  string `json:"privateKeyPem,omitempty"`
 	Passphrase     string `json:"passphrase,omitempty"`
 
-	// MVP: allow insecure host key verification (recommended false in production)
+	// InsecureIgnoreHostKey skips host key checks for this connection only.
 	InsecureIgnoreHostKey bool `json:"insecureIgnoreHostKey"`
 
 	Cols int `json:"cols,omitempty"`
@@ -46,8 +46,28 @@ type SSHConfig struct {
 }
 
 type SSHManager struct {
-	mu    sync.Mutex
-	conns map[string]*sshConn
+	mu       sync.Mutex
+	conns    map[string]*sshConn
+	hostKeys *hostkeys.Store
+}
+
+// SetHostKeys installs the app known_hosts store used by later dials.
+func (m *SSHManager) SetHostKeys(keys *hostkeys.Store) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	m.hostKeys = keys
+	m.mu.Unlock()
+}
+
+func (m *SSHManager) hostKeyStore() *hostkeys.Store {
+	if m == nil {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.hostKeys
 }
 
 type sshConn struct {
@@ -115,7 +135,7 @@ func sshTimeout(cfg SSHConfig) time.Duration {
 
 func (m *SSHManager) TestConnection(cfg SSHConfig) (string, error) {
 	timeout := sshTimeout(cfg)
-	client, err := dialSSH(cfg)
+	client, err := m.dialSSH(cfg)
 	if err != nil {
 		return "", err
 	}
@@ -151,7 +171,7 @@ func (m *SSHManager) TestConnection(cfg SSHConfig) (string, error) {
 
 func (m *SSHManager) Connect(ctx context.Context, cfg SSHConfig) (string, error) {
 	timeout := sshTimeout(cfg)
-	client, err := dialSSH(cfg)
+	client, err := m.dialSSH(cfg)
 	if err != nil {
 		return "", err
 	}
@@ -263,7 +283,7 @@ func (m *SSHManager) Connect(ctx context.Context, cfg SSHConfig) (string, error)
 // ConnectExecOnly connects to SSH and keeps only the ssh.Client for non-interactive Exec() calls.
 // It does NOT create a PTY / shell session and does not emit ssh:output events.
 func (m *SSHManager) ConnectExecOnly(ctx context.Context, cfg SSHConfig) (string, error) {
-	client, err := dialSSH(cfg)
+	client, err := m.dialSSH(cfg)
 	if err != nil {
 		return "", err
 	}
@@ -285,7 +305,7 @@ func (m *SSHManager) ConnectExecOnly(ctx context.Context, cfg SSHConfig) (string
 
 // ConnectExecOnlySilent is like ConnectExecOnly but does not emit ssh:state events (Data tab only).
 func (m *SSHManager) ConnectExecOnlySilent(ctx context.Context, cfg SSHConfig) (string, error) {
-	client, err := dialSSH(cfg)
+	client, err := m.dialSSH(cfg)
 	if err != nil {
 		return "", err
 	}
@@ -519,7 +539,7 @@ func (m *SSHManager) pump(ctx context.Context, id string, r io.Reader, isErr boo
 	}
 }
 
-func dialSSH(cfg SSHConfig) (*ssh.Client, error) {
+func (m *SSHManager) dialSSH(cfg SSHConfig) (*ssh.Client, error) {
 	if strings.TrimSpace(cfg.Host) == "" {
 		return nil, errors.New("host is required")
 	}
@@ -540,17 +560,16 @@ func dialSSH(cfg SSHConfig) (*ssh.Client, error) {
 
 	timeout := sshTimeout(cfg)
 
-	hostKeyCallback, err := buildHostKeyCallback(cfg)
+	clientConfig, err := sshconn.BuildClientConfig(sshconn.Node{
+		Host:                  cfg.Host,
+		Port:                  cfg.Port,
+		Username:              cfg.Username,
+		Auth:                  authMethods,
+		Timeout:               timeout,
+		InsecureIgnoreHostKey: cfg.InsecureIgnoreHostKey,
+	}, m.hostKeyStore())
 	if err != nil {
 		return nil, err
-	}
-
-	clientConfig := &ssh.ClientConfig{
-		User:            cfg.Username,
-		Auth:            authMethods,
-		HostKeyCallback: hostKeyCallback,
-		// Keep this for ssh internals that still consult it.
-		Timeout: timeout,
 	}
 
 	addr := net.JoinHostPort(cfg.Host, fmt.Sprintf("%d", cfg.Port))
@@ -572,22 +591,6 @@ func dialSSH(cfg SSHConfig) (*ssh.Client, error) {
 	}
 	_ = conn.SetDeadline(time.Time{})
 	return ssh.NewClient(cconn, chans, reqs), nil
-}
-
-func buildHostKeyCallback(cfg SSHConfig) (ssh.HostKeyCallback, error) {
-	if cfg.InsecureIgnoreHostKey {
-		return ssh.InsecureIgnoreHostKey(), nil
-	}
-
-	home, err := os.UserHomeDir()
-	if err == nil && strings.TrimSpace(home) != "" {
-		kh := filepath.Join(home, ".ssh", "known_hosts")
-		if _, statErr := os.Stat(kh); statErr == nil {
-			return knownhosts.New(kh)
-		}
-	}
-
-	return nil, errors.New("host key verification enabled, but ~/.ssh/known_hosts not found; either create known_hosts or enable InsecureIgnoreHostKey")
 }
 
 func buildAuth(cfg SSHConfig) ([]ssh.AuthMethod, error) {

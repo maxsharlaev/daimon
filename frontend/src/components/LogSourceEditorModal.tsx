@@ -13,6 +13,7 @@ import {
   SFTPListDir,
   SFTPReadFileTail,
 } from "../../wailsjs/go/main/App";
+import { withHostKey } from "../ssh/hostKey";
 import type { DockerContainerDTO } from "../types/docker";
 import type { LogFormatDTO, LogParsePreviewResultDTO } from "../types/logs";
 import { presetPathForFormat } from "./logSourceFormatPresets";
@@ -124,7 +125,7 @@ export function LogSourceEditorModal({
       try {
         if (ownerKind === "profile") {
           if (!activeProfileId) throw new Error("No profile selected");
-          const sid = await SFTPConnectProfile(activeProfileId);
+          const sid = await withHostKey(() => SFTPConnectProfile(activeProfileId));
           if (cancelled) {
             await SFTPDisconnect(sid);
             return;
@@ -141,7 +142,7 @@ export function LogSourceEditorModal({
           setTransportReady(true);
         } else {
           if (!selectedRemoteProfileId) throw new Error("No remote profile");
-          const rid = await DockerRemoteConnectProfile(selectedRemoteProfileId);
+          const rid = await withHostKey(() => DockerRemoteConnectProfile(selectedRemoteProfileId));
           if (cancelled) {
             await DockerRemoteDisconnect(rid);
             return;

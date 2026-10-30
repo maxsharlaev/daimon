@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { SSHConnectProfile, SSHDashboardConnectProfile, VaultStatus, VaultUnlock } from "../../wailsjs/go/main/App";
 import type { ProfileDTO } from "../types/models";
+import { withHostKey } from "../ssh/hostKey";
 import type { SshPasswordModalPurpose } from "./SshPasswordModal";
 import "./sshpasswordmodal.css";
 
@@ -48,10 +49,9 @@ export function VaultUnlockConnectionModal({ context, onClose, onConnected }: Pr
         return;
       }
       await VaultUnlock(mpw);
-      const sessionId =
-        purpose === "terminal"
-          ? await SSHConnectProfile(profile.id)
-          : await SSHDashboardConnectProfile(profile.id);
+      const sessionId = await withHostKey(() =>
+        purpose === "terminal" ? SSHConnectProfile(profile.id) : SSHDashboardConnectProfile(profile.id)
+      );
       onConnected(sessionId, purpose, profile.id);
     } catch (e: unknown) {
       setModalError(e instanceof Error ? e.message : String(e));

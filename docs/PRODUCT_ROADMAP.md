@@ -18,13 +18,13 @@ Secrets: OS keyring and/or the encrypted internal vault. There is no cloud accou
 
 ## Principles
 
-- **Trust first**: security defaults and disclosure before new surface area. Host key verification is still not secure-by-default; SFTP ignores the known_hosts path. `docs/security/HARDENING_ROADMAP.md`.
+- **Trust first**: security defaults and disclosure before new surface area. Host key verification is on for SSH connections unless a profile opts out. `docs/security/HARDENING_ROADMAP.md`.
 - **Local-first**: network use is explicit. Logs, chats, and data-source metadata stay on disk.
 - **Extensions stay narrow**: Data is a light SQL client, not a database IDE. Kubernetes, if built, should follow the Docker UX, not replace `kubectl`.
 
 ## Priority order
 
-1. **Security hardening** — host keys, SFTP parity with `ssh_manager.go`, safe defaults: `docs/security/HARDENING_ROADMAP.md`. Context: `docs/security/THREAT_MODEL.md`, `SECURITY.md`, `PRIVACY.md`.
+1. **Security hardening** — remaining items in `docs/security/HARDENING_ROADMAP.md`. Context: `docs/security/THREAT_MODEL.md`, `SECURITY.md`, `PRIVACY.md`.
 
 2. **Core stability** — bugs and rough edges in the modes already shipped (SSH/SFTP, Local, Docker, Logs, Data, Agent, Dashboard, Macros).
 

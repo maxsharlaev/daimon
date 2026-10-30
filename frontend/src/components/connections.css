@@ -124,6 +124,11 @@
   white-space: nowrap;
 }
 
+.profile-hostkey-warn {
+  margin-right: 6px;
+  color: #e6b450;
+}
+
 .profile-marker {
   justify-self: end;
   align-self: center;

@@ -55,7 +55,8 @@ ChaCha20-Poly1305 for payload encryption.
 ## Local Persistence
 
 Project state is stored locally in SQLite under the user config directory
-(for example: `<user-config-dir>/daimon/daimon.db`).
+(for example: `<user-config-dir>/daimon/daimon.db`). SSH host keys are stored in
+`<user-config-dir>/daimon/known_hosts` beside that database. When this file is first created, Daimon copies valid entries from `~/.ssh/known_hosts` into it. Daimon never modifies `~/.ssh/known_hosts`.
 
 Database may include:
 

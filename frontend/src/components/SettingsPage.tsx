@@ -31,6 +31,7 @@ import {
   DeleteAiConversation,
   GetAiSettings,
 } from "../../wailsjs/go/main/App";
+import { withHostKey } from "../ssh/hostKey";
 import type { MacroDTO, ProfileDTO } from "../types/models";
 import { SETTINGS_REFRESH_ALL_EVENT } from "../settingsEvents";
 import { SettingsPlacesPanel } from "./SettingsPlacesPanel";
@@ -369,7 +370,7 @@ export function SettingsPage({ profiles, onCreateMacro, onEditMacro }: Props) {
     setPrivacyDockerRemoteBusy(true);
     setPrivacyDockerRemoteErr(null);
     try {
-      setPrivacyDockerRemoteBuckets((await ListPrivacyDockerRemoteLogBuckets(profileId)) as PrivacyDockerLogBucket[]);
+      setPrivacyDockerRemoteBuckets((await withHostKey(() => ListPrivacyDockerRemoteLogBuckets(profileId))) as PrivacyDockerLogBucket[]);
     } catch (e: any) {
       setPrivacyDockerRemoteErr(e?.message ?? String(e));
       setPrivacyDockerRemoteBuckets([]);

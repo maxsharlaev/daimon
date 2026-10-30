@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"daimon/internal/hostkeys"
 	"daimon/internal/secrets"
 	"daimon/internal/storage"
 	"gorm.io/gorm"
@@ -360,19 +361,26 @@ func (a *App) ListPrivacyDockerRemoteLogBuckets(profileId string) ([]PrivacyDock
 	if err != nil {
 		return nil, err
 	}
-	if sid, err := a.DockerRemoteConnectProfile(profileId); err == nil {
-		live := map[string]bool{}
-		if containers, err := a.DockerRemoteListContainers(sid); err == nil {
-			for _, c := range containers {
-				if n := strings.TrimSpace(c.Name); n != "" {
-					live[n] = true
-				}
+	sid, err := a.DockerRemoteConnectProfile(profileId)
+	if err != nil {
+		var unknown *hostkeys.ErrUnknownHost
+		var changed *hostkeys.ErrHostKeyChanged
+		if errors.As(err, &unknown) || errors.As(err, &changed) {
+			return nil, err
+		}
+		return out, nil
+	}
+	live := map[string]bool{}
+	if containers, err := a.DockerRemoteListContainers(sid); err == nil {
+		for _, c := range containers {
+			if n := strings.TrimSpace(c.Name); n != "" {
+				live[n] = true
 			}
-			markPrivacyDockerBucketsOrphanedByLiveNames(out, live)
 		}
-		if a.ctx != nil {
-			_ = a.DockerRemoteDisconnect(sid)
-		}
+		markPrivacyDockerBucketsOrphanedByLiveNames(out, live)
+	}
+	if a.ctx != nil {
+		_ = a.DockerRemoteDisconnect(sid)
 	}
 	return out, nil
 }

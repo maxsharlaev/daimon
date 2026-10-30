@@ -89,11 +89,11 @@ The collector runs Linux commands (`df`, `ps`) and reads `/proc/*`. The target h
 
 ## Host key verification
 
-Profiles have **Insecure: ignore host key**. It is **on by default** (`InsecureIgnoreHostKey`). That is convenient and **not secure**.
+All SSH connections (terminal, dashboard, SFTP, Docker remote, logs and data) verify the server's host key. Daimon checks it against `known_hosts` in the app data directory (next to `daimon.db`). A new host asks you to trust its SHA256 fingerprint. If that key later changes, the connection stops until you choose **Forget host key** in the profile editor.
 
-When the option is **off**, interactive SSH uses `~/.ssh/known_hosts` (`ssh_manager.go`). If that file is missing, the backend returns an error.
+Daimon verifies the server's plain host key; SSH host certificates and `@cert-authority` entries are not used.
 
-SFTP does not follow that switch yet. `internal/sftp/manager.go` always installs `ssh.InsecureIgnoreHostKey`, including when the flag is off. See `docs/security/HARDENING_ROADMAP.md`.
+**Skip host key verification** is off unless you turn it on for that profile. Profiles with the option on are marked in the connections list.
 
 ## Development
 

@@ -396,6 +396,10 @@ export function SSHSend(arg1:string,arg2:string):Promise<void>;
 
 export function SSHTestConnection(arg1:main.SSHConfig):Promise<string>;
 
+export function TrustHostKey(arg1:string,arg2:number,arg3:string):Promise<void>;
+
+export function ForgetHostKey(arg1:string,arg2:number):Promise<void>;
+
 export function SaveAiSettings(arg1:main.SaveAiSettingsRequest):Promise<void>;
 
 export function SaveAiToolExplain(arg1:main.SaveAiToolExplainRequest):Promise<void>;

@@ -7,6 +7,7 @@ import {
   VaultUnlock,
 } from "../../wailsjs/go/main/App";
 import type { ProfileDTO } from "../types/models";
+import { withHostKey } from "../ssh/hostKey";
 import "./sshpasswordmodal.css";
 import { DropdownSelect } from "./ui";
 
@@ -93,10 +94,11 @@ export function SshPasswordModal({ context, onClose, onConnected }: Props) {
       }
 
       const remember = saveAs;
-      const sessionId =
+      const sessionId = await withHostKey(() =>
         purpose === "terminal"
-          ? await SSHConnectProfileWithPassword(profile.id, pw, remember)
-          : await SSHDashboardConnectProfileWithPassword(profile.id, pw, remember);
+          ? SSHConnectProfileWithPassword(profile.id, pw, remember)
+          : SSHDashboardConnectProfileWithPassword(profile.id, pw, remember)
+      );
 
       onConnected(sessionId, purpose, profile.id);
     } catch (e: unknown) {

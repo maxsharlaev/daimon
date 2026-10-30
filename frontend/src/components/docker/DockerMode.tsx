@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { MacroDTO, PlaceDTO, ProfileDTO, ProfileGroupDTO } from "../../types/models";
+import { withHostKey } from "../../ssh/hostKey";
 import { SplitView } from "../SplitView";
 import { DockerSidebar } from "./DockerSidebar";
 import { DockerLogsPanel } from "./DockerLogsPanel";
@@ -952,7 +953,7 @@ export function DockerMode({
       [profileId]: { profileId, sessionId: prev[profileId]?.sessionId ?? null, connecting: true, lastError: null },
     }));
     try {
-      const sessionId = await DockerRemoteConnectProfile(profileId);
+      const sessionId = await withHostKey(() => DockerRemoteConnectProfile(profileId));
       setRemoteByProfile((prev) => ({
         ...prev,
         [profileId]: { profileId, sessionId, connecting: false, lastError: null },

@@ -10,6 +10,7 @@ import {
   DeleteLogSource,
 } from "../../wailsjs/go/main/App";
 import type { ProfileDTO } from "../types/models";
+import { withHostKey } from "../ssh/hostKey";
 import type { DockerContainerDTO } from "../types/docker";
 import type { LogEntryDTO, LogFormatDTO, LogSourceDTO, LogsQueryResultDTO, LogsSyncResultDTO } from "../types/logs";
 import { onLogsSync, startLogsEventBridge } from "../logs/events";
@@ -107,7 +108,7 @@ export function LogsWorkspace({ profiles }: Props) {
       setRemoteContainers([]);
       return;
     }
-    setRemoteContainers((await ListDockerRemoteLogTargets(selectedRemoteProfileId)) as any);
+    setRemoteContainers((await withHostKey(() => ListDockerRemoteLogTargets(selectedRemoteProfileId))) as any);
   }, [selectedRemoteProfileId]);
 
   const sourceFilter = useMemo(() => {
@@ -288,7 +289,7 @@ export function LogsWorkspace({ profiles }: Props) {
     setSyncBusy(true);
     setSyncState("Syncing...");
     try {
-      const result = (await LogsSyncSource({ sourceId: selectedSourceId, forceLarge } as any)) as any as LogsSyncResultDTO;
+      const result = (await withHostKey(() => LogsSyncSource({ sourceId: selectedSourceId, forceLarge } as any))) as any as LogsSyncResultDTO;
       if (result.needsConfirm) {
         setSyncConfirm(result);
         setSyncBusy(false);
