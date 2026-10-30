@@ -528,13 +528,7 @@ func (a *App) buildSSHConfigForProfile(profileID string) (SSHConfig, error) {
 	if err := a.db.DB.First(&p, "id = ?", profileID).Error; err != nil {
 		return SSHConfig{}, err
 	}
-	cfg := SSHConfig{
-		Host:                  p.Host,
-		Port:                  p.Port,
-		Username:              p.Username,
-		InsecureIgnoreHostKey: true,
-		TimeoutMs:             10000,
-	}
+	cfg := sshConfigFromProfile(p)
 	if sr, err := a.secrets.GetSecretRef(profileID, secrets.KindPrivateKey); err == nil {
 		switch secrets.Storage(sr.Storage) {
 		case secrets.StorageExternal:

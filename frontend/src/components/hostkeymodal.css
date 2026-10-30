@@ -1,0 +1,66 @@
+.hostkey-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: grid;
+  place-items: center;
+  z-index: 1200;
+}
+
+.hostkey-modal {
+  width: 520px;
+  max-width: calc(100vw - 30px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(12, 18, 32, 0.96);
+  color: inherit;
+}
+
+.hostkey-title {
+  padding: 12px;
+  font-weight: 900;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hostkey-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.hostkey-body p {
+  margin: 0;
+}
+
+.hostkey-facts {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 6px 10px;
+  margin: 4px 0 0;
+}
+
+.hostkey-facts dt {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.hostkey-facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.hostkey-fp {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.hostkey-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}

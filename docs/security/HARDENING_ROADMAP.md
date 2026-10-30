@@ -3,11 +3,9 @@
 This roadmap tracks practical improvements that raise trust for users handling
 sensitive infrastructure data.
 
-## Priority 0 (Critical)
+## Completed
 
-- Make SSH host key verification secure-by-default
-- Implement proper SFTP host key verification (known_hosts parity with SSH path)
-- Add explicit UX warnings and friction for insecure connection modes
+- Done: host key verification is enabled for all SSH connections unless a profile explicitly opts out.
 
 ## Priority 1 (High)
 

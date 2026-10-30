@@ -26,13 +26,7 @@ func (a *App) SSHConnectProfile(profileId string) (string, error) {
 		return "", err
 	}
 
-	cfg := SSHConfig{
-		Host:                  p.Host,
-		Port:                  p.Port,
-		Username:              p.Username,
-		InsecureIgnoreHostKey: true,
-		TimeoutMs:             10000,
-	}
+	cfg := sshConfigFromProfile(p)
 
 	// Prefer private key if present/configured
 	if sr, err := a.secrets.GetSecretRef(profileId, secrets.KindPrivateKey); err == nil {
@@ -91,13 +85,7 @@ func (a *App) SSHDashboardConnectProfile(profileId string) (string, error) {
 		return "", err
 	}
 
-	cfg := SSHConfig{
-		Host:                  p.Host,
-		Port:                  p.Port,
-		Username:              p.Username,
-		InsecureIgnoreHostKey: true,
-		TimeoutMs:             10000,
-	}
+	cfg := sshConfigFromProfile(p)
 
 	// Prefer private key if present/configured
 	if sr, err := a.secrets.GetSecretRef(profileId, secrets.KindPrivateKey); err == nil {
@@ -159,15 +147,9 @@ func (a *App) SSHDashboardConnectProfileWithPassword(profileId string, password 
 		return "", err
 	}
 
-	cfg := SSHConfig{
-		Host:                  p.Host,
-		Port:                  p.Port,
-		Username:              p.Username,
-		AuthType:              "password",
-		Password:              password,
-		InsecureIgnoreHostKey: true,
-		TimeoutMs:             10000,
-	}
+	cfg := sshConfigFromProfile(p)
+	cfg.AuthType = "password"
+	cfg.Password = password
 
 	id, err := a.ssh.ConnectExecOnly(a.ctx, cfg)
 	if err != nil {
@@ -204,15 +186,9 @@ func (a *App) SSHConnectProfileWithPassword(profileId string, password string, r
 		return "", err
 	}
 
-	cfg := SSHConfig{
-		Host:                  p.Host,
-		Port:                  p.Port,
-		Username:              p.Username,
-		AuthType:              "password",
-		Password:              password,
-		InsecureIgnoreHostKey: true,
-		TimeoutMs:             10000,
-	}
+	cfg := sshConfigFromProfile(p)
+	cfg.AuthType = "password"
+	cfg.Password = password
 
 	id, err := a.ssh.Connect(a.ctx, cfg)
 	if err != nil {

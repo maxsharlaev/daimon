@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { PickPrivateKeyFile, SSHConnect, SSHDisconnect, SSHTestConnection } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import type { SSHAuthType, SSHConfig } from "../types/ssh";
+import { withHostKey } from "../ssh/hostKey";
 import "./connectionpanel.css";
 
 type Props = {
@@ -23,7 +24,7 @@ export function ConnectionPanel({ connectionId, onConnected, onDisconnected }: P
     password: "",
     privateKeyPath: "",
     passphrase: "",
-    insecureIgnoreHostKey: true,
+    insecureIgnoreHostKey: false,
     timeoutMs: 10000,
   });
 
@@ -58,7 +59,7 @@ export function ConnectionPanel({ connectionId, onConnected, onDisconnected }: P
     setLastResult(null);
     setLastError(null);
     try {
-      const r = await SSHTestConnection(main.SSHConfig.createFrom(cfg));
+      const r = await withHostKey(() => SSHTestConnection(main.SSHConfig.createFrom(cfg)));
       setLastResult(r);
     } catch (e: any) {
       setLastError(e?.message ?? String(e));
@@ -72,7 +73,7 @@ export function ConnectionPanel({ connectionId, onConnected, onDisconnected }: P
     setLastResult(null);
     setLastError(null);
     try {
-      const id = await SSHConnect(main.SSHConfig.createFrom(cfg));
+      const id = await withHostKey(() => SSHConnect(main.SSHConfig.createFrom(cfg)));
       onConnected(id);
     } catch (e: any) {
       setLastError(e?.message ?? String(e));
@@ -198,10 +199,11 @@ export function ConnectionPanel({ connectionId, onConnected, onDisconnected }: P
               onChange={(e) => update("insecureIgnoreHostKey", e.target.checked)}
               disabled={busy || isConnected}
             />
-            Insecure: ignore host key (MVP)
+            Skip host key verification
           </label>
           <div className="help">
-            If disabled, `~/.ssh/known_hosts` is required (host key verification).
+            Use this for a load balancer that presents a different key on each connection, or for servers that are
+            recreated often. The connection will not check the server key, so a substituted server is not detected.
           </div>
         </div>
 

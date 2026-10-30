@@ -181,6 +181,13 @@
   color: rgba(255, 255, 255, 0.75);
 }
 
+.hostkey-optout-note {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(230, 180, 80, 0.95);
+}
+
 @media (max-width: 900px) {
   .modal-grid {
     grid-template-columns: 1fr;

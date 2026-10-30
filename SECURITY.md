@@ -14,7 +14,7 @@ Please do **not** open a public issue for unpatched security problems.
 Preferred channels:
 
 - GitHub: use the repository **Security Advisory / Report a vulnerability** flow
-- Private contact: reach out to the maintainer (**Maksim Sharlaev**)
+- Private contact: GitHub Private Vulnerability Reporting (preferred) or email max@sharlaev.com.
 
 When possible, include:
 
@@ -48,8 +48,7 @@ Older releases may require upgrade before a patch can be applied.
 
 The project is under active development. Current known security limitations include:
 
-- SSH host key verification is not yet secure-by-default in all connection paths
-- SFTP host key verification is currently MVP-level and needs hardening
+- A profile can skip host key verification (off by default); such profiles are marked in the connections list.
 - threat model and hardening roadmap are documented in `docs/security/`
 - when **AI integration** is enabled, user content and agent context may be sent to the
   **third-party LLM endpoint** you configure; treat this as sensitive data crossing a

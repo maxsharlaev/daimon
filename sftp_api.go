@@ -76,13 +76,7 @@ func (a *App) SFTPConnectProfile(profileId string) (string, error) {
 		return "", err
 	}
 
-	cfg := sftp.SSHConfig{
-		Host:                  p.Host,
-		Port:                  p.Port,
-		Username:              p.Username,
-		InsecureIgnoreHostKey: true,
-		TimeoutMs:             10000,
-	}
+	cfg := sftpConfigFromProfile(p)
 
 	// Prefer key if configured
 	if sr, err := a.secrets.GetSecretRef(profileId, secrets.KindPrivateKey); err == nil {

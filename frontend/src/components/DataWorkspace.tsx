@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SplitView } from "./SplitView";
 import type { ProfileDTO, ProfileGroupDTO } from "../types/models";
+import { withHostKey } from "../ssh/hostKey";
 import type { DockerContainerDTO } from "../types/docker";
 import {
   ListDataSources,
@@ -516,7 +517,7 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
     if (!remoteProfileId) return;
     setRemoteBusy(true);
     try {
-      const sid = await DockerRemoteConnectProfile(remoteProfileId);
+      const sid = await withHostKey(() => DockerRemoteConnectProfile(remoteProfileId));
       setRemoteSessionId(sid as string);
       const list = (await DockerRemoteListContainers(sid as string)) as DockerContainerDTO[];
       setRemoteContainers(list ?? []);
@@ -675,7 +676,7 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
         dataSourceId: src.id,
         remoteDockerSessionId: ownerMode === "docker_remote" ? remoteSessionId ?? "" : "",
       });
-      const res = (await DataConnect(req)) as main.DataSessionDTO;
+      const res = (await withHostKey(() => DataConnect(req))) as main.DataSessionDTO;
       if (!res.sessionId) {
         alert("no session");
         return;
@@ -1552,17 +1553,19 @@ export function DataWorkspace({ profiles, groups }: { profiles: ProfileDTO[]; gr
       const scope =
         editScopeJson ||
         scopeForMode(ownerMode, activeProfileId, localContainer, remoteProfileId, remoteContainer);
-      await TestDataSourceConnection(
-        new main.TestDataSourceConnectionRequest({
-          engine: editEngine,
-          host: editHost,
-          port: editPort,
-          username: editUser,
-          database: editDatabase,
-          password: editPassword,
-          scopeJson: scope,
-          remoteDockerSessionId: ownerMode === "docker_remote" ? remoteSessionId ?? "" : "",
-        })
+      await withHostKey(() =>
+        TestDataSourceConnection(
+          new main.TestDataSourceConnectionRequest({
+            engine: editEngine,
+            host: editHost,
+            port: editPort,
+            username: editUser,
+            database: editDatabase,
+            password: editPassword,
+            scopeJson: scope,
+            remoteDockerSessionId: ownerMode === "docker_remote" ? remoteSessionId ?? "" : "",
+          })
+        )
       );
       setDataSourceTestState({ status: "success", message: "Connection OK" });
     } catch (e: any) {

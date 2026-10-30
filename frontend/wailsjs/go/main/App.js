@@ -786,6 +786,14 @@ export function SSHTestConnection(arg1) {
   return window['go']['main']['App']['SSHTestConnection'](arg1);
 }
 
+export function TrustHostKey(arg1, arg2, arg3) {
+  return window['go']['main']['App']['TrustHostKey'](arg1, arg2, arg3);
+}
+
+export function ForgetHostKey(arg1, arg2) {
+  return window['go']['main']['App']['ForgetHostKey'](arg1, arg2);
+}
+
 export function SaveAiSettings(arg1) {
   return window['go']['main']['App']['SaveAiSettings'](arg1);
 }

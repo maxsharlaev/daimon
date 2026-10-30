@@ -9,6 +9,7 @@ import {
   TestDataSourceConnection,
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
+import { withHostKey } from "../ssh/hostKey";
 import "./dataworkspace.css";
 import { DropdownSelect } from "./ui";
 
@@ -206,17 +207,19 @@ export function SettingsDataPanel({ profiles }: { profiles: ProfileDTO[] }) {
     setBusy(true);
     setDataSourceTestState({ status: "running" });
     try {
-      await TestDataSourceConnection(
-        new main.TestDataSourceConnectionRequest({
-          engine: editEngine,
-          host: editHost,
-          port: editPort,
-          username: editUser,
-          database: editDatabase,
-          password: editPassword,
-          scopeJson: editScopeJson,
-          remoteDockerSessionId: "",
-        })
+      await withHostKey(() =>
+        TestDataSourceConnection(
+          new main.TestDataSourceConnectionRequest({
+            engine: editEngine,
+            host: editHost,
+            port: editPort,
+            username: editUser,
+            database: editDatabase,
+            password: editPassword,
+            scopeJson: editScopeJson,
+            remoteDockerSessionId: "",
+          })
+        )
       );
       setDataSourceTestState({ status: "success", message: "Connection OK" });
     } catch (e: any) {

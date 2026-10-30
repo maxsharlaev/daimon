@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"daimon/internal/hostkeys"
 	"daimon/internal/localpty"
 	"daimon/internal/secrets"
 	"daimon/internal/sftp"
@@ -23,6 +25,7 @@ type App struct {
 	sftpTransfers *sftp.TransferManager
 	dockerStreams *DockerStreamManager
 	localPTY      *localpty.Manager
+	hostKeys      *hostkeys.Store
 
 	dataMu       sync.Mutex
 	dataSessions map[string]*dataSession
@@ -50,6 +53,14 @@ func (a *App) startup(ctx context.Context) {
 	a.db = store
 	a.secrets = secrets.NewRouter(store.DB)
 	a.sftp = sftp.NewManager()
+	hk, err := hostkeys.Open(hostkeys.OpenOptions{ImportUserKnownHosts: true})
+	if err != nil {
+		log.Printf("host keys: %v", err)
+	} else {
+		a.hostKeys = hk
+		a.ssh.SetHostKeys(hk)
+		a.sftp.SetHostKeys(hk)
+	}
 	a.localPTY = localpty.NewManager(func(event string, payload any) {
 		runtime.EventsEmit(a.ctx, event, payload)
 	})

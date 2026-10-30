@@ -26,6 +26,7 @@ import { AgentPanel, type AgentRunContextStripProps } from "./components/AgentPa
 import type { AgentContext } from "./types/agent";
 import type { AgentToolRun } from "./types/agentToolRun";
 import { pickSessionIcon } from "./utils/sessionTag";
+import { withHostKey } from "./ssh/hostKey";
 import { FilesTabs, type FilesSession } from "./components/FilesTabs";
 import { PlacesPanel } from "./components/PlacesPanel";
 import { MacrosPanel } from "./components/MacrosPanel";
@@ -38,6 +39,7 @@ import { SecretsModal } from "./components/SecretsModal";
 import { SettingsPage } from "./components/SettingsPage";
 import { LogsWorkspace } from "./components/LogsWorkspace";
 import { DataWorkspace } from "./components/DataWorkspace";
+import { HostKeyPromptModal } from "./components/HostKeyPromptModal";
 import { LocalWorkspace } from "./components/local/LocalWorkspace";
 import type { LocalWorkspacePersist } from "./types/local";
 
@@ -443,7 +445,7 @@ function App() {
     async (profileId: string) => {
       let sid = sessions.find((s) => s.profileId === profileId)?.sessionId ?? null;
       if (!sid) {
-        sid = await SSHConnectProfile(profileId);
+        sid = await withHostKey(() => SSHConnectProfile(profileId));
         openSession(sid, profileId);
       } else {
         setActiveSessionId(sid);
@@ -573,7 +575,7 @@ function App() {
           if (!profId) return;
           let sid = sessions.find((s) => s.profileId === profId)?.sessionId ?? null;
           if (!sid) {
-            sid = await SSHConnectProfile(profId);
+            sid = await withHostKey(() => SSHConnectProfile(profId));
             openSession(sid, profId);
           } else {
             setActiveSessionId(sid);
@@ -587,7 +589,7 @@ function App() {
           const existing = fileSessionsRef.current.find((s) => s.profileId === profId) ?? null;
           let sid = existing?.sessionId ?? null;
           if (!sid) {
-            sid = await SFTPConnectProfile(profId);
+            sid = await withHostKey(() => SFTPConnectProfile(profId));
             setFileSessions((prev) => {
               const existingForProfile = prev.filter((s) => s.profileId === profId);
               const icon = pickSessionIcon(sid!, existingForProfile.map((s) => s.icon));
@@ -646,7 +648,7 @@ function App() {
             const pwd = await queryPwdFromTerminal(sshSessionId);
             const remotePath = (pwd || ".").trim() || ".";
 
-            const sid = await SFTPConnectProfile(cur.profileId);
+            const sid = await withHostKey(() => SFTPConnectProfile(cur.profileId));
             setFileSessions((prev) => {
               const existingForProfile = prev.filter((s) => s.profileId === cur.profileId);
               const icon = pickSessionIcon(sid, existingForProfile.map((s) => s.icon));
@@ -712,7 +714,7 @@ function App() {
           }}
           onOpenTerminalAtPath={async (profileId, remotePath) => {
             try {
-              const sid = await SSHConnectProfile(profileId);
+              const sid = await withHostKey(() => SSHConnectProfile(profileId));
               openSession(sid, profileId);
               setTimeout(() => {
                 void SSHSend(sid, `cd ${shellQuote(remotePath)}\n`);
@@ -826,6 +828,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <HostKeyPromptModal />
       <div className="topbar">
         <div className="brand">
           <div className="brand-mark">

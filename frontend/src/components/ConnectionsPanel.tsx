@@ -20,6 +20,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import { main } from "../../wailsjs/go/models";
 import type { ProfileDTO, ProfileGroupDTO } from "../types/models";
+import { profileSkipsHostKey, withHostKey } from "../ssh/hostKey";
 import { SSHDisconnect } from "../../wailsjs/go/main/App";
 import { ClipboardSetText } from "../../wailsjs/runtime/runtime";
 import "./connections.css";
@@ -389,7 +390,7 @@ export function ConnectionsPanel({
     setBusy(true);
     setError(null);
     try {
-      const id = await SSHConnectProfile(p.id);
+      const id = await withHostKey(() => SSHConnectProfile(p.id));
       onOpenSession(id, p.id);
     } catch (e: any) {
       const msg = e?.message ?? String(e);
@@ -419,7 +420,7 @@ export function ConnectionsPanel({
     setBusy(true);
     setError(null);
     try {
-      const id = await SSHDashboardConnectProfile(p.id);
+      const id = await withHostKey(() => SSHDashboardConnectProfile(p.id));
       onOpenDashboardSession(id, p.id);
       onDashboardMode();
     } catch (e: any) {
@@ -523,7 +524,7 @@ export function ConnectionsPanel({
     setSftpOpeningProfileId(p.id);
     setError(null);
     try {
-      const sid = await SFTPConnectProfile(p.id);
+      const sid = await withHostKey(() => SFTPConnectProfile(p.id));
       onOpenFileSession(sid, p.id);
       onFilesMode();
     } catch (e: any) {
@@ -639,7 +640,14 @@ export function ConnectionsPanel({
                             >
                               <div className="profile-row">
                                 <div className="profile-main">
-                                  <div className="profile-name">{p.name}</div>
+                                  <div className="profile-name">
+                                    {profileSkipsHostKey(p.sshOptionsJson) ? (
+                                      <span className="profile-hostkey-warn" title="Host key verification is off for this profile">
+                                        ⚠
+                                      </span>
+                                    ) : null}
+                                    {p.name}
+                                  </div>
                                   <div className="profile-sub">
                                     {p.username}@{p.host}:{p.port}
                                   </div>
